@@ -110,10 +110,11 @@ def main():
             data_t = v_today[v_id]
             if data_y["uid"] != data_t["uid"] and data_y["uid"] != 0:
                 conquered_villages.append((data_y, data_t))
-            elif data_t["pop"] < data_y["pop"]:
+                elif data_t["pop"] < data_y["pop"]:
                 diff = data_y["pop"] - data_t["pop"]
                 if diff >= 10:
-                dropped_pop_villages.append((data_t, diff))
+                    dropped_pop_villages.append((data_t, diff))
+
 
     # Формируем отчет без Markdown тегов во избежание конфликтов парсинга
     report = "📊 ЕЖЕДНЕВНЫЙ ОТЧЕТ СЕРВЕРА TRAVIAN (Asia 7) 📊\n\n"
