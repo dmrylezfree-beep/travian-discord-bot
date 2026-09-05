@@ -4,7 +4,7 @@ import requests
 
 # === НАСТРОЙКИ ===
 WEBHOOK_URL = "https://discord.com/api/webhooks/1545847132056068238/Vl22SrzP0Waecu2C2o4wl27GZ50MVp54h87_H598q4C-X4nFvGZX7PWkIF2aO4hAadKL"
-SERVER_URL = "https://travian.com"  # Укажите адрес вашего сервера
+SERVER_URL = "https://ts7.x1.asia.travian.com/"  # Укажите адрес вашего сервера
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 DB_FILE_TODAY = "map_today.txt"
 DB_FILE_YESTERDAY = "map_yesterday.txt"
