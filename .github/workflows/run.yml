@@ -9,13 +9,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Даем явные права на запись в репозиторий прямо в процессе
     permissions:
       contents: write
 
     steps:
     - name: Checkout repository code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Скачивает полную историю, чтобы избежать конфликтов при push
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -36,4 +37,7 @@ jobs:
         git config --global user.email 'github-actions[bot]@://github.com'
         git add map_today.txt map_yesterday.txt || true
         git commit -m "Update Travian map database" || true
-        git push origin HEAD:${{ github.ref }} || true
+        
+        # Перед отправкой стягиваем изменения, если они были, автоматически разрешая конфликты в пользу новых файлов
+        git pull origin main --rebase -X theirs || true
+        git push origin HEAD:main
