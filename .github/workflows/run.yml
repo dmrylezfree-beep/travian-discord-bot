@@ -2,20 +2,23 @@ name: Daily Travian Report
 
 on:
   schedule:
-    # Запуск каждый день в 04:00 по UTC (7:00 по МСК)
     - cron: '0 4 * * *'
-  workflow_dispatch: # Позволяет запускать бота вручную кнопкой
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Даем явные права на запись в репозиторий прямо в процессе
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout repository code
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -33,4 +36,4 @@ jobs:
         git config --global user.email 'github-actions[bot]@://github.com'
         git add map_today.txt map_yesterday.txt || true
         git commit -m "Update Travian map database" || true
-        git push || true
+        git push origin HEAD:${{ github.ref }} || true
