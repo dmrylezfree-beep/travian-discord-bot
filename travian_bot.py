@@ -4,7 +4,7 @@ import requests
 
 # === НАСТРОЙКИ ===
 TELEGRAM_TOKEN = "8990787224:AAFgmGwAMaufksTOmvUFcHND5w05N6vcnuw"
-TELEGRAM_CHAT_ID = "-317595036"
+TELEGRAM_CHAT_ID = "-1002493230303"
 
 SERVER_URL = "https://travian.com"  # Ваш сервер Asia 7
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
