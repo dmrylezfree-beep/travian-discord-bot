@@ -55,7 +55,7 @@ def send_to_telegram(message):
         print("Сообщение пустое, отправка отменена.")
         return
     
-    url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message
