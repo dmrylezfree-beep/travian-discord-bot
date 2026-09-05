@@ -40,4 +40,5 @@ jobs:
         
         # Перед отправкой стягиваем изменения, если они были, автоматически разрешая конфликты в пользу новых файлов
         git pull origin main --rebase -X theirs || true
-        git push origin HEAD:main
+        git push origin main
+
