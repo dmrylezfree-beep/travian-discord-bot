@@ -5,8 +5,7 @@ import requests
 # === НАСТРОЙКИ ===
 TELEGRAM_TOKEN = "8990787224:AAFgmGwAMaufksTOmvUFcHND5w05N6vcnuw"
 TELEGRAM_CHAT_ID = "-1002493230303"
-
-SERVER_URL = "https://travian.com"  # Ваш сервер Asia 7
+SERVER_URL = "https://travian.com"  # Сервер Asia 7
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 DB_FILE_TODAY = "map_today.txt"
 DB_FILE_YESTERDAY = "map_yesterday.txt"
@@ -51,25 +50,28 @@ def parse_map_data(raw_data):
 
 
 def send_to_telegram(message):
-    """Отправляет отчет в Telegram чат"""
+    """Отправляет отчет в Telegram чат с расширенным выводом ошибок в логи"""
     if not message.strip():
+        print("Сообщение пустое, отправка отменена.")
         return
     
     url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"  # Включает красивую разметку (жирный шрифт, списки)
+        "text": message
     }
     
     try:
         res = requests.post(url, json=payload)
         if res.status_code == 200:
-            print("Отчет успешно отправлен в Telegram!")
+            print("!!! ОТЧЕТ УСПЕШНО ОТПРАВЛЕН В TELEGRAM !!!")
         else:
-            print(f"Telegram вернул ошибку: {res.status_code}, текст: {res.text}")
+            print("!!! ОШИБКА ОТПРАВКИ В TELEGRAM !!!")
+            print(f"Код статуса ответа: {res.status_code}")
+            print(f"Полный ответ от сервера Telegram: {res.text}")
+            print("ВНИМАНИЕ: Проверьте, добавлен ли бот в группу администратором и включена ли отправка сообщений!")
     except Exception as e:
-        print(f"Не удалось связаться с Telegram: {e}")
+        print(f"Не удалось связаться с серверами Telegram: {e}")
 
 
 def main():
@@ -85,7 +87,7 @@ def main():
     if not has_yesterday:
         print("Вчерашняя база данных не найдена. Создаем стартовую точку...")
         send_to_telegram(
-            "🟢 *Бот Travian успешно запущен в Telegram!* Стартовая база данных создана. Первый отчет со сравнением придет при следующем запуске."
+            "🟢 Бот Travian успешно запущен в Telegram! Стартовая база данных создана. Первый отчет со сравнением придет при следующем запуске."
         )
         return
 
@@ -96,11 +98,10 @@ def main():
     v_today, p_today = parse_map_data(raw_today)
     v_yesterday, p_yesterday = parse_map_data(raw_yesterday)
 
-    # 1. Удаленные аккаунты
+    # Анализ изменений
     uids_today = {p for p in p_today}
     deleted_players = [p for p in p_yesterday if p not in uids_today]
 
-    # 2 и 3. Захваты и падение населения
     conquered_villages = []
     dropped_pop_villages = []
 
@@ -113,29 +114,29 @@ def main():
                 diff = data_y["pop"] - data_t["pop"]
                 dropped_pop_villages.append((data_t, diff))
 
-    # Формируем отчет
-    report = "📊 *ЕЖЕДНЕВНЫЙ ОТЧЕТ СЕРВЕРА TRAVIAN (Asia 7)* 📊\n\n"
+    # Формируем отчет без Markdown тегов во избежание конфликтов парсинга
+    report = "📊 ЕЖЕДНЕВНЫЙ ОТЧЕТ СЕРВЕРА TRAVIAN (Asia 7) 📊\n\n"
 
     if deleted_players:
-        report += "❌ *Удаленные аккаунты:*\n"
-        for _, name in deleted_players[:30]:  # В ТГ лимит больше, можно вывести до 30
+        report += "❌ Удаленные аккаунты:\n"
+        for _, name in deleted_players[:30]:
             report += f"- {name}\n"
     else:
-        report += "❌ *Удаленные аккаунты:* Нет\n"
+        report += "❌ Удаленные аккаунты: Нет\n"
 
     if conquered_villages:
-        report += "\n⚔️ *Захваченные деревни:*\n"
+        report += "\n⚔️ Захваченные деревни:\n"
         for y, t in conquered_villages[:30]:
-            report += f"- `{t['name']}` ({t['x']}|{t['y']}) игрока *{y['player']}* захвачена игроком *{t['player']}*\n"
+            report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {y['player']} захвачена игроком {t['player']}\n"
     else:
-        report += "\n⚔️ *Захваченные деревни:* Нет\n"
+        report += "\n⚔️ Захваченные деревни: Нет\n"
 
     if dropped_pop_villages:
-        report += "\n📉 *Деревни с потерей населения:*\n"
+        report += "\n📉 Деревни с потерей населения:\n"
         for t, diff in dropped_pop_villages[:30]:
-            report += f"- `{t['name']}` ({t['x']}|{t['y']}) игрока *{t['player']}*: -{diff} (сейчас: {t['pop']})\n"
+            report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']})\n"
     else:
-        report += "\n📉 *Деревни с потерей населения:* Нет\n"
+        report += "\n📉 Деревни с потерей населения: Нет\n"
 
     send_to_telegram(report)
 
