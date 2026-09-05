@@ -3,8 +3,10 @@ import re
 import requests
 
 # === НАСТРОЙКИ ===
-WEBHOOK_URL = "https://discord.com/api/webhooks/1545847132056068238/Vl22SrzP0Waecu2C2o4wl27GZ50MVp54h87_H598q4C-X4nFvGZX7PWkIF2aO4hAadKL"
-SERVER_URL = "https://ts7.x1.asia.travian.com/"  # Укажите адрес вашего сервера
+TELEGRAM_TOKEN = "8990787224:AAFgmGwAMaufksTOmvUFcHND5w05N6vcnuw"
+TELEGRAM_CHAT_ID = "-317595036"
+
+SERVER_URL = "https://travian.com"  # Ваш сервер Asia 7
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 DB_FILE_TODAY = "map_today.txt"
 DB_FILE_YESTERDAY = "map_yesterday.txt"
@@ -48,19 +50,26 @@ def parse_map_data(raw_data):
     return villages, players
 
 
-def send_to_discord(message):
-    """Отправляет отчет в Discord вебхук"""
+def send_to_telegram(message):
+    """Отправляет отчет в Telegram чат"""
     if not message.strip():
         return
-    payload = {"content": message}
+    
+    url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"  # Включает красивую разметку (жирный шрифт, списки)
+    }
+    
     try:
-        res = requests.post(WEBHOOK_URL, json=payload)
-        if res.status_code == 204:
-            print("Отчет успешно отправлен в Discord!")
+        res = requests.post(url, json=payload)
+        if res.status_code == 200:
+            print("Отчет успешно отправлен в Telegram!")
         else:
-            print(f"Дискорд вернул ошибку: {res.status_code}")
+            print(f"Telegram вернул ошибку: {res.status_code}, текст: {res.text}")
     except Exception as e:
-        print(f"Не удалось связаться с Discord: {e}")
+        print(f"Не удалось связаться с Telegram: {e}")
 
 
 def main():
@@ -68,19 +77,15 @@ def main():
     if not raw_today:
         return
 
-    # Проверяем, удалось ли GitHub Actions восстановить вчерашний файл из кэша
     has_yesterday = os.path.exists(DB_FILE_YESTERDAY)
 
-    # Сохраняем сегодняшние данные локально (их заберет GitHub Artifacts)
     with open(DB_FILE_TODAY, "w", encoding="utf-8") as f:
         f.write(raw_today)
 
     if not has_yesterday:
-        print(
-            "Вчерашняя база данных не найдена в облаке. Создаем стартовую точку..."
-        )
-        send_to_discord(
-            "🟢 **Бот Travian успешно запущен!** Стартовая база данных создана. Первый отчет со сравнением придет при следующем запуске."
+        print("Вчерашняя база данных не найдена. Создаем стартовую точку...")
+        send_to_telegram(
+            "🟢 *Бот Travian успешно запущен в Telegram!* Стартовая база данных создана. Первый отчет со сравнением придет при следующем запуске."
         )
         return
 
@@ -109,30 +114,30 @@ def main():
                 dropped_pop_villages.append((data_t, diff))
 
     # Формируем отчет
-    report = "📊 **ЕЖЕДНЕВНЫЙ ОТЧЕТ СЕРВЕРА TRAVIAN (Asia 7)** 📊\n\n"
+    report = "📊 *ЕЖЕДНЕВНЫЙ ОТЧЕТ СЕРВЕРА TRAVIAN (Asia 7)* 📊\n\n"
 
     if deleted_players:
-        report += "❌ **Удаленные аккаунты:**\n"
-        for _, name in deleted_players[:20]:
+        report += "❌ *Удаленные аккаунты:*\n"
+        for _, name in deleted_players[:30]:  # В ТГ лимит больше, можно вывести до 30
             report += f"- {name}\n"
     else:
-        report += "❌ **Удаленные аккаунты:** Нет\n"
+        report += "❌ *Удаленные аккаунты:* Нет\n"
 
     if conquered_villages:
-        report += "\n⚔️ **Захваченные деревни:**\n"
-        for y, t in conquered_villages[:20]:
-            report += f"- `{t['name']}` ({t['x']}|{t['y']}) игрока **{y['player']}** захвачена игроком **{t['player']}**\n"
+        report += "\n⚔️ *Захваченные деревни:*\n"
+        for y, t in conquered_villages[:30]:
+            report += f"- `{t['name']}` ({t['x']}|{t['y']}) игрока *{y['player']}* захвачена игроком *{t['player']}*\n"
     else:
-        report += "\n⚔️ **Захваченные деревни:** Нет\n"
+        report += "\n⚔️ *Захваченные деревни:* Нет\n"
 
     if dropped_pop_villages:
-        report += "\n📉 **Деревни с потерей населения:**\n"
-        for t, diff in dropped_pop_villages[:20]:
-            report += f"- `{t['name']}` ({t['x']}|{t['y']}) игрока **{t['player']}**: -{diff} (сейчас: {t['pop']})\n"
+        report += "\n📉 *Деревни с потерей населения:*\n"
+        for t, diff in dropped_pop_villages[:30]:
+            report += f"- `{t['name']}` ({t['x']}|{t['y']}) игрока *{t['player']}*: -{diff} (сейчас: {t['pop']})\n"
     else:
-        report += "\n📉 **Деревни с потерей населения:** Нет\n"
+        report += "\n📉 *Деревни с потерей населения:* Нет\n"
 
-    send_to_discord(report)
+    send_to_telegram(report)
 
 
 if __name__ == "__main__":
