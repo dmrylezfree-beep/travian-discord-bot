@@ -2,21 +2,21 @@ name: Daily Travian Report
 
 on:
   schedule:
-    - cron: '0 4 * * *'
-  workflow_dispatch:
+    - cron: '0 4 * * *'  # Каждый день в 07:00 по МСК
+  workflow_dispatch:      # Кнопка ручного запуска
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: write  # Даем железные права на сохранение файлов в репозиторий
 
     steps:
     - name: Checkout repository code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # Скачивает полную историю, чтобы избежать конфликтов при push
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -28,17 +28,45 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
+    # 1. Пытаемся скачать вчерашний файл из облачного хранилища GitHub Artifacts
+    - name: Download Yesterday Database
+      uses: actions/download-artifact@v4
+      with:
+        name: travian-db-artifact
+      continue-on-error: true
+
+    # 2. Готовим файлы: если файл из облака скачался, переименовываем его во вчерашний
+    - name: Prepare Database Files
+      run: |
+        if [ -f "map_today.txt" ]; then
+          mv map_today.txt map_yesterday.txt
+          echo "Вчерашняя база успешно подготовлена из артефактов."
+        elif [ -f "map_database_backup.txt" ]; then
+          cp map_database_backup.txt map_yesterday.txt
+          echo "Вчерашняя база успешно подготовлена из резервного бэкапа."
+        else
+          echo "Файлы базы данных отсутствуют (первый запуск сервера)."
+        fi
+
+    # 3. Запускаем скрипт бота
     - name: Run script
       run: python travian_bot.py
 
-    - name: Commit and Push changes
+    # 4. Сохраняем свежий файл в облачное хранилище (Artifacts)
+    - name: Upload Today Database to Cloud
+      uses: actions/upload-artifact@v4
+      with:
+        name: travian-db-artifact
+        path: map_today.txt
+        retention-days: 2
+        overwrite: true
+
+    # 5. Двойная страховка: сохраняем резервную копию прямо в файлы вашего репозитория (вкладка Code)
+    - name: Commit and Push Database Backup
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@://github.com'
-        git add map_today.txt map_yesterday.txt || true
-        git commit -m "Update Travian map database" || true
-        
-        # Перед отправкой стягиваем изменения, если они были, автоматически разрешая конфликты в пользу новых файлов
-        git pull origin main --rebase -X theirs || true
-        git push origin main
-
+        cp map_today.txt map_database_backup.txt || true
+        git add map_database_backup.txt || true
+        git commit -m "Backup Travian database" || true
+        git push origin HEAD:main || true
