@@ -142,12 +142,18 @@ def main():
     else:
         report += "\n⚔️ Захваченные деревни: Нет\n"
 
-    if dropped_pop_villages:
-        report += "\n📉 Деревни с потерей населения:\n"
-        for t, diff in dropped_pop_villages[:30]:
-            report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']})\n"
-    else:
-        report += "\n📉 Деревни с потерей населения: Нет\n"
+ if dropped_pop_villages:
+     report += "\n📉 Деревни с потерей населения:\n"
+     for t, diff in dropped_pop_villages[:30]:
+         if diff >= 100:
+             # Если раскат крупный (>=100), выделяем всю строку жирным шрифтом и добавляем сирены
+             report += f"- 🚨🚨🚨 Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']}) 🚨🚨🚨\n"
+         else:
+             # Обычная потеря населения
+             report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']})\n"
+ else:
+     report += "\n📉 Деревни с потерей населения: Нет\n"
+
 
     send_to_telegram(report)
 
