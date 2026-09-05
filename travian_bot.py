@@ -98,9 +98,18 @@ def main():
     v_today, p_today = parse_map_data(raw_today)
     v_yesterday, p_yesterday = parse_map_data(raw_yesterday)
 
-    # Анализ изменений
-    uids_today = {p for p in p_today}
-    deleted_players = [p for p in p_yesterday if p not in uids_today]
+     # Анализ изменений
+ uids_today = {p for p in p_today}
+
+ # Ищем удаленные аккаунты с фильтром по вчерашнему населению >= 100
+ deleted_players = []
+ for p_id, p_name in p_yesterday:
+     if (p_id, p_name) not in uids_today:
+         # Считаем сумму населения всех вчерашних деревень этого игрока
+         yesterday_pop = sum(v["pop"] for v in v_yesterday.values() if v["uid"] == p_id)
+         if yesterday_pop >= 100:
+             deleted_players.append((p_id, p_name))
+
 
     conquered_villages = []
     dropped_pop_villages = []
