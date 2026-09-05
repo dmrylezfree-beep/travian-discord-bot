@@ -55,7 +55,7 @@ def send_to_discord(message):
     payload = {"content": message}
     try:
         res = requests.post(WEBHOOK_URL, json=payload)
-        if res.status_code in:
+        if res.status_code == 204:
             print("Отчет успешно отправлен в Discord!")
         else:
             print(f"Дискорд вернул ошибку: {res.status_code}")
