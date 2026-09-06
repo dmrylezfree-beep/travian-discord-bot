@@ -6,7 +6,7 @@ import requests
 TELEGRAM_TOKEN = "8990787224:AAFgmGwAMaufksTOmvUFcHND5w05N6vcnuw"
 TELEGRAM_CHAT_ID = "-1002493230303"
 SERVER_URL = "https://ts7.x1.asia.travian.com"  # Сервер Asia 7
-MAP_SQL_URL = "https://travian.com"
+MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 DB_FILE_TODAY = "map_today.txt"
 DB_FILE_YESTERDAY = "map_yesterday.txt"
 
