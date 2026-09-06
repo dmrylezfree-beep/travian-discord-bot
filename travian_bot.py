@@ -164,44 +164,73 @@ def extract_value_rows(raw_data):
 
 
 def parse_map_data(raw_data):
-    """Парсит map.sql по структуре, использованной исходным ботом."""
+    """Парсит map.sql Travian по структуре таблицы x_world."""
     villages = {}
     players = set()
+
     rows = extract_value_rows(raw_data)
+
     print(f"Найдено SQL-строк x_world: {len(rows):,}")
 
     for row in rows:
         try:
             parts = parse_sql_tuple(row)
-            if len(parts) < 9:
+
+            if len(parts) < 11:
                 continue
 
-            v_id = int(clean_sql_value(parts[0]))
+            # Структура x_world:
+            # 0  id
+            # 1  x
+            # 2  y
+            # 3  tid
+            # 4  vid
+            # 5  village
+            # 6  uid
+            # 7  player
+            # 8  aid
+            # 9  alliance
+            # 10 population
+
+            field_id = int(clean_sql_value(parts[0]))
             x = clean_sql_value(parts[1])
             y = clean_sql_value(parts[2])
-            v_name = clean_sql_value(parts[3])
-            u_id = int(clean_sql_value(parts[4]))
-            p_name = clean_sql_value(parts[5])
-            pop = int(clean_sql_value(parts[8]))
+            tribe = int(clean_sql_value(parts[3]))
 
-            if u_id != 0:
-                players.add((u_id, p_name))
+            village_id = int(clean_sql_value(parts[4]))
+            village_name = clean_sql_value(parts[5])
 
-            villages[v_id] = {
-                "name": v_name,
+            player_id = int(clean_sql_value(parts[6]))
+            player_name = clean_sql_value(parts[7])
+
+            alliance_id = int(clean_sql_value(parts[8]))
+            alliance_name = clean_sql_value(parts[9])
+
+            population = int(clean_sql_value(parts[10]))
+
+            if player_id != 0:
+                players.add((player_id, player_name))
+
+            villages[village_id] = {
+                "name": village_name,
                 "x": x,
                 "y": y,
-                "uid": u_id,
-                "player": p_name,
-                "pop": pop,
+                "uid": player_id,
+                "player": player_name,
+                "pop": population,
             }
+
         except (ValueError, IndexError):
             continue
 
     if not villages:
         fail("Парсер не нашёл ни одной деревни в map.sql.")
 
-    print(f"Разобрано: {len(villages):,} деревень, {len(players):,} игроков.")
+    print(
+        f"Разобрано: {len(villages):,} деревень, "
+        f"{len(players):,} игроков."
+    )
+
     return villages, players
 
 
