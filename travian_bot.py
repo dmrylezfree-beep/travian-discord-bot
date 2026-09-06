@@ -39,15 +39,19 @@ DELETED_PLAYER_MIN_POP = 100
 
 # ============================================================
 
-# Постоянный ID альянса в Travian.
-
-# Название альянса здесь НЕ используется.
+# Постоянный ID альянса Hero в Travian.
 
 ENEMY_ALLIANCE_ID = 5
 
 # Тема Telegram, куда отправляются отчёты.
 
 THREAD_ID = 75792
+
+# ============================================================
+
+# ОШИБКИ
+
+# ============================================================
 
 def fail(message):
 print(f"ERROR: {message}")
@@ -76,13 +80,11 @@ try:
     response.raise_for_status()
 
 except requests.RequestException as exc:
-
     fail(
         f"Ошибка скачивания данных Travian: {exc}"
     )
 
 if not response.text.strip():
-
     fail(
         "Travian вернул пустой map.sql."
     )
@@ -112,19 +114,16 @@ escape = False
 for char in line:
 
     if escape:
-
         current.append(char)
         escape = False
         continue
 
     if char == "\\":
-
         current.append(char)
         escape = True
         continue
 
     if quote:
-
         current.append(char)
 
         if char == quote:
@@ -133,12 +132,10 @@ for char in line:
         continue
 
     if char in ("'", '"'):
-
         quote = char
         current.append(char)
 
     elif char == ",":
-
         values.append(
             "".join(current).strip()
         )
@@ -146,7 +143,6 @@ for char in line:
         current = []
 
     else:
-
         current.append(char)
 
 values.append(
@@ -157,16 +153,14 @@ return values
 ```
 
 def clean_sql_value(value):
-
-```
 value = value.strip()
 
+```
 if (
     len(value) >= 2
     and value[0] == "'"
     and value[-1] == "'"
 ):
-
     value = value[1:-1]
 
     value = (
@@ -362,7 +356,6 @@ for row in rows:
         continue
 
 if not villages:
-
     fail(
         "Парсер не нашёл ни одной деревни в map.sql."
     )
@@ -524,7 +517,6 @@ payload = {
 }
 
 if thread_id:
-
     payload["message_thread_id"] = thread_id
 
 try:
@@ -795,7 +787,6 @@ ENEMY_ALLIANCE_ID используется для идентификации
 альянса.
 
 Название альянса автоматически берётся из map.sql.
-Поэтому переименование Hero не ломает бота.
 
 Определяется:
 
@@ -902,16 +893,22 @@ for v_id, previous in v_previous.items():
     if not today:
         continue
 
-    # Владелец изменился.
     if (
         previous["uid"] != today["uid"]
         and previous["uid"] != 0
     ):
 
-        # Сегодня деревня принадлежит Hero.
+        # Сегодня деревня принадлежит Hero,
+        # а вчера принадлежала другому альянсу.
+        #
+        # Это исключает внутренние передачи
+        # деревень между игроками Hero.
+
         if (
             today["alliance_id"]
             == ENEMY_ALLIANCE_ID
+            and previous["alliance_id"]
+            != ENEMY_ALLIANCE_ID
         ):
 
             captured.append(
@@ -932,16 +929,22 @@ for v_id, previous in v_previous.items():
     if not today:
         continue
 
-    # Владелец изменился.
     if (
         previous["uid"] != today["uid"]
         and previous["uid"] != 0
     ):
 
-        # Вчера деревня принадлежала Hero.
+        # Вчера деревня принадлежала Hero,
+        # а сегодня принадлежит другому альянсу.
+        #
+        # Это исключает внутренние передачи
+        # деревень между игроками Hero.
+
         if (
             previous["alliance_id"]
             == ENEMY_ALLIANCE_ID
+            and today["alliance_id"]
+            != ENEMY_ALLIANCE_ID
         ):
 
             lost.append(
@@ -995,14 +998,22 @@ print(
 )
 
 print(
-    f"Захваты: "
+    f"Захваты Hero: "
     f"{len(captured)}"
 )
 
 print(
-    f"Потери: "
+    f"Потери Hero: "
     f"{len(lost)}"
 )
+
+if not enemy_villages_today:
+
+    print(
+        f"ВНИМАНИЕ: в сегодняшнем map.sql "
+        f"не найдено деревень с alliance_id "
+        f"{ENEMY_ALLIANCE_ID}."
+    )
 
 print(
     "=== ПРОВЕРКА ВРАЖЕСКОГО АЛЬЯНСА ЗАВЕРШЕНА ==="
@@ -1397,6 +1408,7 @@ else:
 
 # ВАЖНО:
 # Блок отправляется ВСЕГДА.
+
 print(
     f"Длина отчёта Hero: "
     f"{len(report_enemy)} символов"
