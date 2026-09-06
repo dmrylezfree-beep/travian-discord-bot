@@ -157,7 +157,7 @@ def main():
             report_del += f"- {name}\n"
     else:
         report_del += "Нет изменений за сутки.\n"
-    send_to_telegram(report_del, 5)
+    send_to_telegram(report_del, 75792)
 
     # Отчет 2: Захваты (в ветку №12)
     report_conq = "⚔️ *Захваченные деревни (Asia 7):*\n"
@@ -166,7 +166,7 @@ def main():
             report_conq += f"- Деревня `{t['name']}` ({t['x']}|{t['y']}) игрока *{y['player']}* захвачена игроком *{t['player']}*\n"
     else:
         report_conq += "Нет изменений за сутки.\n"
-    send_to_telegram(report_conq, 12)
+    send_to_telegram(report_conq, 75792)
 
     # Отчет 3: Потеря населения (в ветку №18)
     report_pop = "📉 *Деревни с потерей населения (Asia 7):*\n"
@@ -178,7 +178,7 @@ def main():
                 report_pop += f"- Деревня `{t['name']}` ({t['x']}|{t['y']}) игрока *{t['player']}*: -{diff} (сейчас: {t['pop']})\n"
     else:
         report_pop += "Нет изменений за сутки.\n"
-    send_to_telegram(report_pop, 18)
+    send_to_telegram(report_pop, 75792)
 
     # Отчет 4: Неактивные игроки (в ветку №5)
     report_inact = "💤 *Неактивны 24 часа (Asia 7):*\n"
