@@ -21,7 +21,7 @@ SNAPSHOT_DIR = Path("data/snapshots")
 # None = хранить всю историю. Позже можно, например, поставить 365.
 RETENTION_DAYS = None
 
-POP_DROP_THRESHOLD = 10
+POP_DROP_THRESHOLD = 50
 DELETED_PLAYER_MIN_POP = 100
 
 # Сейчас исходный бот отправлял все 4 отчёта в одну тему.
@@ -217,6 +217,8 @@ def parse_map_data(raw_data):
                 "y": y,
                 "uid": player_id,
                 "player": player_name,
+                "alliance_id": alliance_id,
+                "alliance": alliance_name,
                 "pop": population,
             }
 
@@ -307,6 +309,11 @@ def village_link(x, y):
     url = f"{SERVER_URL}/karte.php?x={x}&y={y}"
     return f"[{x}|{y}]({url})"
 
+def player_with_alliance(player, alliance):
+    """Формирует отображение игрока и его альянса."""
+    if alliance:
+        return f"*{player}* 🔴 {alliance}"
+    return f"*{player}* ⚫ без альянса"
 
 def compare_snapshots(raw_today, raw_previous):
     v_today, p_today = parse_map_data(raw_today)
@@ -428,8 +435,8 @@ def send_reports(results, inactive_players_3d=None):
             report_conq += (
                 f"- Деревня `{today['name']}` "
                 f"{village_link(today['x'], today['y'])} "
-                f"игрока *{previous['player']}* "
-                f"захвачена игроком *{today['player']}*\n"
+                f"игрока {player_with_alliance(previous['player'], previous['alliance'])} "
+                f"захвачена игроком {player_with_alliance(today['player'], today['alliance'])}\n"
             )
     else:
         report_conq += "Нет изменений за период.\n"
@@ -449,14 +456,14 @@ def send_reports(results, inactive_players_3d=None):
                 report_pop += (
                     f"- 🚨🚨🚨 Деревня `{today['name']}` "
                     f"{village_link(today['x'], today['y'])} "
-                    f"игрока *{today['player']}*: -{diff} "
+                    f"игрока {player_with_alliance(today['player'], today['alliance'])}: -{diff} "
                     f"(сейчас: {today['pop']}) 🚨🚨🚨\n"
                 )
             else:
                 report_pop += (
                     f"- Деревня `{today['name']}` "
                     f"{village_link(today['x'], today['y'])} "
-                    f"игрока *{today['player']}*: -{diff} "
+                    f"игрока {player_with_alliance(today['player'], today['alliance'])}: -{diff} "
                     f"(сейчас: {today['pop']})\n"
                 )
     else:
