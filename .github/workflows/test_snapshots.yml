@@ -1,0 +1,86 @@
+```yaml
+name: Test historical snapshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Compare 2026-09-05 and 2026-09-06
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          import travian_bot
+
+
+          previous_path = Path(
+              "data/snapshots/2026/09/map_2026-09-05.sql"
+          )
+
+          today_path = Path(
+              "data/snapshots/2026/09/map_2026-09-06.sql"
+          )
+
+          print("========================================")
+          print("   TRAVIAN HISTORICAL SNAPSHOT TEST")
+          print("========================================")
+
+          print(f"Вчерашний снимок: {previous_path}")
+          print(f"Сегодняшний снимок: {today_path}")
+
+          if not previous_path.exists():
+              print(f"ERROR: не найден {previous_path}")
+              sys.exit(1)
+
+          if not today_path.exists():
+              print(f"ERROR: не найден {today_path}")
+              sys.exit(1)
+
+          raw_previous = previous_path.read_text(encoding="utf-8")
+          raw_today = today_path.read_text(encoding="utf-8")
+
+          print()
+          print("Файлы успешно прочитаны.")
+          print(f"05.09: {len(raw_previous):,} символов")
+          print(f"06.09: {len(raw_today):,} символов")
+
+          print()
+          print("Запускаем compare_snapshots()...")
+
+          results = travian_bot.compare_snapshots(
+              raw_today,
+              raw_previous
+          )
+
+          print()
+          print("Запускаем send_reports()...")
+
+          travian_bot.send_reports(results)
+
+          print()
+          print("========================================")
+          print("       ТЕСТ УСПЕШНО ЗАВЕРШЕН")
+          print("========================================")
+          PY
+```
