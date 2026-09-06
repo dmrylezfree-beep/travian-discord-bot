@@ -356,51 +356,63 @@ def send_reports(results):
             report_del += f"- {name} (население: {pop})\n"
     else:
         report_del += "Нет изменений за период.\n"
+
     send_to_telegram(report_del, THREAD_ID)
 
     report_conq = "⚔️ *Захваченные деревни (Asia 7):*\n"
+
     if conquered_villages:
-    for previous, today in conquered_villages[:30]:
-        report_conq += (
-            f"- Деревня `{today['name']}` "
-            f"{village_link(today['x'], today['y'])} "
-            f"игрока *{previous['player']}* захвачена игроком *{today['player']}*\n"
-        )
+        for previous, today in conquered_villages[:30]:
+            report_conq += (
+                f"- Деревня `{today['name']}` "
+                f"{village_link(today['x'], today['y'])} "
+                f"игрока *{previous['player']}* "
+                f"захвачена игроком *{today['player']}*\n"
+            )
     else:
         report_conq += "Нет изменений за период.\n"
+
     send_to_telegram(report_conq, THREAD_ID)
 
     report_pop = "📉 *Деревни с потерей населения (Asia 7):*\n"
+
     if dropped_pop_villages:
         for today, diff in dropped_pop_villages[:30]:
+
             if diff >= 150:
                 report_pop += (
-    f"- 🚨🚨🚨 Деревня `{today['name']}` "
-    f"{village_link(today['x'], today['y'])} "
-    f"игрока *{today['player']}*: -{diff} "
-    f"(сейчас: {today['pop']}) 🚨🚨🚨\n"
+                    f"- 🚨🚨🚨 Деревня `{today['name']}` "
+                    f"{village_link(today['x'], today['y'])} "
+                    f"игрока *{today['player']}*: -{diff} "
+                    f"(сейчас: {today['pop']}) 🚨🚨🚨\n"
                 )
             else:
                 report_pop += (
-    f"- Деревня `{today['name']}` "
-    f"{village_link(today['x'], today['y'])} "
-    f"игрока *{today['player']}*: -{diff} "
-    f"(сейчас: {today['pop']})\n"
+                    f"- Деревня `{today['name']}` "
+                    f"{village_link(today['x'], today['y'])} "
+                    f"игрока *{today['player']}*: -{diff} "
+                    f"(сейчас: {today['pop']})\n"
                 )
     else:
         report_pop += "Нет изменений за период.\n"
+
     send_to_telegram(report_pop, THREAD_ID)
 
     report_inact = "💤 *Неактивны за период (Asia 7):*\n"
+
     if inactive_players:
         inactive_players.sort(key=lambda x: x[2], reverse=True)
+
         for p_id, p_name, pop in inactive_players[:30]:
             profile_url = f"{SERVER_URL}/profile/{p_id}"
-            report_inact += f"- [{p_name}]({profile_url}) — население: {pop} (без изменений)\n"
+            report_inact += (
+                f"- [{p_name}]({profile_url}) — "
+                f"население: {pop} (без изменений)\n"
+            )
     else:
         report_inact += "Все игроки проявили активность.\n"
-    send_to_telegram(report_inact, THREAD_ID)
 
+    send_to_telegram(report_inact, THREAD_ID)
 
 def cleanup_old_snapshots():
     if RETENTION_DAYS is None:
