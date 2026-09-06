@@ -70,16 +70,63 @@ jobs:
           print(f"05.09: {len(raw_previous):,} characters")
           print(f"06.09: {len(raw_today):,} characters")
 
+          # ==================================================
+          # ОБЫЧНОЕ СРАВНЕНИЕ
+          # ==================================================
+
           print()
-          print("Running 24-hour comparison...")
+          print("========================================")
+          print("RUNNING 24-HOUR COMPARISON")
+          print("========================================")
 
           results = travian_bot.compare_snapshots(
               raw_today,
               raw_previous
           )
 
+          # ==================================================
+          # HERO
+          # ==================================================
+
           print()
-          print("Running 3-day inactivity check...")
+          print("========================================")
+          print("RUNNING HERO ALLIANCE CHECK")
+          print("========================================")
+
+          enemy_activity = (
+              travian_bot.find_enemy_alliance_activity(
+                  raw_today,
+                  raw_previous
+              )
+          )
+
+          print()
+          print("Hero alliance ID:")
+          print(enemy_activity["alliance_id"])
+
+          print(
+              "Hero alliance name:"
+              f" {enemy_activity['alliance']}"
+          )
+
+          print(
+              "Hero villages today:"
+              f" {len(enemy_activity['founded'])}"
+              " newly founded / "
+              f"{len(enemy_activity['captured'])}"
+              " captured / "
+              f"{len(enemy_activity['lost'])}"
+              " lost"
+          )
+
+          # ==================================================
+          # НЕАКТИВНОСТЬ 3 ДНЯ
+          # ==================================================
+
+          print()
+          print("========================================")
+          print("RUNNING 3-DAY INACTIVITY CHECK")
+          print("========================================")
 
           inactive_players_3d = (
               travian_bot.find_inactive_3_days(
@@ -94,12 +141,19 @@ jobs:
               f"{len(inactive_players_3d)}"
           )
 
+          # ==================================================
+          # ОТПРАВКА ОТЧЁТОВ
+          # ==================================================
+
           print()
-          print("Sending reports to Telegram...")
+          print("========================================")
+          print("SENDING REPORTS TO TELEGRAM")
+          print("========================================")
 
           travian_bot.send_reports(
               results,
-              inactive_players_3d
+              inactive_players_3d,
+              enemy_activity
           )
 
           print()
