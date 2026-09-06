@@ -30,16 +30,7 @@ jobs:
     - name: Run script
       run: python travian_bot.py
 
-    # ИСПРАВЛЕНО: При ручном запуске сохраняем ОБА файла, чтобы провести тест
-    - name: Save Current Map File (On Manual Run)
-      if: github.event_name == 'workflow_dispatch'
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@://github.com'
-        git add current_map.sql yesterday_map.sql || true
-        git commit -m "Update database files from manual check" || true
-        git pull origin main --rebase -X theirs || true
-        git push origin HEAD:main || true
+    
 
     # Если запуск утренний по расписанию — мы делаем текущую карту вчерашним бэкапом для следующего дня
     - name: Rotate Database Files (Only on Schedule)
