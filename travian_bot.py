@@ -95,10 +95,14 @@ def main():
 
     if not has_yesterday:
         print("Вчерашняя база данных (yesterday_map.sql) не найдена. Создаем её из текущих данных...")
-        send_to_telegram("🟢 **Бот Travian успешно переведен на систему двух баз!** Стартовая точка `yesterday_map.sql` создана на вкладке Code. Первый отчет со сравнением придет при следующем запуске.", 5)
+        # СНАЧАЛА ЖЕЛЕЗНО СОЗДАЕМ ФАЙЛ БЭКАПА:
         with open(DB_FILE_YESTERDAY, "w", encoding="utf-8") as f:
             f.write(raw_today)
+
+        # ТЕПЕРЬ ШЛЕМ В TELEGRAM (даже если тут упадет, файл уже сохранен):
+        send_to_telegram("🟢 **Бот Travian успешно переведен на систему двух баз!** Стартовая точка `yesterday_map.sql` создана на вкладке Code.", THREAD_DELETIONS)
         return
+
 
     print("Вчерашняя база найдена! Начинаем сравнительный анализ...")
     with open(DB_FILE_YESTERDAY, "r", encoding="utf-8") as f:
