@@ -29,6 +29,10 @@ jobs:
           import sys
           import travian_bot
 
+          day_before_path = Path(
+              "data/snapshots/2026/09/map_2026-09-04.sql"
+          )
+
           previous_path = Path(
               "data/snapshots/2026/09/map_2026-09-05.sql"
           )
@@ -41,13 +45,18 @@ jobs:
           print("TRAVIAN HISTORICAL SNAPSHOT TEST")
           print("========================================")
 
-          if not previous_path.exists():
-              print(f"ERROR: file not found: {previous_path}")
-              sys.exit(1)
+          for path in [
+              day_before_path,
+              previous_path,
+              today_path,
+          ]:
+              if not path.exists():
+                  print(f"ERROR: file not found: {path}")
+                  sys.exit(1)
 
-          if not today_path.exists():
-              print(f"ERROR: file not found: {today_path}")
-              sys.exit(1)
+          raw_day_before = day_before_path.read_text(
+              encoding="utf-8"
+          )
 
           raw_previous = previous_path.read_text(
               encoding="utf-8"
@@ -57,13 +66,12 @@ jobs:
               encoding="utf-8"
           )
 
-          print(f"Previous snapshot: {previous_path}")
-          print(f"Current snapshot:  {today_path}")
-          print(f"05.09 size: {len(raw_previous):,} characters")
-          print(f"06.09 size: {len(raw_today):,} characters")
+          print(f"04.09: {len(raw_day_before):,} characters")
+          print(f"05.09: {len(raw_previous):,} characters")
+          print(f"06.09: {len(raw_today):,} characters")
 
           print()
-          print("Running comparison...")
+          print("Running 24-hour comparison...")
 
           results = travian_bot.compare_snapshots(
               raw_today,
@@ -71,9 +79,28 @@ jobs:
           )
 
           print()
+          print("Running 3-day inactivity check...")
+
+          inactive_players_3d = (
+              travian_bot.find_inactive_3_days(
+                  raw_today,
+                  raw_previous,
+                  raw_day_before
+              )
+          )
+
+          print(
+              f"Players inactive for 3 days: "
+              f"{len(inactive_players_3d)}"
+          )
+
+          print()
           print("Sending reports to Telegram...")
 
-          travian_bot.send_reports(results)
+          travian_bot.send_reports(
+              results,
+              inactive_players_3d
+          )
 
           print()
           print("========================================")
