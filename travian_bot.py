@@ -168,10 +168,10 @@ def main():
     else:
         report += "\n📉 Деревни с потерей населения: Нет\n"
 
-        # Отчет 4: Неактивные игроки
+    # Отчет 4: Неактивные игроки
     report_inact = "💤 *Неактивны 24 часа (Asia 7):*\n"
     if inactive_players:
-        # Сортируем по убыванию населения, чтобы сначала шли крупные игроки, и берем топ-30
+        # ИСПРАВЛЕНО: Сортируем по третьему элементу (населению)
         inactive_players.sort(key=lambda x: x[2], reverse=True)
         for p_id, p_name, pop in inactive_players[:30]:
             # Создаем кликабельную ссылку на профиль в формате Markdown
@@ -185,7 +185,7 @@ def main():
     payload_msg = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": report_inact,
-        "message_thread_id": THREAD_DELETIONS, # Шлем в ветку удалений
+        "message_thread_id": 5, # ИСПРАВЛЕНО: Явно указываем ID ветки удалений цифрой
         "parse_mode": "Markdown",
         "disable_web_page_preview": True # Отключает громоздкие превью ссылок в чате
     }
