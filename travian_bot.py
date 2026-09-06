@@ -407,7 +407,7 @@ def send_reports(results):
             profile_url = f"{SERVER_URL}/profile/{p_id}"
             report_inact += (
                 f"- [{p_name}]({profile_url}) — "
-                f"население: {pop} (без изменений)\n"
+                f"население: {pop} (без изменений за 24 часа)\n"
             )
     else:
         report_inact += "Все игроки проявили активность.\n"
