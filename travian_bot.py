@@ -181,7 +181,7 @@ def main():
         report_inact += "Все игроки проявили активность.\n"
         
     # Отправка отчета о неактивных
-    url_msg = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
+    url_msg = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload_msg = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": report_inact,
