@@ -81,7 +81,8 @@ def main():
 
     has_yesterday = os.path.exists(DB_FILE_YESTERDAY)
 
-    with open(DB_FILE_TODAY, "w", encoding="utf-8") as f:
+    # Сохраняем временный файл текущего запуска
+    with open("map_today_temp.txt", "w", encoding="utf-8") as f:
         f.write(raw_today)
 
     if not has_yesterday:
