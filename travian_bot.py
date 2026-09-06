@@ -95,66 +95,70 @@ def clean_sql_value(value):
 
 
 def extract_value_rows(raw_data):
-    """Извлекает отдельные (...) из блока VALUES, независимо от переносов строк."""
-    match = re.search(r"\bVALUES\b", raw_data, flags=re.IGNORECASE)
-    if not match:
-        fail("В map.sql не найден блок VALUES.")
-
-    values_part = raw_data[match.end():]
+    """Извлекает все строки VALUES из INSERT INTO `x_world`."""
     rows = []
-    current = []
-    depth = 0
-    quote = None
-    escape = False
 
-    for char in values_part:
-        if escape:
+    statements = re.findall(
+        r"INSERT\s+INTO\s+`x_world`\s+VALUES\s*(.*?);",
+        raw_data,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    for values_part in statements:
+        current = []
+        depth = 0
+        quote = None
+        escape = False
+
+        for char in values_part:
+            if escape:
+                if depth > 0:
+                    current.append(char)
+                escape = False
+                continue
+
+            if char == "\\":
+                if depth > 0:
+                    current.append(char)
+                escape = True
+                continue
+
+            if quote:
+                if depth > 0:
+                    current.append(char)
+                if char == quote:
+                    quote = None
+                continue
+
+            if char in ("'", '"'):
+                quote = char
+                if depth > 0:
+                    current.append(char)
+                continue
+
+            if char == "(":
+                if depth == 0:
+                    current = []
+                depth += 1
+
+                if depth > 1:
+                    current.append(char)
+
+                continue
+
+            if char == ")":
+                depth -= 1
+
+                if depth == 0:
+                    rows.append("".join(current))
+                    current = []
+                elif depth > 0:
+                    current.append(char)
+
+                continue
+
             if depth > 0:
                 current.append(char)
-            escape = False
-            continue
-
-        if char == "\\":
-            if depth > 0:
-                current.append(char)
-            escape = True
-            continue
-
-        if quote:
-            if depth > 0:
-                current.append(char)
-            if char == quote:
-                quote = None
-            continue
-
-        if char in ("'", '"'):
-            quote = char
-            if depth > 0:
-                current.append(char)
-            continue
-
-        if char == "(":
-            if depth == 0:
-                current = []
-            depth += 1
-            if depth > 1:
-                current.append(char)
-            continue
-
-        if char == ")":
-            depth -= 1
-            if depth == 0:
-                rows.append("".join(current))
-                current = []
-            elif depth > 0:
-                current.append(char)
-            continue
-
-        if depth > 0:
-            current.append(char)
-
-        if depth == 0 and char == ";":
-            break
 
     return rows
 
