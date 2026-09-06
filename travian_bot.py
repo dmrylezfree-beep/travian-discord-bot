@@ -1,6 +1,6 @@
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import requests
@@ -240,6 +240,15 @@ def snapshot_path(date_string):
     directory.mkdir(parents=True, exist_ok=True)
     return directory / f"map_{date_string}.sql"
 
+def find_snapshot_by_date(date_string):
+    """Возвращает снимок конкретной даты, если он существует."""
+    path = snapshot_path(date_string)
+
+    if path.exists():
+        return path
+
+    return None
+
 
 def save_snapshot(raw_data, date_string):
     path = snapshot_path(date_string)
@@ -346,8 +355,52 @@ def compare_snapshots(raw_today, raw_previous):
 
     return deleted_players, conquered_villages, dropped_pop_villages, inactive_players
 
+def find_inactive_3_days(raw_today, raw_yesterday, raw_day_before):
+    """Находит игроков, население которых не менялось 3 дня подряд."""
 
-def send_reports(results):
+    v_today, p_today = parse_map_data(raw_today)
+    v_yesterday, _ = parse_map_data(raw_yesterday)
+    v_day_before, _ = parse_map_data(raw_day_before)
+
+    inactive_players = []
+
+    for p_id, p_name in p_today:
+        pop_today = sum(
+            v["pop"]
+            for v in v_today.values()
+            if v["uid"] == p_id
+        )
+
+        pop_yesterday = sum(
+            v["pop"]
+            for v in v_yesterday.values()
+            if v["uid"] == p_id
+        )
+
+        pop_day_before = sum(
+            v["pop"]
+            for v in v_day_before.values()
+            if v["uid"] == p_id
+        )
+
+        if (
+            pop_today > 0
+            and pop_today == pop_yesterday
+            and pop_today == pop_day_before
+        ):
+            inactive_players.append(
+                (p_id, p_name, pop_today)
+            )
+
+    inactive_players.sort(
+        key=lambda x: x[2],
+        reverse=True
+    )
+
+    return inactive_players
+
+
+def send_reports(results, inactive_players_3d=None):
     deleted_players, conquered_villages, dropped_pop_villages, inactive_players = results
 
     report_del = "❌ *Удаленные аккаунты (Asia 7):*\n"
@@ -358,6 +411,21 @@ def send_reports(results):
         report_del += "Нет изменений за период.\n"
 
     send_to_telegram(report_del, THREAD_ID)
+
+    report_inact_3d = "😴 *Неактивны 3 дня подряд (Asia 7):*\n"
+
+    if inactive_players_3d:
+        for p_id, p_name, pop in inactive_players_3d[:30]:
+            profile_url = f"{SERVER_URL}/profile/{p_id}"
+            report_inact_3d += (
+                f"- [{p_name}]({profile_url}) — "
+                f"население: {pop} "
+                f"(без изменений 3 дня подряд)\n"
+            )
+    else:
+        report_inact_3d += "Нет игроков без изменений 3 дня подряд.\n"
+
+    send_to_telegram(report_inact_3d, THREAD_ID)
 
     report_conq = "⚔️ *Захваченные деревни (Asia 7):*\n"
 
@@ -414,6 +482,21 @@ def send_reports(results):
 
     send_to_telegram(report_inact, THREAD_ID)
 
+    report_inact_3d = "😴 *Неактивны 3 дня подряд (Asia 7):*\n"
+
+    if inactive_players_3d:
+        for p_id, p_name, pop in inactive_players_3d[:30]:
+            profile_url = f"{SERVER_URL}/profile/{p_id}"
+            report_inact_3d += (
+                f"- [{p_name}]({profile_url}) — "
+                f"население: {pop} "
+                f"(без изменений 3 дня подряд)\n"
+            )
+    else:
+        report_inact_3d += "Нет игроков без изменений 3 дня подряд.\n"
+
+    send_to_telegram(report_inact_3d, THREAD_ID)
+
 def cleanup_old_snapshots():
     if RETENTION_DAYS is None:
         return
@@ -453,6 +536,18 @@ def main():
     # На случай повторного ручного запуска в тот же день:
     # существующий снимок этой даты заменяется свежим.
     previous_path = find_previous_snapshot(today_string)
+        yesterday_date = (
+        datetime.strptime(today_string, "%Y-%m-%d").date()
+        - __import__("datetime").timedelta(days=1)
+    ).isoformat()
+
+    day_before_date = (
+        datetime.strptime(today_string, "%Y-%m-%d").date()
+        - __import__("datetime").timedelta(days=2)
+    ).isoformat()
+
+    yesterday_path = find_snapshot_by_date(yesterday_date)
+    day_before_path = find_snapshot_by_date(day_before_date)
     current_path = save_snapshot(raw_today, today_string)
 
     if previous_path is None:
@@ -467,10 +562,40 @@ def main():
         return
 
     print(f"Предыдущий снимок: {previous_path}")
-    raw_previous = previous_path.read_text(encoding="utf-8")
+        raw_previous = previous_path.read_text(encoding="utf-8")
 
-    results = compare_snapshots(raw_today, raw_previous)
-    send_reports(results)
+    results = compare_snapshots(
+        raw_today,
+        raw_previous
+    )
+
+    inactive_players_3d = None
+
+    if day_before_path is not None:
+        raw_day_before = day_before_path.read_text(
+            encoding="utf-8"
+        )
+
+        inactive_players_3d = find_inactive_3_days(
+            raw_today,
+            raw_previous,
+            raw_day_before
+        )
+
+        print(
+            f"Неактивны 3 дня подряд: "
+            f"{len(inactive_players_3d)} игроков"
+        )
+    else:
+        print(
+            "Позавчерашний снимок не найден — "
+            "проверка неактивности за 3 дня пропущена."
+        )
+
+    send_reports(
+        results,
+        inactive_players_3d
+    )
     cleanup_old_snapshots()
 
     print(f"Текущий снимок: {current_path}")
