@@ -1,19 +1,20 @@
 import os
-import re
 import requests
 
 # === НАСТРОЙКИ ===
 TELEGRAM_TOKEN = "8990787224:AAFgmGwAMaufksTOmvUFcHND5w05N6vcnuw"
 TELEGRAM_CHAT_ID = "-1002493230303"
-SERVER_URL = "https://ts7.x1.asia.travian.com"  # Сервер Asia 7
+SERVER_URL = "https://ts7.x1.asia.travian.com"
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
-DB_FILE_TODAY = "map_today.txt"
-DB_FILE_YESTERDAY = "map_yesterday.txt"
+
+# ПОСТОЯННЫЕ ФАЙЛЫ НА ВКЛАДКЕ CODE
+DB_FILE_CURRENT = "current_map.sql"
+DB_FILE_YESTERDAY = "yesterday_map.sql"
 
 
 def download_map_data():
     """Скачивает актуальный файл map.sql"""
-    print(f"Скачивание данных с сервера {SERVER_URL}...")
+    print(f"Скачивание свежих данных с сервера {SERVER_URL}...")
     response = requests.get(MAP_SQL_URL)
     if response.status_code == 200:
         return response.text
@@ -22,56 +23,61 @@ def download_map_data():
 
 
 def parse_map_data(raw_data):
-    """Парсит дамп Травиана"""
+    """Парсит дамп Травиана построчно без сбоев кодировки"""
     villages = {}
     players = set()
-    pattern = re.compile(
-        r"\((\d+),(-?\d+),(-?\d+),(\d+),(\d+),'(.*?)',(\d+),'(.*?)',(\d+),'(.*?)',(\d+)\)"
-    )
+    
+    if "VALUES" in raw_data:
+        raw_data = raw_data.split("VALUES")[-1]
 
-    for match in pattern.finditer(raw_data):
-        v_id, x, y, _, _, v_name, u_id, p_name, _, _, pop = match.groups()
-        u_id = int(u_id)
-        v_id = int(v_id)
-        pop = int(pop)
+    lines = raw_data.split("),(")
+    for line in lines:
+        line = line.replace("(", "").replace(")", "").replace(";", "")
+        parts = line.split(",")
+        if len(parts) >= 11:
+            try:
+                v_id = int(parts[0])
+                x = parts[1]
+                y = parts[2]
+                u_id = int(parts[6])
+                p_name = parts[7].strip("'")
+                v_name = parts[5].strip("'")
+                pop = int(parts[10])
 
-        if u_id != 0:
-            players.add((u_id, p_name))
+                if u_id != 0:
+                    players.add((u_id, p_name))
 
-        villages[v_id] = {
-            "name": v_name,
-            "x": x,
-            "y": y,
-            "uid": u_id,
-            "player": p_name,
-            "pop": pop,
-        }
+                villages[v_id] = {
+                    "name": v_name,
+                    "x": x,
+                    "y": y,
+                    "uid": u_id,
+                    "player": p_name,
+                    "pop": pop,
+                }
+            except:
+                continue
     return villages, players
 
 
-def send_to_telegram(message):
-    """Отправляет отчет в Telegram чат с расширенным выводом ошибок в логи"""
+def send_to_telegram(message, thread_id=None):
+    """Отправляет сообщение в Telegram (в общий чат или конкретную тему)"""
     if not message.strip():
-        print("Сообщение пустое, отправка отменена.")
         return
-    
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message
+        "text": message,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": True
     }
-    
+    if thread_id:
+        payload["message_thread_id"] = thread_id
+        
     try:
-        res = requests.post(url, json=payload)
-        if res.status_code == 200:
-            print("!!! ОТЧЕТ УСПЕШНО ОТПРАВЛЕН В TELEGRAM !!!")
-        else:
-            print("!!! ОШИБКА ОТПРАВКИ В TELEGRAM !!!")
-            print(f"Код статуса ответа: {res.status_code}")
-            print(f"Полный ответ от сервера Telegram: {res.text}")
-            print("ВНИМАНИЕ: Проверьте, добавлен ли бот в группу администратором и включена ли отправка сообщений!")
+        requests.post(url, json=payload)
     except Exception as e:
-        print(f"Не удалось связаться с серверами Telegram: {e}")
+        print(f"Не удалось связаться с Telegram: {e}")
 
 
 def main():
@@ -79,39 +85,38 @@ def main():
     if not raw_today:
         return
 
-    has_yesterday = os.path.exists(DB_FILE_YESTERDAY)
-
-    # Сохраняем временный файл текущего запуска
-    with open("map_today_temp.txt", "w", encoding="utf-8") as f:
+    # ШАГ 1: Всегда сохраняем то, что скачали прямо сейчас, в файл current_map.sql
+    with open(DB_FILE_CURRENT, "w", encoding="utf-8") as f:
         f.write(raw_today)
 
+    # Проверяем, существует ли вчерашняя контрольная точка
+    has_yesterday = os.path.exists(DB_FILE_YESTERDAY)
+
     if not has_yesterday:
-        print("Вчерашняя база данных не найдена. Создаем стартовую точку...")
-        send_to_telegram(
-            "🟢 Бот Travian успешно запущен в Telegram! Стартовая база данных создана. Первый отчет со сравнением придет при следующем запуске."
-        )
+        print("Вчерашняя база данных (yesterday_map.sql) не найдена. Создаем её из текущих данных...")
+        send_to_telegram("🟢 **Бот Travian успешно переведен на систему двух баз!** Стартовая точка `yesterday_map.sql` создана на вкладке Code. Первый отчет со сравнением придет при следующем запуске.", 5)
+        with open(DB_FILE_YESTERDAY, "w", encoding="utf-8") as f:
+            f.write(raw_today)
         return
 
-    print("Вчерашняя база найдена! Начинаем анализ изменений...")
+    print("Вчерашняя база найдена! Начинаем сравнительный анализ...")
     with open(DB_FILE_YESTERDAY, "r", encoding="utf-8") as f:
         raw_yesterday = f.read()
 
     v_today, p_today = parse_map_data(raw_today)
     v_yesterday, p_yesterday = parse_map_data(raw_yesterday)
 
-     # Анализ изменений
     uids_today = {p for p in p_today}
 
- # Ищем удаленные аккаунты с фильтром по вчерашнему населению >= 100
+    # 1. Удаленные аккаунты
     deleted_players = []
     for p_id, p_name in p_yesterday:
         if (p_id, p_name) not in uids_today:
-            # Считаем сумму населения всех вчерашних деревень этого игрока
             yesterday_pop = sum(v["pop"] for v in v_yesterday.values() if v["uid"] == p_id)
             if yesterday_pop >= 100:
                 deleted_players.append((p_id, p_name))
 
-
+    # 2 и 3. Захваты и падение населения
     conquered_villages = []
     dropped_pop_villages = []
 
@@ -124,80 +129,57 @@ def main():
                 diff = data_y["pop"] - data_t["pop"]
                 if diff >= 10:
                     dropped_pop_villages.append((data_t, diff))
-                    
-    # 4. СБОР ДАННЫХ: Неактивные игроки за 24 часа
+
+    # 4. Неактивные игроки
     inactive_players = []
-    
-    # Считаем суммарное население вчера для каждого живого сегодня игрока
     for p_id, p_name in p_today:
         pop_yesterday = sum(v["pop"] for v in v_yesterday.values() if v["uid"] == p_id)
         pop_today = sum(v["pop"] for v in v_today.values() if v["uid"] == p_id)
-        
-        # Если население совпадает и игрок вчера существовал (исключаем новичков с 0 населения)
         if pop_yesterday == pop_today and pop_yesterday > 0:
             inactive_players.append((p_id, p_name, pop_today))
 
-
-
-    # Формируем отчет без Markdown тегов во избежание конфликтов парсинга
-    report = "📊 ЕЖЕДНЕВНЫЙ ОТЧЕТ СЕРВЕРА TRAVIAN (Asia 7) 📊\n\n"
-
+    # === ОТПРАВКА ОТЧЕТОВ ===
+    
+    # Отчет 1: Удаления (в ветку №5)
+    report_del = "❌ *Удаленные аккаунты (Asia 7):*\n"
     if deleted_players:
-        report += "❌ Удаленные аккаунты:\n"
         for _, name in deleted_players[:30]:
-            report += f"- {name}\n"
+            report_del += f"- {name}\n"
     else:
-        report += "❌ Удаленные аккаунты: Нет\n"
+        report_del += "Нет изменений за сутки.\n"
+    send_to_telegram(report_del, 5)
 
+    # Отчет 2: Захваты (в ветку №12)
+    report_conq = "⚔️ *Захваченные деревни (Asia 7):*\n"
     if conquered_villages:
-        report += "\n⚔️ Захваченные деревни:\n"
         for y, t in conquered_villages[:30]:
-            report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {y['player']} захвачена игроком {t['player']}\n"
+            report_conq += f"- Деревня `{t['name']}` ({t['x']}|{t['y']}) игрока *{y['player']}* захвачена игроком *{t['player']}*\n"
     else:
-        report += "\n⚔️ Захваченные деревни: Нет\n"
+        report_conq += "Нет изменений за сутки.\n"
+    send_to_telegram(report_conq, 12)
 
+    # Отчет 3: Потеря населения (в ветку №18)
+    report_pop = "📉 *Деревни с потерей населения (Asia 7):*\n"
     if dropped_pop_villages:
-        report += "\n📉 Деревни с потерей населения:\n"
         for t, diff in dropped_pop_villages[:30]:
-            if diff >= 100:
-                # Если раскат крупный (>=100), выделяем всю строку жирным шрифтом и добавляем сирены
-                report += f"- 🚨🚨🚨 Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']}) 🚨🚨🚨\n"
+            if diff >= 150:
+                report_pop += f"- 🚨🚨🚨 Деревня `{t['name']}` ({t['x']}|{t['y']}) игрока *{t['player']}*: -{diff} (сейчас: {t['pop']}) 🚨🚨🚨\n"
             else:
-                # Обычная потеря населения
-                report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']})\n"
+                report_pop += f"- Деревня `{t['name']}` ({t['x']}|{t['y']}) игрока *{t['player']}*: -{diff} (сейчас: {t['pop']})\n"
     else:
-        report += "\n📉 Деревни с потерей населения: Нет\n"
+        report_pop += "Нет изменений за сутки.\n"
+    send_to_telegram(report_pop, 18)
 
-    # Отчет 4: Неактивные игроки
+    # Отчет 4: Неактивные игроки (в ветку №5)
     report_inact = "💤 *Неактивны 24 часа (Asia 7):*\n"
     if inactive_players:
-        # ИСПРАВЛЕНО: Сортируем по третьему элементу (населению)
         inactive_players.sort(key=lambda x: x[2], reverse=True)
         for p_id, p_name, pop in inactive_players[:30]:
-            # Создаем кликабельную ссылку на профиль в формате Markdown
             profile_url = f"{SERVER_URL}/profile/{p_id}"
             report_inact += f"- [{p_name}]({profile_url}) — население: {pop} (без изменений)\n"
     else:
         report_inact += "Все игроки проявили активность.\n"
-        
-    # Отправка отчета о неактивных
-    url_msg = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload_msg = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": report_inact,
-        "message_thread_id": 5,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": True
-    }
-    try:
-        requests.post(url_msg, json=payload_msg)
-    except Exception as e:
-        print(f"Ошибка отправки неактивных: {e}")
-
-
-
-
-    send_to_telegram(report)
+    send_to_telegram(report_inact, 5)
 
 
 if __name__ == "__main__":
