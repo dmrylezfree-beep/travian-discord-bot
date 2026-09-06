@@ -528,50 +528,83 @@ def main():
     print("========================================")
     print(f"Дата снимка: {today_string}")
 
-    # Скачиваем и сначала проверяем парсером.
+    # Скачиваем свежий map.sql и проверяем парсером.
     raw_today = download_map_data()
     v_today, p_today = parse_map_data(raw_today)
-    print(f"Проверка нового снимка OK: {len(v_today):,} деревень / {len(p_today):,} игроков")
 
-    # На случай повторного ручного запуска в тот же день:
-    # существующий снимок этой даты заменяется свежим.
+    print(
+        f"Проверка нового снимка OK: "
+        f"{len(v_today):,} деревень / {len(p_today):,} игроков"
+    )
+
+    # Ищем предыдущий доступный снимок.
     previous_path = find_previous_snapshot(today_string)
-        yesterday_date = (
-        datetime.strptime(today_string, "%Y-%m-%d").date()
-        - __import__("datetime").timedelta(days=1)
-    ).isoformat()
 
-    day_before_date = (
-        datetime.strptime(today_string, "%Y-%m-%d").date()
-        - __import__("datetime").timedelta(days=2)
-    ).isoformat()
-
-    yesterday_path = find_snapshot_by_date(yesterday_date)
-    day_before_path = find_snapshot_by_date(day_before_date)
+    # Сохраняем сегодняшний снимок.
     current_path = save_snapshot(raw_today, today_string)
 
+    # Если предыдущего снимка нет — это первая точка истории.
     if previous_path is None:
-        print("Предыдущий снимок не найден — создана первая точка истории.")
+        print(
+            "Предыдущий снимок не найден — "
+            "создана первая точка истории."
+        )
+
         send_to_telegram(
             "🟢 *Бот Travian запущен в режиме исторических снимков.*\n"
             f"Первый снимок: `{today_string}`.\n"
-            "Начиная со следующего снимка будет выполняться сравнительный анализ.",
+            "Начиная со следующего снимка будет выполняться "
+            "сравнительный анализ.",
             THREAD_ID,
         )
+
         cleanup_old_snapshots()
         return
 
     print(f"Предыдущий снимок: {previous_path}")
-        raw_previous = previous_path.read_text(encoding="utf-8")
+
+    raw_previous = previous_path.read_text(
+        encoding="utf-8"
+    )
+
+    # ========================================================
+    # СРАВНЕНИЕ СЕГОДНЯ ↔ ВЧЕРА
+    # ========================================================
 
     results = compare_snapshots(
         raw_today,
         raw_previous
     )
 
+    # ========================================================
+    # ПОИСК СНИМКА ПОЗАВЧЕРА
+    # ========================================================
+
+    today_date = datetime.strptime(
+        today_string,
+        "%Y-%m-%d"
+    ).date()
+
+    day_before_date = (
+        today_date - timedelta(days=2)
+    ).isoformat()
+
+    day_before_path = find_snapshot_by_date(
+        day_before_date
+    )
+
+    # ========================================================
+    # НЕАКТИВНОСТЬ 3 ДНЯ ПОДРЯД
+    # ========================================================
+
     inactive_players_3d = None
 
     if day_before_path is not None:
+        print(
+            f"Снимок позавчера найден: "
+            f"{day_before_path}"
+        )
+
         raw_day_before = day_before_path.read_text(
             encoding="utf-8"
         )
@@ -586,16 +619,22 @@ def main():
             f"Неактивны 3 дня подряд: "
             f"{len(inactive_players_3d)} игроков"
         )
+
     else:
         print(
-            "Позавчерашний снимок не найден — "
+            "Снимок позавчера не найден — "
             "проверка неактивности за 3 дня пропущена."
         )
+
+    # ========================================================
+    # ОТПРАВКА ОТЧЁТОВ
+    # ========================================================
 
     send_reports(
         results,
         inactive_players_3d
     )
+
     cleanup_old_snapshots()
 
     print(f"Текущий снимок: {current_path}")
