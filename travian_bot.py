@@ -45,10 +45,11 @@ def parse_map_data(raw_data):
                 v_id = int(parts[0])
                 x = parts[1]
                 y = parts[2]
-                u_id = int(parts[6])
-                p_name = parts[7].strip("'")
-                v_name = parts[5].strip("'")
-                pop = int(parts[10])
+                u_id = int(parts[4])
+                p_name = parts[5].strip("'")
+                v_name = parts[3].strip("'")
+                pop = int(parts[8])
+
 
                 if u_id != 0:
                     players.add((u_id, p_name))
