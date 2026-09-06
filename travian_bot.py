@@ -403,7 +403,12 @@ def find_inactive_3_days(raw_today, raw_yesterday, raw_day_before):
 def send_reports(results, inactive_players_3d=None):
     deleted_players, conquered_villages, dropped_pop_villages, inactive_players = results
 
+    # ========================================================
+    # 1. УДАЛЁННЫЕ АККАУНТЫ
+    # ========================================================
+
     report_del = "❌ *Удаленные аккаунты (Asia 7):*\n"
+
     if deleted_players:
         for _, name, pop in deleted_players[:30]:
             report_del += f"- {name} (население: {pop})\n"
@@ -412,20 +417,9 @@ def send_reports(results, inactive_players_3d=None):
 
     send_to_telegram(report_del, THREAD_ID)
 
-    report_inact_3d = "😴 *Неактивны 3 дня подряд (Asia 7):*\n"
-
-    if inactive_players_3d:
-        for p_id, p_name, pop in inactive_players_3d[:30]:
-            profile_url = f"{SERVER_URL}/profile/{p_id}"
-            report_inact_3d += (
-                f"- [{p_name}]({profile_url}) — "
-                f"население: {pop} "
-                f"(без изменений 3 дня подряд)\n"
-            )
-    else:
-        report_inact_3d += "Нет игроков без изменений 3 дня подряд.\n"
-
-    send_to_telegram(report_inact_3d, THREAD_ID)
+    # ========================================================
+    # 2. ЗАХВАЧЕННЫЕ ДЕРЕВНИ
+    # ========================================================
 
     report_conq = "⚔️ *Захваченные деревни (Asia 7):*\n"
 
@@ -441,6 +435,10 @@ def send_reports(results, inactive_players_3d=None):
         report_conq += "Нет изменений за период.\n"
 
     send_to_telegram(report_conq, THREAD_ID)
+
+    # ========================================================
+    # 3. ПАДЕНИЕ НАСЕЛЕНИЯ
+    # ========================================================
 
     report_pop = "📉 *Деревни с потерей населения (Asia 7):*\n"
 
@@ -466,6 +464,10 @@ def send_reports(results, inactive_players_3d=None):
 
     send_to_telegram(report_pop, THREAD_ID)
 
+    # ========================================================
+    # 4. НЕАКТИВНЫЕ ЗА 24 ЧАСА
+    # ========================================================
+
     report_inact = "💤 *Неактивны за последние 24 часа (Asia 7):*\n"
 
     if inactive_players:
@@ -475,12 +477,17 @@ def send_reports(results, inactive_players_3d=None):
             profile_url = f"{SERVER_URL}/profile/{p_id}"
             report_inact += (
                 f"- [{p_name}]({profile_url}) — "
-                f"население: {pop} (без изменений за 24 часа)\n"
+                f"население: {pop} "
+                f"(без изменений за 24 часа)\n"
             )
     else:
-        report_inact += "Все игроки проявили активность.\n"
+        report_inact += "Нет игроков без изменений за 24 часа.\n"
 
     send_to_telegram(report_inact, THREAD_ID)
+
+    # ========================================================
+    # 5. НЕАКТИВНЫЕ 3 ДНЯ ПОДРЯД
+    # ========================================================
 
     report_inact_3d = "😴 *Неактивны 3 дня подряд (Asia 7):*\n"
 
@@ -493,7 +500,9 @@ def send_reports(results, inactive_players_3d=None):
                 f"(без изменений 3 дня подряд)\n"
             )
     else:
-        report_inact_3d += "Нет игроков без изменений 3 дня подряд.\n"
+        report_inact_3d += (
+            "Нет игроков без изменений 3 дня подряд.\n"
+        )
 
     send_to_telegram(report_inact_3d, THREAD_ID)
 
