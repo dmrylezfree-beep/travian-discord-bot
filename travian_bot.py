@@ -124,6 +124,19 @@ def main():
                 diff = data_y["pop"] - data_t["pop"]
                 if diff >= 10:
                     dropped_pop_villages.append((data_t, diff))
+                    
+    # 4. СБОР ДАННЫХ: Неактивные игроки за 24 часа
+    inactive_players = []
+    
+    # Считаем суммарное население вчера для каждого живого сегодня игрока
+    for p_id, p_name in p_today:
+        pop_yesterday = sum(v["pop"] for v in v_yesterday.values() if v["uid"] == p_id)
+        pop_today = sum(v["pop"] for v in v_today.values() if v["uid"] == p_id)
+        
+        # Если население совпадает и игрок вчера существовал (исключаем новичков с 0 населения)
+        if pop_yesterday == pop_today and pop_yesterday > 0:
+            inactive_players.append((p_id, p_name, pop_today))
+
 
 
     # Формируем отчет без Markdown тегов во избежание конфликтов парсинга
@@ -154,6 +167,33 @@ def main():
                 report += f"- Деревня {t['name']} ({t['x']}|{t['y']}) игрока {t['player']}: -{diff} (сейчас: {t['pop']})\n"
     else:
         report += "\n📉 Деревни с потерей населения: Нет\n"
+
+        # Отчет 4: Неактивные игроки
+    report_inact = "💤 *Неактивны 24 часа (Asia 7):*\n"
+    if inactive_players:
+        # Сортируем по убыванию населения, чтобы сначала шли крупные игроки, и берем топ-30
+        inactive_players.sort(key=lambda x: x[2], reverse=True)
+        for p_id, p_name, pop in inactive_players[:30]:
+            # Создаем кликабельную ссылку на профиль в формате Markdown
+            profile_url = f"{SERVER_URL}/profile/{p_id}"
+            report_inact += f"- [{p_name}]({profile_url}) — население: {pop} (без изменений)\n"
+    else:
+        report_inact += "Все игроки проявили активность.\n"
+        
+    # Включаем parse_mode="Markdown" для этого сообщения, чтобы ссылки работали
+    url_msg = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
+    payload_msg = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": report_inact,
+        "message_thread_id": THREAD_DELETIONS, # Шлем в ветку удалений
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": True # Отключает громоздкие превью ссылок в чате
+    }
+    try:
+        requests.post(url_msg, json=payload_msg)
+    except:
+        pass
+
 
 
     send_to_telegram(report)
