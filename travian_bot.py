@@ -180,19 +180,20 @@ def main():
     else:
         report_inact += "Все игроки проявили активность.\n"
         
-    # Включаем parse_mode="Markdown" для этого сообщения, чтобы ссылки работали
+    # Отправка отчета о неактивных
     url_msg = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
     payload_msg = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": report_inact,
-        "message_thread_id": 5, # ИСПРАВЛЕНО: Явно указываем ID ветки удалений цифрой
+        "message_thread_id": 5,
         "parse_mode": "Markdown",
-        "disable_web_page_preview": True # Отключает громоздкие превью ссылок в чате
+        "disable_web_page_preview": True
     }
     try:
         requests.post(url_msg, json=payload_msg)
-    except:
-        pass
+    except Exception as e:
+        print(f"Ошибка отправки неактивных: {e}")
+
 
 
 
