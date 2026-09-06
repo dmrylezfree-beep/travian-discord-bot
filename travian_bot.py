@@ -292,6 +292,11 @@ def send_to_telegram(message, thread_id=None):
             fail(f"Telegram API вернул ошибку: {result}")
     except requests.RequestException as exc:
         fail(f"Не удалось отправить сообщение в Telegram: {exc}")
+        
+def village_link(x, y):
+    """Возвращает Markdown-ссылку на деревню по координатам."""
+    url = f"{SERVER_URL}/karte.php?x={x}&y={y}"
+    return f"[{x}|{y}]({url})"
 
 
 def compare_snapshots(raw_today, raw_previous):
@@ -355,11 +360,12 @@ def send_reports(results):
 
     report_conq = "⚔️ *Захваченные деревни (Asia 7):*\n"
     if conquered_villages:
-        for previous, today in conquered_villages[:30]:
-            report_conq += (
-                f"- Деревня `{today['name']}` ({today['x']}|{today['y']}) "
-                f"игрока *{previous['player']}* захвачена игроком *{today['player']}*\n"
-            )
+    for previous, today in conquered_villages[:30]:
+        report_conq += (
+            f"- Деревня `{today['name']}` "
+            f"{village_link(today['x'], today['y'])} "
+            f"игрока *{previous['player']}* захвачена игроком *{today['player']}*\n"
+        )
     else:
         report_conq += "Нет изменений за период.\n"
     send_to_telegram(report_conq, THREAD_ID)
@@ -369,13 +375,17 @@ def send_reports(results):
         for today, diff in dropped_pop_villages[:30]:
             if diff >= 150:
                 report_pop += (
-                    f"- 🚨🚨🚨 Деревня `{today['name']}` ({today['x']}|{today['y']}) "
-                    f"игрока *{today['player']}*: -{diff} (сейчас: {today['pop']}) 🚨🚨🚨\n"
+    f"- 🚨🚨🚨 Деревня `{today['name']}` "
+    f"{village_link(today['x'], today['y'])} "
+    f"игрока *{today['player']}*: -{diff} "
+    f"(сейчас: {today['pop']}) 🚨🚨🚨\n"
                 )
             else:
                 report_pop += (
-                    f"- Деревня `{today['name']}` ({today['x']}|{today['y']}) "
-                    f"игрока *{today['player']}*: -{diff} (сейчас: {today['pop']})\n"
+    f"- Деревня `{today['name']}` "
+    f"{village_link(today['x'], today['y'])} "
+    f"игрока *{today['player']}*: -{diff} "
+    f"(сейчас: {today['pop']})\n"
                 )
     else:
         report_pop += "Нет изменений за период.\n"
