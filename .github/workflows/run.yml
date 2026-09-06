@@ -2,7 +2,7 @@ name: Daily Travian Report
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # Каждый день в 07:00 по МСК
+    - cron: '23 6 * * *'  # Каждый день в 07:00 по МСК
   workflow_dispatch:      # Кнопка ручного запуска
 
 jobs:
