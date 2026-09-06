@@ -11,6 +11,11 @@ MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 DB_FILE_CURRENT = "current_map.sql"
 DB_FILE_YESTERDAY = "yesterday_map.sql"
 
+# ИДЕНТИФИКАТОРЫ ВЕТОК ГРУППЫ ТЕЛЕГРАМ
+THREAD_DELETIONS = 75792
+THREAD_CONQUERS = 75792
+THREAD_POP_DROPS = 75792
+
 
 def download_map_data():
     """Скачивает актуальный файл map.sql"""
