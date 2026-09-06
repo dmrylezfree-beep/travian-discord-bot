@@ -664,16 +664,17 @@ def find_enemy_alliance_activity(
     raw_previous
 ):
     """
-    Находит активность игроков указанного
-    вражеского альянса между двумя снимками.
+    Находит активность указанного альянса.
+
+    Альянс определяется ТОЛЬКО по alliance_id.
+    Название альянса берётся из текущего снимка,
+    поэтому переименование альянса не ломает анализ.
 
     Определяется:
 
     1. Новые деревни.
     2. Захваченные деревни.
     3. Потерянные деревни.
-
-    Альянс задаётся в ENEMY_ALLIANCE.
     """
 
     v_today, _ = parse_map_data(
@@ -684,20 +685,38 @@ def find_enemy_alliance_activity(
         raw_previous
     )
 
-    enemy_alliance = ENEMY_ALLIANCE.strip()
+    # ========================================================
+    # ОПРЕДЕЛЯЕМ ТЕКУЩЕЕ НАЗВАНИЕ АЛЬЯНСА
+    # ПО ЕГО ID
+    # ========================================================
 
-    if not enemy_alliance:
-        print(
-            "ENEMY_ALLIANCE не задан. "
-            "Проверка активности альянса пропущена."
-        )
+    alliance_name = ""
 
-        return {
-            "alliance": "",
-            "founded": [],
-            "captured": [],
-            "lost": [],
-        }
+    for village in v_today.values():
+
+        if village["alliance_id"] == ENEMY_ALLIANCE_ID:
+
+            alliance_name = village["alliance"]
+            break
+
+    # Если альянс сейчас не представлен ни одной деревней,
+    # попробуем найти его название во вчерашнем снимке.
+
+    if not alliance_name:
+
+        for village in v_previous.values():
+
+            if village["alliance_id"] == ENEMY_ALLIANCE_ID:
+
+                alliance_name = village["alliance"]
+                break
+
+    # Если название всё ещё не найдено,
+    # показываем только ID.
+
+    if not alliance_name:
+
+        alliance_name = f"ID {ENEMY_ALLIANCE_ID}"
 
     founded = []
     captured = []
@@ -709,14 +728,14 @@ def find_enemy_alliance_activity(
 
     for v_id, today in v_today.items():
 
-        # Деревни, которых вообще не было
-        # в предыдущем снимке.
+        # Деревня появилась только в сегодняшнем снимке.
         if v_id not in v_previous:
 
-            # Деревня принадлежит нужному альянсу.
+            # Она принадлежит нужному альянсу
+            # по постоянному ID.
             if (
-                today["alliance"]
-                == enemy_alliance
+                today["alliance_id"]
+                == ENEMY_ALLIANCE_ID
             ):
 
                 founded.append(today)
@@ -732,17 +751,17 @@ def find_enemy_alliance_activity(
         if not today:
             continue
 
-        # Владелец изменился.
+        # Владелец деревни изменился.
         if (
             previous["uid"] != today["uid"]
             and previous["uid"] != 0
         ):
 
             # Сегодня деревня принадлежит
-            # нужному вражескому альянсу.
+            # нужному альянсу.
             if (
-                today["alliance"]
-                == enemy_alliance
+                today["alliance_id"]
+                == ENEMY_ALLIANCE_ID
             ):
 
                 captured.append(
@@ -770,10 +789,10 @@ def find_enemy_alliance_activity(
         ):
 
             # Вчера деревня принадлежала
-            # нужному вражескому альянсу.
+            # нужному альянсу.
             if (
-                previous["alliance"]
-                == enemy_alliance
+                previous["alliance_id"]
+                == ENEMY_ALLIANCE_ID
             ):
 
                 lost.append(
@@ -783,7 +802,10 @@ def find_enemy_alliance_activity(
                     )
                 )
 
-    # Сначала самые интересные изменения.
+    # ========================================================
+    # СОРТИРОВКА
+    # ========================================================
+
     founded.sort(
         key=lambda v: (
             int(v["x"]),
@@ -805,10 +827,18 @@ def find_enemy_alliance_activity(
         )
     )
 
+    # ========================================================
+    # ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+    # ========================================================
+
     print("\n=== АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА ===")
 
     print(
-        f"Альянс: {enemy_alliance}"
+        f"ID альянса: {ENEMY_ALLIANCE_ID}"
+    )
+
+    print(
+        f"Название: {alliance_name}"
     )
 
     print(
@@ -824,12 +854,12 @@ def find_enemy_alliance_activity(
     )
 
     return {
-        "alliance": enemy_alliance,
+        "alliance_id": ENEMY_ALLIANCE_ID,
+        "alliance": alliance_name,
         "founded": founded,
         "captured": captured,
         "lost": lost,
     }
-
 
 # ============================================================
 # НЕАКТИВНОСТЬ 3 ДНЯ
