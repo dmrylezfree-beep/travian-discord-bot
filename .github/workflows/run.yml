@@ -42,13 +42,15 @@ jobs:
     - name: Run script
       run: python travian_bot.py
 
-    # 3. Сохраняем свежий файл прямо в файлы вашего репозитория (вкладка Code)
-    - name: Commit and Push Database Backup
+    # Финальный шаг: Обновляем бэкап на вкладке Code ТОЛЬКО если запуск был автоматическим (по расписанию)
+    - name: Commit and Push Database Backup (Only on Schedule)
+      if: github.event_name == 'schedule'
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@://github.com'
-        cp map_today.txt map_database_backup.txt || true
+        cp map_today_temp.txt map_database_backup.txt || true
         git add map_database_backup.txt || true
-        git commit -m "Update Travian database backup" || true
+        git commit -m "Daily schedule update of Travian database backup" || true
         git pull origin main --rebase -X theirs || true
         git push origin HEAD:main || true
+
