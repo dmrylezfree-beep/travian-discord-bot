@@ -309,10 +309,25 @@ def village_link(x, y):
     url = f"{SERVER_URL}/karte.php?x={x}&y={y}"
     return f"[{x}|{y}]({url})"
 
+def escape_markdown(text):
+    """Экранирует специальные символы Telegram Markdown."""
+    if not text:
+        return ""
+    
+    for char in ["\\", "*", "_", "`", "["]:
+        text = text.replace(char, "\\" + char)
+    
+    return text
+
+
 def player_with_alliance(player, alliance):
     """Формирует отображение игрока и его альянса."""
+    player = escape_markdown(player)
+    alliance = escape_markdown(alliance)
+
     if alliance:
         return f"*{player}* 🔴 {alliance}"
+    
     return f"*{player}* ⚫ без альянса"
 
 def compare_snapshots(raw_today, raw_previous):
