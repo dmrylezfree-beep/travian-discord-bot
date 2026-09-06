@@ -189,7 +189,7 @@ def main():
             report_inact += f"- [{p_name}]({profile_url}) — население: {pop} (без изменений)\n"
     else:
         report_inact += "Все игроки проявили активность.\n"
-    send_to_telegram(report_inact, 5)
+    send_to_telegram(report_inact, 75792)
 
 
 if __name__ == "__main__":
