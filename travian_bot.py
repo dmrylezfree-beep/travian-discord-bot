@@ -398,7 +398,7 @@ def send_reports(results):
 
     send_to_telegram(report_pop, THREAD_ID)
 
-    report_inact = "💤 *Неактивны за период (Asia 7):*\n"
+    report_inact = "💤 *Неактивны за последние 24 часа (Asia 7):*\n"
 
     if inactive_players:
         inactive_players.sort(key=lambda x: x[2], reverse=True)
