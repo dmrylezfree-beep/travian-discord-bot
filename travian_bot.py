@@ -64,7 +64,7 @@ def send_to_telegram(message, thread_id=None):
     """Отправляет сообщение в Telegram (в общий чат или конкретную тему)"""
     if not message.strip():
         return
-    url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
