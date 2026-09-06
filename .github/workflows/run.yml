@@ -2,7 +2,7 @@ name: Daily Travian Report
 
 on:
   schedule:
-    - cron: '30 23 * * *'  # Каждый день в 07:00 по МСК
+    - cron: '15 5 * * *'  # Каждый день в 08:15 по МСК (05:15 UTC)
   workflow_dispatch:      # Кнопка ручного запуска
 
 jobs:
@@ -26,29 +26,29 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
-    # 1. Готовим файлы: если бэкап в репозитории существует, делаем его вчерашней базой
-    - name: Prepare Database Files
-      run: |
-        if [ -f "map_database_backup.txt" ]; then
-          cp map_database_backup.txt map_yesterday.txt
-          echo "Вчерашняя база успешно восстановлена из бэкапа."
-        else
-          echo "Файл бэкапа отсутствует (это самый первый запуск ботом)."
-        fi
-
-    # 2. Запускаем скрипт бота
+    # Запускаем скрипт, который создаст current_map.sql и сравнит его с yesterday_map.sql
     - name: Run script
       run: python travian_bot.py
 
-    # Финальный шаг: Обновляем бэкап на вкладке Code ТОЛЬКО если запуск был автоматическим (по расписанию)
-    - name: Commit and Push Database Backup (Only on Schedule)
+    # Если мы нажали кнопку вручную — мы просто сохраняем current_map.sql на вкладку Code, чтобы вы его видели
+    - name: Save Current Map File (On Manual Run)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@://github.com'
+        git add current_map.sql || true
+        git commit -m "Update current_map.sql from manual check" || true
+        git pull origin main --rebase -X theirs || true
+        git push origin HEAD:main || true
+
+    # Если запуск утренний по расписанию — мы делаем текущую карту вчерашним бэкапом для следующего дня
+    - name: Rotate Database Files (Only on Schedule)
       if: github.event_name == 'schedule'
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@://github.com'
-        cp map_today_temp.txt map_database_backup.txt || true
-        git add map_database_backup.txt || true
-        git commit -m "Daily schedule update of Travian database backup" || true
+        cp current_map.sql yesterday_map.sql || true
+        git add current_map.sql yesterday_map.sql || true
+        git commit -m "Daily database rotation: current becomes yesterday" || true
         git pull origin main --rebase -X theirs || true
         git push origin HEAD:main || true
-
