@@ -168,6 +168,7 @@ def parse_map_data(raw_data):
     villages = {}
     players = set()
     rows = extract_value_rows(raw_data)
+    print(f"Найдено SQL-строк x_world: {len(rows):,}")
 
     for row in rows:
         try:
