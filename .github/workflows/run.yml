@@ -2,8 +2,8 @@ name: Daily Travian Report
 
 on:
   schedule:
-    - cron: '15 5 * * *'  # Каждый день в 08:15 по МСК (05:15 UTC)
-  workflow_dispatch:      # Кнопка ручного запуска
+    - cron: '15 5 * * *'  # 08:15 МСК (05:15 UTC)
+  workflow_dispatch:
 
 jobs:
   build:
@@ -13,29 +13,38 @@ jobs:
       contents: write
 
     steps:
-    - name: Checkout repository code
-      uses: actions/checkout@v4
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
 
-    # Запускаем скрипт, который создаст current_map.sql и yesterday_map.sql
-    - name: Run script
-      run: python travian_bot.py
+      - name: Run Travian analysis
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python travian_bot.py
 
-    # Финальный шаг: Железно сохраняем ОБА файла на вкладку Code при ЛЮБОМ запуске
-    - name: Commit and Push Database Files
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@://github.com'
-        git add current_map.sql yesterday_map.sql || true
-        git commit -m "Update Travian database files (current and yesterday)" || true
-        git pull origin main --rebase -X theirs || true
-        git push origin HEAD:main || true
+      - name: Commit historical snapshots
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add data/snapshots/
+
+          if git diff --cached --quiet; then
+            echo "No new snapshot changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Add Travian snapshot $(date -u +%Y-%m-%d)"
+          git push origin HEAD:main
