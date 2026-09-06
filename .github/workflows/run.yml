@@ -26,20 +26,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
-    # Запускаем скрипт, который создаст current_map.sql и сравнит его с yesterday_map.sql
+    # Запускаем скрипт, который создаст current_map.sql и yesterday_map.sql
     - name: Run script
       run: python travian_bot.py
 
-    
-
-    # Если запуск утренний по расписанию — мы делаем текущую карту вчерашним бэкапом для следующего дня
-    - name: Rotate Database Files (Only on Schedule)
-      if: github.event_name == 'schedule'
+    # Финальный шаг: Железно сохраняем ОБА файла на вкладку Code при ЛЮБОМ запуске
+    - name: Commit and Push Database Files
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@://github.com'
-        cp current_map.sql yesterday_map.sql || true
         git add current_map.sql yesterday_map.sql || true
-        git commit -m "Daily database rotation: current becomes yesterday" || true
+        git commit -m "Update Travian database files (current and yesterday)" || true
         git pull origin main --rebase -X theirs || true
         git push origin HEAD:main || true
