@@ -617,6 +617,23 @@ def compare_snapshots(
                 if v["uid"] == p_id
             )
 
+            # Ищем последний альянс игрока
+            # в предыдущем снимке.
+            previous_alliance = ""
+
+            for village in v_previous.values():
+
+                if (
+                    village["uid"] == p_id
+                    and village["alliance"]
+                ):
+
+                    previous_alliance = (
+                        village["alliance"]
+                    )
+
+                    break
+
             if (
                 previous_pop
                 >= DELETED_PLAYER_MIN_POP
@@ -626,7 +643,8 @@ def compare_snapshots(
                     (
                         p_id,
                         p_name,
-                        previous_pop
+                        previous_pop,
+                        previous_alliance
                     )
                 )
 
@@ -1074,13 +1092,25 @@ def send_reports(
 
     if deleted_players:
 
-        for _, name, pop in deleted_players[:30]:
+        for _, name, pop, alliance in deleted_players[:30]:
+
+            if alliance:
+
+                alliance_text = (
+                    f" ({escape_markdown(alliance)})"
+                )
+
+            else:
+
+                alliance_text = (
+                    " (без альянса)"
+                )
 
             report_del += (
-                f"- {escape_markdown(name)} "
+                f"- {escape_markdown(name)}"
+                f"{alliance_text} "
                 f"(население: {pop})\n"
             )
-
     else:
 
         report_del += (
