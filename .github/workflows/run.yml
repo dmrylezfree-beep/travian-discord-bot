@@ -34,15 +34,15 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python travian_bot.py
 
-      - name: Commit historical snapshots
+      - name: Commit historical snapshots and inactivity state
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-          git add data/snapshots/ data/inactive_3d_state.json
+          git add data/snapshots/ data/inactive_state.json data/inactive_3d_state.json
 
           if git diff --cached --quiet; then
-            echo "No new snapshot changes to commit."
+            echo "No new snapshot or state changes to commit."
             exit 0
           fi
 
