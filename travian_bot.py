@@ -20,6 +20,12 @@ MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 SNAPSHOT_DIR = Path("data/snapshots")
 
 # Файл памяти уже показанных игроков
+# в отчётах "неактивны 24 часа".
+INACTIVE_24H_STATE_FILE = Path(
+    "data/inactive_state.json"
+)
+
+# Файл памяти уже показанных игроков
 # в отчётах "неактивны 3 дня подряд".
 INACTIVE_3D_STATE_FILE = Path(
     "data/inactive_3d_state.json"
@@ -575,6 +581,227 @@ def player_with_alliance(player, alliance):
 
 
 # ============================================================
+# СОСТОЯНИЕ ОТЧЁТА НЕАКТИВНОСТИ 24 ЧАСА
+# ============================================================
+
+def load_inactive_24h_state():
+    """
+    Загружает список игроков, уже показанных
+    в отчётах "неактивны 24 часа".
+    """
+
+    INACTIVE_24H_STATE_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    if not INACTIVE_24H_STATE_FILE.exists():
+
+        state = []
+
+        INACTIVE_24H_STATE_FILE.write_text(
+            json.dumps(
+                state,
+                ensure_ascii=False,
+                indent=2
+            ),
+            encoding="utf-8"
+        )
+
+        return set()
+
+    try:
+
+        data = json.loads(
+            INACTIVE_24H_STATE_FILE.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        if not isinstance(data, list):
+            raise ValueError
+
+        return {
+            int(player_id)
+            for player_id in data
+        }
+
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        json.JSONDecodeError
+    ):
+
+        print(
+            "ВНИМАНИЕ: не удалось прочитать "
+            "inactive_state.json. "
+            "Состояние 24 часов будет сброшено."
+        )
+
+        return set()
+
+
+def save_inactive_24h_state(player_ids):
+    """Сохраняет список игроков, уже показанных за 24 часа."""
+
+    INACTIVE_24H_STATE_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    INACTIVE_24H_STATE_FILE.write_text(
+        json.dumps(
+            sorted(player_ids),
+            ensure_ascii=False,
+            indent=2
+        ),
+        encoding="utf-8"
+    )
+
+
+def prepare_inactive_24h_report(
+    inactive_players,
+    raw_today,
+    raw_previous
+):
+    """
+    Фильтрует игроков 24-часовой неактивности.
+
+    Уже показанные игроки повторно не выводятся,
+    пока их население не изменится.
+
+    Возвращает:
+
+    1. игроков, которых нужно показать;
+    2. состояние;
+    3. ID игроков, которые реально будут показаны
+       и должны быть запомнены после успешной отправки.
+    """
+
+    reported_players = (
+        load_inactive_24h_state()
+    )
+
+    v_today, _ = parse_map_data(
+        raw_today
+    )
+
+    v_previous, _ = parse_map_data(
+        raw_previous
+    )
+
+    # ========================================================
+    # СЧИТАЕМ НАСЕЛЕНИЕ КАЖДОГО ИГРОКА
+    # ========================================================
+
+    today_populations = {}
+    previous_populations = {}
+
+    for village in v_today.values():
+
+        player_id = village["uid"]
+
+        if player_id != 0:
+
+            today_populations[player_id] = (
+                today_populations.get(
+                    player_id,
+                    0
+                )
+                + village["pop"]
+            )
+
+    for village in v_previous.values():
+
+        player_id = village["uid"]
+
+        if player_id != 0:
+
+            previous_populations[player_id] = (
+                previous_populations.get(
+                    player_id,
+                    0
+                )
+                + village["pop"]
+            )
+
+    # ========================================================
+    # ИЩЕМ ИГРОКОВ, КОТОРЫЕ СНОВА СТАЛИ АКТИВНЫМИ
+    # ========================================================
+
+    active_players = set()
+
+    for player_id, today_pop in today_populations.items():
+
+        previous_pop = (
+            previous_populations.get(
+                player_id,
+                0
+            )
+        )
+
+        if today_pop != previous_pop:
+
+            active_players.add(
+                player_id
+            )
+
+    # Убираем активных игроков из памяти.
+    #
+    # Теперь, если в будущем их население снова
+    # не изменится 24 часа, они смогут попасть
+    # в отчёт повторно.
+
+    reported_players.difference_update(
+        active_players
+    )
+
+    # ========================================================
+    # ФИЛЬТРУЕМ 24-ЧАСОВЫЙ ОТЧЁТ
+    # ========================================================
+
+    filtered_players = []
+
+    for player_id, player_name, population in inactive_players:
+
+        if player_id not in reported_players:
+
+            filtered_players.append(
+                (
+                    player_id,
+                    player_name,
+                    population
+                )
+            )
+
+    # ========================================================
+    # СОРТИРОВКА
+    # ========================================================
+
+    filtered_players.sort(
+        key=lambda x: x[2],
+        reverse=True
+    )
+
+    # ========================================================
+    # ЗАПОМИНАЕМ ТОЛЬКО ТЕХ,
+    # КОГО РЕАЛЬНО ПОКАЖЕМ
+    # ========================================================
+
+    players_to_mark = {
+        player_id
+        for player_id, _, _ in filtered_players[:30]
+    }
+
+    return (
+        filtered_players,
+        reported_players,
+        players_to_mark
+    )
+
+
+# ============================================================
 # СОСТОЯНИЕ ОТЧЁТА НЕАКТИВНОСТИ 3 ДНЯ
 # ============================================================
 
@@ -600,7 +827,8 @@ def load_inactive_3d_state():
     except (
         OSError,
         ValueError,
-        TypeError
+        TypeError,
+        json.JSONDecodeError
     ):
 
         print(
@@ -804,7 +1032,7 @@ def compare_snapshots(
     )
 
     print(
-        f"Неактивные игроки: "
+        f"Неактивные игроки до фильтра памяти: "
         f"{len(inactive_players)}"
     )
 
@@ -937,9 +1165,6 @@ def find_enemy_alliance_activity(
             and previous["uid"] != 0
         ):
 
-            # Сегодня деревня принадлежит Hero,
-            # вчера принадлежала другому альянсу.
-
             if (
                 today["alliance_id"]
                 == ENEMY_ALLIANCE_ID
@@ -969,9 +1194,6 @@ def find_enemy_alliance_activity(
             previous["uid"] != today["uid"]
             and previous["uid"] != 0
         ):
-
-            # Вчера деревня принадлежала Hero,
-            # сегодня принадлежит другому альянсу.
 
             if (
                 previous["alliance_id"]
@@ -1153,8 +1375,6 @@ def find_inactive_3_days(
             and pop_today == pop_day_before
         ):
 
-            # Если игрок уже был показан раньше,
-            # повторно его не добавляем.
             if p_id not in reported_players:
 
                 inactive_players.append(
@@ -1174,29 +1394,27 @@ def find_inactive_3_days(
     )
 
     # ========================================================
-    # ЗАПОМИНАЕМ ИГРОКОВ, КОТОРЫХ ПОКАЖЕМ
+    # СОРТИРОВКА
     # ========================================================
-
-    for p_id, _, _ in inactive_players:
-
-        reported_players.add(
-            p_id
-        )
-
-    # ========================================================
-    # СОХРАНЯЕМ СОСТОЯНИЕ
-    # ========================================================
-
-    save_inactive_3d_state(
-        reported_players
-    )
 
     inactive_players.sort(
         key=lambda x: x[2],
         reverse=True
     )
 
-    return inactive_players
+    # ========================================================
+    # ВАЖНО:
+    # НЕ ДОБАВЛЯЕМ СЮДА ВСЕХ НАЙДЕННЫХ ИГРОКОВ.
+    #
+    # Они должны быть добавлены в память только после
+    # фактической отправки отчёта в Telegram.
+    # Это позволяет учитывать лимит первых 30 игроков.
+    # ========================================================
+
+    return (
+        inactive_players,
+        reported_players
+    )
 
 
 # ============================================================
@@ -1206,7 +1424,10 @@ def find_inactive_3_days(
 def send_reports(
     results,
     inactive_players_3d=None,
-    enemy_activity=None
+    enemy_activity=None,
+    inactive_24h_state=None,
+    inactive_24h_to_mark=None,
+    inactive_3d_state=None
 ):
 
     (
@@ -1397,6 +1618,46 @@ def send_reports(
         report_inact_3d,
         THREAD_ID
     )
+
+    # ========================================================
+    # ПОСЛЕ УСПЕШНОЙ ОТПРАВКИ:
+    # СОХРАНЯЕМ ИГРОКОВ 24 ЧАСА
+    # ========================================================
+
+    if inactive_24h_state is not None:
+
+        if inactive_24h_to_mark:
+
+            inactive_24h_state.update(
+                inactive_24h_to_mark
+            )
+
+        save_inactive_24h_state(
+            inactive_24h_state
+        )
+
+    # ========================================================
+    # ПОСЛЕ УСПЕШНОЙ ОТПРАВКИ:
+    # СОХРАНЯЕМ ИГРОКОВ 3 ДНЯ
+    # ========================================================
+
+    if (
+        inactive_3d_state is not None
+        and inactive_players_3d
+    ):
+
+        players_to_mark_3d = {
+            p_id
+            for p_id, _, _ in inactive_players_3d[:30]
+        }
+
+        inactive_3d_state.update(
+            players_to_mark_3d
+        )
+
+        save_inactive_3d_state(
+            inactive_3d_state
+        )
 
     # ========================================================
     # 6. АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
@@ -1618,6 +1879,18 @@ def main():
     )
 
     # ========================================================
+    # ИНИЦИАЛИЗИРУЕМ ФАЙЛ ПАМЯТИ 24 ЧАСОВ
+    #
+    # Это также гарантирует, что файл
+    # data/inactive_state.json существует
+    # даже при первом запуске.
+    # ========================================================
+
+    inactive_24h_state = (
+        load_inactive_24h_state()
+    )
+
+    # ========================================================
     # СКАЧИВАЕМ СВЕЖИЙ СНИМОК
     # ========================================================
 
@@ -1692,6 +1965,40 @@ def main():
     )
 
     # ========================================================
+    # ФИЛЬТРАЦИЯ НЕАКТИВНЫХ 24 ЧАСА
+    # ========================================================
+
+    (
+        filtered_inactive_players,
+        inactive_24h_state,
+        inactive_24h_to_mark
+    ) = prepare_inactive_24h_report(
+        results[3],
+        raw_today,
+        raw_previous
+    )
+
+    # Заменяем исходный список
+    # на список после фильтрации памяти.
+
+    results = (
+        results[0],
+        results[1],
+        results[2],
+        filtered_inactive_players
+    )
+
+    print(
+        f"Неактивные 24 часа после фильтра памяти: "
+        f"{len(filtered_inactive_players)} игроков"
+    )
+
+    print(
+        f"Новых игроков для записи в память 24 часа: "
+        f"{len(inactive_24h_to_mark)}"
+    )
+
+    # ========================================================
     # АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
     # ========================================================
 
@@ -1725,6 +2032,7 @@ def main():
     # ========================================================
 
     inactive_players_3d = None
+    inactive_3d_state = None
 
     if day_before_path is not None:
 
@@ -1739,16 +2047,18 @@ def main():
             )
         )
 
-        inactive_players_3d = (
-            find_inactive_3_days(
-                raw_today,
-                raw_previous,
-                raw_day_before
-            )
+        (
+            inactive_players_3d,
+            inactive_3d_state
+        ) = find_inactive_3_days(
+            raw_today,
+            raw_previous,
+            raw_day_before
         )
 
         print(
-            f"Неактивны 3 дня подряд: "
+            f"Неактивны 3 дня подряд "
+            f"после фильтра памяти: "
             f"{len(inactive_players_3d)} игроков"
         )
 
@@ -1767,7 +2077,10 @@ def main():
     send_reports(
         results,
         inactive_players_3d,
-        enemy_activity
+        enemy_activity,
+        inactive_24h_state,
+        inactive_24h_to_mark,
+        inactive_3d_state
     )
 
     # ========================================================
