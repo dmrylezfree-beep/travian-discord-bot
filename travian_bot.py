@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -17,6 +18,12 @@ SERVER_URL = "https://ts7.x1.asia.travian.com"
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 
 SNAPSHOT_DIR = Path("data/snapshots")
+
+# Файл памяти уже показанных игроков
+# в отчётах "неактивны 3 дня подряд".
+INACTIVE_3D_STATE_FILE = Path(
+    "data/inactive_3d_state.json"
+)
 
 # None = хранить всю историю
 RETENTION_DAYS = None
@@ -568,6 +575,62 @@ def player_with_alliance(player, alliance):
 
 
 # ============================================================
+# СОСТОЯНИЕ ОТЧЁТА НЕАКТИВНОСТИ 3 ДНЯ
+# ============================================================
+
+def load_inactive_3d_state():
+    """Загружает список игроков, уже показанных в отчётах 3 дней."""
+
+    if not INACTIVE_3D_STATE_FILE.exists():
+        return set()
+
+    try:
+
+        data = json.loads(
+            INACTIVE_3D_STATE_FILE.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        return {
+            int(player_id)
+            for player_id in data
+        }
+
+    except (
+        OSError,
+        ValueError,
+        TypeError
+    ):
+
+        print(
+            "ВНИМАНИЕ: не удалось прочитать "
+            "inactive_3d_state.json. "
+            "Состояние будет сброшено."
+        )
+
+        return set()
+
+
+def save_inactive_3d_state(player_ids):
+    """Сохраняет список игроков, уже показанных в отчётах 3 дней."""
+
+    INACTIVE_3D_STATE_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    INACTIVE_3D_STATE_FILE.write_text(
+        json.dumps(
+            sorted(player_ids),
+            ensure_ascii=False,
+            indent=2
+        ),
+        encoding="utf-8"
+    )
+
+
+# ============================================================
 # СРАВНЕНИЕ СНИМКОВ
 # ============================================================
 
@@ -1007,7 +1070,14 @@ def find_inactive_3_days(
     raw_yesterday,
     raw_day_before
 ):
-    """Находит игроков, население которых не менялось 3 дня подряд."""
+    """
+    Находит игроков, население которых не менялось
+    3 дня подряд.
+
+    Игрок, уже показанный в предыдущем отчёте
+    за 3 дня, повторно не показывается, пока
+    снова не станет активным.
+    """
 
     v_today, p_today = parse_map_data(
         raw_today
@@ -1021,7 +1091,22 @@ def find_inactive_3_days(
         raw_day_before
     )
 
+    # ========================================================
+    # ЗАГРУЖАЕМ СОСТОЯНИЕ
+    # ========================================================
+
+    reported_players = (
+        load_inactive_3d_state()
+    )
+
     inactive_players = []
+
+    # Игроки, которые снова стали активными.
+    active_players = set()
+
+    # ========================================================
+    # ПРОВЕРЯЕМ КАЖДОГО ИГРОКА
+    # ========================================================
 
     for p_id, p_name in p_today:
 
@@ -1043,19 +1128,68 @@ def find_inactive_3_days(
             if v["uid"] == p_id
         )
 
+        # ----------------------------------------------------
+        # ЕСЛИ НАСЕЛЕНИЕ ИЗМЕНИЛОСЬ
+        # ----------------------------------------------------
+
+        if (
+            pop_today != pop_yesterday
+            or pop_yesterday != pop_day_before
+        ):
+
+            active_players.add(
+                p_id
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # ИГРОК НЕАКТИВЕН 3 ДНЯ
+        # ----------------------------------------------------
+
         if (
             pop_today > 0
             and pop_today == pop_yesterday
             and pop_today == pop_day_before
         ):
 
-            inactive_players.append(
-                (
-                    p_id,
-                    p_name,
-                    pop_today
+            # Если игрок уже был показан раньше,
+            # повторно его не добавляем.
+            if p_id not in reported_players:
+
+                inactive_players.append(
+                    (
+                        p_id,
+                        p_name,
+                        pop_today
+                    )
                 )
-            )
+
+    # ========================================================
+    # СБРАСЫВАЕМ СОСТОЯНИЕ ДЛЯ АКТИВНЫХ
+    # ========================================================
+
+    reported_players.difference_update(
+        active_players
+    )
+
+    # ========================================================
+    # ЗАПОМИНАЕМ ИГРОКОВ, КОТОРЫХ ПОКАЖЕМ
+    # ========================================================
+
+    for p_id, _, _ in inactive_players:
+
+        reported_players.add(
+            p_id
+        )
+
+    # ========================================================
+    # СОХРАНЯЕМ СОСТОЯНИЕ
+    # ========================================================
+
+    save_inactive_3d_state(
+        reported_players
+    )
 
     inactive_players.sort(
         key=lambda x: x[2],
@@ -1111,6 +1245,7 @@ def send_reports(
                 f"{alliance_text} "
                 f"(население: {pop})\n"
             )
+
     else:
 
         report_del += (
