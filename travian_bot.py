@@ -1,5 +1,6 @@
 import os
 import re
+import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -574,26 +575,48 @@ def player_with_alliance(player, alliance):
 
 def load_inactive_state():
     """Загружает состояние уже показанных в отчётах неактивных игроков."""
+
     if not INACTIVE_STATE_FILE.exists():
         return {}
 
     try:
-        import json
 
-        data = json.loads(INACTIVE_STATE_FILE.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        data = json.loads(
+            INACTIVE_STATE_FILE.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        return (
+            data
+            if isinstance(data, dict)
+            else {}
+        )
+
     except (OSError, ValueError):
-        print("ВНИМАНИЕ: не удалось прочитать состояние неактивности — создано новое.")
+
+        print(
+            "ВНИМАНИЕ: не удалось прочитать "
+            "состояние неактивности — создано новое."
+        )
+
         return {}
 
 
 def save_inactive_state(state):
     """Сохраняет состояние неактивности между запусками GitHub Actions."""
-    import json
 
-    INACTIVE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    INACTIVE_STATE_FILE.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
     INACTIVE_STATE_FILE.write_text(
-        json.dumps(state, ensure_ascii=False, indent=2),
+        json.dumps(
+            state,
+            ensure_ascii=False,
+            indent=2
+        ),
         encoding="utf-8"
     )
 
@@ -679,9 +702,6 @@ def compare_snapshots(
                     )
                 )
 
-    # ========================================================
-    # ЗАХВАТЫ И ПАДЕНИЕ НАСЕЛЕНИЯ
-    # ========================================================
     # ========================================================
     # ЗАХВАТЫ И ПАДЕНИЕ НАСЕЛЕНИЯ
     # ========================================================
@@ -823,39 +843,22 @@ def find_enemy_alliance_activity(
     )
 
     # ========================================================
-    # ИЩЕМ ТЕКУЩЕЕ НАЗВАНИЕ АЛЬЯНСА
+    # ИНИЦИАЛИЗАЦИЯ
     # ========================================================
 
     alliance_name = ""
 
     enemy_villages_today = []
+
     founded = []
     captured = []
     lost = []
 
-        # Если сегодня деревень альянса нет,
-    # ищем название во вчерашнем снимке.
+    # ========================================================
+    # ИЩЕМ ТЕКУЩЕЕ НАЗВАНИЕ АЛЬЯНСА
+    # ========================================================
 
-    if not alliance_name:
-
-        for village in v_previous.values():
-
-            if (
-                village["alliance_id"]
-                == ENEMY_ALLIANCE_ID
-            ):
-
-                alliance_name = (
-                    village["alliance"]
-                )
-
-                break
-
-    if not alliance_name:
-
-        alliance_name = (
-            f"ID {ENEMY_ALLIANCE_ID}"
-        )
+    # Сначала ищем название в сегодняшнем снимке.
 
     for village in v_today.values():
 
@@ -873,6 +876,33 @@ def find_enemy_alliance_activity(
                 alliance_name = (
                     village["alliance"]
                 )
+
+    # Если сегодня деревень альянса нет,
+    # ищем название во вчерашнем снимке.
+
+    if not alliance_name:
+
+        for village in v_previous.values():
+
+            if (
+                village["alliance_id"]
+                == ENEMY_ALLIANCE_ID
+            ):
+
+                alliance_name = (
+                    village["alliance"]
+                )
+
+                break
+
+    # Если название нигде не найдено,
+    # используем ID.
+
+    if not alliance_name:
+
+        alliance_name = (
+            f"ID {ENEMY_ALLIANCE_ID}"
+        )
 
     # ========================================================
     # 1. НОВЫЕ ДЕРЕВНИ
@@ -1117,12 +1147,19 @@ def send_reports(
         inactive_players
     ) = results
 
-    # Состояние повторных уведомлений о неактивности.
+    # ========================================================
+    # СОСТОЯНИЕ ПОВТОРНЫХ УВЕДОМЛЕНИЙ
+    # ========================================================
+
     inactive_state = load_inactive_state()
+
     reported_inactive_ids = {
         int(p_id)
         for p_id, info in inactive_state.items()
-        if isinstance(info, dict) and info.get("reported")
+        if (
+            isinstance(info, dict)
+            and info.get("reported")
+        )
     }
 
     # ========================================================
@@ -1238,9 +1275,12 @@ def send_reports(
         reverse=True
     )
 
-    # Показываем только тех, кто ещё не фигурировал в отчёте.
+    # Показываем только тех,
+    # кто ещё не фигурировал в отчёте.
+
     inactive_players_new = [
-        item for item in inactive_players
+        item
+        for item in inactive_players
         if item[0] not in reported_inactive_ids
     ]
 
@@ -1260,7 +1300,10 @@ def send_reports(
                 f"население: {pop} "
                 f"(без изменений за 24 часа)\n"
             )
-            reported_today_ids.add(p_id)
+
+            reported_today_ids.add(
+                p_id
+            )
 
     else:
 
@@ -1274,7 +1317,9 @@ def send_reports(
         THREAD_ID
     )
 
-    reported_inactive_ids.update(reported_today_ids)
+    reported_inactive_ids.update(
+        reported_today_ids
+    )
 
     # ========================================================
     # 5. НЕАКТИВНЫЕ 3 ДНЯ ПОДРЯД
@@ -1285,7 +1330,8 @@ def send_reports(
     )
 
     inactive_players_3d_new = [
-        item for item in (inactive_players_3d or [])
+        item
+        for item in (inactive_players_3d or [])
         if item[0] not in reported_inactive_ids
     ]
 
@@ -1303,7 +1349,10 @@ def send_reports(
                 f"население: {pop} "
                 f"(без изменений 3 дня подряд)\n"
             )
-            reported_inactive_ids.add(p_id)
+
+            reported_inactive_ids.add(
+                p_id
+            )
 
     else:
 
@@ -1317,17 +1366,45 @@ def send_reports(
         THREAD_ID
     )
 
-    # Обновляем состояние после успешной отправки обоих отчётов.
-    # Активные игроки сбрасываются и смогут снова попасть в отчёт после
-    # нового периода неактивности.
+    # ========================================================
+    # ОБНОВЛЕНИЕ СОСТОЯНИЯ НЕАКТИВНОСТИ
+    # ========================================================
+    #
+    # Если игрок был активен, его запись удаляется
+    # из состояния. Поэтому в будущем, если он снова
+    # перестанет развиваться, он сможет снова попасть
+    # в отчёт.
+    #
+    # Игроки, которые продолжают оставаться неактивными,
+    # сохраняются и повторно не показываются.
+    # ========================================================
+
     if active_player_ids is not None:
-        active_player_ids = set(active_player_ids)
-        current_player_ids = set(current_player_ids or [])
+
+        active_player_ids = set(
+            active_player_ids
+        )
+
+        current_player_ids = set(
+            current_player_ids or []
+        )
+
         new_state = {}
+
         for p_id in reported_inactive_ids:
-            if p_id in current_player_ids and p_id not in active_player_ids:
-                new_state[str(p_id)] = {"reported": True}
-        save_inactive_state(new_state)
+
+            if (
+                p_id in current_player_ids
+                and p_id not in active_player_ids
+            ):
+
+                new_state[str(p_id)] = {
+                    "reported": True
+                }
+
+        save_inactive_state(
+            new_state
+        )
 
     # ========================================================
     # 6. АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
@@ -1692,31 +1769,59 @@ def main():
         )
 
     # ========================================================
-    # ОПРЕДЕЛЯЕМ АКТИВНЫХ ИГРОКОВ ДЛЯ СБРОСА СОСТОЯНИЯ
+    # ОПРЕДЕЛЯЕМ АКТИВНЫХ ИГРОКОВ
+    # ========================================================
+    #
+    # Если суммарное население игрока изменилось,
+    # считаем его активным.
+    #
+    # Это сбрасывает его из inactive_state.json.
+    # После нового периода без изменений он снова
+    # сможет попасть в отчёт.
     # ========================================================
 
     previous_pop_by_player = {}
+
     for village in v_previous.values():
+
         p_id = village["uid"]
+
         if p_id != 0:
+
             previous_pop_by_player[p_id] = (
-                previous_pop_by_player.get(p_id, 0)
+                previous_pop_by_player.get(
+                    p_id,
+                    0
+                )
                 + village["pop"]
             )
 
     today_pop_by_player = {}
+
     for village in v_today.values():
+
         p_id = village["uid"]
+
         if p_id != 0:
+
             today_pop_by_player[p_id] = (
-                today_pop_by_player.get(p_id, 0)
+                today_pop_by_player.get(
+                    p_id,
+                    0
+                )
                 + village["pop"]
             )
 
     active_player_ids = {
         p_id
         for p_id in today_pop_by_player
-        if today_pop_by_player[p_id] != previous_pop_by_player.get(p_id, 0)
+        if (
+            today_pop_by_player[p_id]
+            != previous_pop_by_player.get(
+                p_id,
+                0
+            )
+        )
     }
 
     # ========================================================
@@ -1728,7 +1833,10 @@ def main():
         inactive_players_3d,
         enemy_activity,
         active_player_ids,
-        [p_id for p_id, _ in p_today]
+        [
+            p_id
+            for p_id, _ in p_today
+        ]
     )
 
     # ========================================================
