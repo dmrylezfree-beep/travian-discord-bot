@@ -638,38 +638,41 @@ def compare_snapshots(
 
     deleted_players = []
 
-    for p_id, p_name in p_previous:
+for p_id, p_name in p_previous:
 
-        if p_id not in today_uids:
+    if p_id not in today_uids:
 
-            previous_pop = sum(
-                v["pop"]
-                for v in v_previous.values()
-                if v["uid"] == p_id
-            )
+        player_villages = [
+            v
+            for v in v_previous.values()
+            if v["uid"] == p_id
+        ]
 
-            if (
-                previous_pop
-                >= DELETED_PLAYER_MIN_POP
-            ):
+        previous_pop = sum(
+            v["pop"]
+            for v in player_villages
+        )
 
-                deleted_alliance = ""
+        if (
+            previous_pop
+            >= DELETED_PLAYER_MIN_POP
+        ):
 
-                for village in v_previous.values():
-                    if village["uid"] == p_id:
-                        if village["alliance"]:
-                            deleted_alliance = village["alliance"]
-                        break
+            deleted_alliance = ""
 
-                deleted_players.append(
-                    (
-                        p_id,
-                        p_name,
-                        previous_pop,
-                        deleted_alliance
-                    )
+            for village in player_villages:
+                if village["alliance"]:
+                    deleted_alliance = village["alliance"]
+                    break
+
+            deleted_players.append(
+                (
+                    p_id,
+                    p_name,
+                    previous_pop,
+                    deleted_alliance
                 )
-
+            )
     # ========================================================
     # ЗАХВАТЫ И ПАДЕНИЕ НАСЕЛЕНИЯ
     # ========================================================
@@ -834,34 +837,6 @@ def find_enemy_alliance_activity(
                 alliance_name = (
                     village["alliance"]
                 )
-
-    # Если сегодня деревень альянса нет,
-    # ищем название во вчерашнем снимке.
-
-    if not alliance_name:
-
-        for village in v_previous.values():
-
-            if (
-                village["alliance_id"]
-                == ENEMY_ALLIANCE_ID
-            ):
-
-                alliance_name = (
-                    village["alliance"]
-                )
-
-                break
-
-    if not alliance_name:
-
-        alliance_name = (
-            f"ID {ENEMY_ALLIANCE_ID}"
-        )
-
-    founded = []
-    captured = []
-    lost = []
 
     # ========================================================
     # 1. НОВЫЕ ДЕРЕВНИ
