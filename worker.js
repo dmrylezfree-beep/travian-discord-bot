@@ -1,15 +1,18 @@
 
-const THREAD_ID = "75984";
+const THREAD_ID = 75984;
+
 
 function parseCoordinates(text) {
   const parts = text.trim().split(/\s+/);
 
-  // Только целые числа
+  // Координаты должны идти парами:
+  // 10 20
+  // 10 20 30 40
   if (parts.length < 2 || parts.length % 2 !== 0) {
     return null;
   }
 
-  if (!parts.every(x => /^-?\d+$/.test(x))) {
+  if (!parts.every(value => /^-?\d+$/.test(value))) {
     return null;
   }
 
@@ -45,15 +48,22 @@ async function runGitHubWorkflow(env, inputs) {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`GitHub API ${response.status}: ${error}`);
+    const errorText = await response.text();
+
+    throw new Error(
+      `GitHub API ${response.status}: ${errorText}`
+    );
   }
 }
 
 
-async function sendTelegram(env, chatId, text, threadId) {
+async function answerCallback(env, callbackId) {
+  if (!callbackId) {
+    return;
+  }
+
   await fetch(
-    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
     {
       method: "POST",
 
@@ -62,9 +72,7 @@ async function sendTelegram(env, chatId, text, threadId) {
       },
 
       body: JSON.stringify({
-        chat_id: chatId,
-        message_thread_id: threadId,
-        text
+        callback_query_id: callbackId
       })
     }
   );
@@ -73,6 +81,7 @@ async function sendTelegram(env, chatId, text, threadId) {
 
 export default {
   async fetch(request, env) {
+
     if (request.method !== "POST") {
       return new Response("OK");
     }
@@ -80,19 +89,23 @@ export default {
     try {
       const update = await request.json();
 
-      /*
-       * =====================================================
-       * КНОПКА «ПОКАЗАТЬ ЕЩЁ»
-       * =====================================================
-       */
+
+      // =====================================================
+      // КНОПКА «ПОКАЗАТЬ ЕЩЁ»
+      // =====================================================
 
       if (update.callback_query) {
+
         const callback = update.callback_query;
         const message = callback.message;
 
+        if (!message) {
+          return new Response("OK");
+        }
+
         if (
-          !message ||
-          String(message.message_thread_id || "") !== THREAD_ID
+          message.is_topic_message !== true ||
+          Number(message.message_thread_id) !== THREAD_ID
         ) {
           return new Response("OK");
         }
@@ -108,11 +121,13 @@ export default {
         const page = parts[1];
         const originSpec = parts.slice(2).join("|");
 
+        await answerCallback(env, callback.id);
+
         await runGitHubWorkflow(env, {
           action: "callback",
           chat_id: String(message.chat.id),
           message_id: String(message.message_id),
-          thread_id: THREAD_ID,
+          thread_id: String(THREAD_ID),
           origin_spec: originSpec,
           page: page,
           callback_id: String(callback.id)
@@ -122,11 +137,9 @@ export default {
       }
 
 
-      /*
-       * =====================================================
-       * ОБЫЧНОЕ СООБЩЕНИЕ
-       * =====================================================
-       */
+      // =====================================================
+      // ОБЫЧНОЕ СООБЩЕНИЕ
+      // =====================================================
 
       const message = update.message;
 
@@ -134,12 +147,15 @@ export default {
         return new Response("OK");
       }
 
-      // Работаем только в теме 75984
+
+      // Работаем только в сообщениях внутри темы 75984.
       if (
-        String(message.message_thread_id || "") !== THREAD_ID
+        message.is_topic_message !== true ||
+        Number(message.message_thread_id) !== THREAD_ID
       ) {
         return new Response("OK");
       }
+
 
       const text = String(message.text || "").trim();
 
@@ -147,40 +163,42 @@ export default {
         return new Response("OK");
       }
 
-      /*
-       * Теперь нам вообще не важно, написано ли /feeders.
-       *
-       * Единственное условие:
-       * сообщение должно состоять из пар координат.
-       *
-       * Например:
-       *
-       * 10 20
-       * 10 20 30 40
-       * -150 80 100 -50
-       */
+
+      // =====================================================
+      // КООРДИНАТЫ
+      // =====================================================
 
       const originSpec = parseCoordinates(text);
 
-      // Обычный текст просто игнорируем
+      // Любой обычный текст игнорируем.
       if (!originSpec) {
         return new Response("OK");
       }
+
+
+      // =====================================================
+      // ЗАПУСК GITHUB ACTIONS
+      // =====================================================
 
       await runGitHubWorkflow(env, {
         action: "command",
         chat_id: String(message.chat.id),
         message_id: String(message.message_id),
-        thread_id: THREAD_ID,
+        thread_id: String(THREAD_ID),
         origin_spec: originSpec,
         page: "0",
         callback_id: ""
       });
 
+
       return new Response("OK");
 
     } catch (error) {
-      console.error("Worker error:", error);
+
+      console.error(
+        "Worker error:",
+        error instanceof Error ? error.message : String(error)
+      );
 
       return new Response("OK");
     }
