@@ -1,4 +1,4 @@
-```javascript
+javascript
 export default {
   async fetch(request, env) {
 
@@ -387,4 +387,3 @@ async function dispatchWorkflow(env, inputs) {
     };
   }
 }
-```
