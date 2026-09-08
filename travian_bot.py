@@ -715,7 +715,7 @@ def compare_snapshots(
         # вчера отличался от позавчера.
         if (
             raw_day_before is not None
-            and pop_today > 0
+            and pop_today > 100
             and pop_today == pop_yesterday
             and pop_yesterday != pop_day_before
         ):
