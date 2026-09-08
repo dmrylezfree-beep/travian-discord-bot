@@ -82,7 +82,6 @@ export default {
             chat_id: callback.message.chat.id,
             message_thread_id:
               callback.message.message_thread_id,
-
             text:
               "❌ Ошибка запуска GitHub Actions:\n\n" +
               result.error
@@ -152,11 +151,13 @@ export default {
 
     } else if (args.length === 1) {
 
-      originSpec = `player:${args[0]}`;
+      originSpec =
+        "player:" + args[0];
 
     } else if (args.length === 2) {
 
-      originSpec = `coords:${args[0]},${args[1]}`;
+      originSpec =
+        "coords:" + args[0] + "," + args[1];
 
     } else if (args.length % 2 === 0) {
 
@@ -164,11 +165,12 @@ export default {
 
       for (let i = 0; i < args.length; i += 2) {
         coords.push(
-          `${args[i]},${args[i + 1]}`
+          args[i] + "," + args[i + 1]
         );
       }
 
-      originSpec = `coords:${coords.join(";")}`;
+      originSpec =
+        "coords:" + coords.join(";");
 
     } else {
 
@@ -257,7 +259,10 @@ export default {
 async function telegramRequest(env, method, body) {
 
   const url =
-    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`;
+    "https://api.telegram.org/bot" +
+    env.TELEGRAM_BOT_TOKEN +
+    "/" +
+    method;
 
   const response = await fetch(url, {
 
@@ -281,11 +286,13 @@ async function telegramRequest(env, method, body) {
 async function dispatchWorkflow(env, inputs) {
 
   const url =
-    `https://api.github.com/repos/` +
-    `${env.GITHUB_OWNER}/` +
-    `${env.GITHUB_REPO}/` +
-    `actions/workflows/` +
-    `${env.GITHUB_WORKFLOW}/dispatches`;
+    "https://api.github.com/repos/" +
+    env.GITHUB_OWNER +
+    "/" +
+    env.GITHUB_REPO +
+    "/actions/workflows/" +
+    env.GITHUB_WORKFLOW +
+    "/dispatches";
 
   try {
 
@@ -299,7 +306,7 @@ async function dispatchWorkflow(env, inputs) {
           "application/vnd.github+json",
 
         "Authorization":
-          `Bearer ${env.GITHUB_TOKEN}`,
+          "Bearer " + env.GITHUB_TOKEN,
 
         "X-GitHub-Api-Version":
           "2022-11-28",
@@ -360,7 +367,10 @@ async function dispatchWorkflow(env, inputs) {
     return {
       ok: false,
       error:
-        `HTTP ${response.status}\n${errorText}`
+        "HTTP " +
+        response.status +
+        "\n" +
+        errorText
     };
 
   } catch (error) {
