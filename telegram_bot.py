@@ -23,8 +23,13 @@ PAGE_SIZE = 5
 
 FEEDER_PLAYER_ID = os.environ.get("FEEDER_PLAYER_ID")
 
-# Размер карты Travian.
-MAP_SIZE = int(os.environ.get("TRAVIAN_MAP_SIZE", "401"))
+MAP_SIZE = int(
+    os.environ.get(
+        "TRAVIAN_MAP_SIZE",
+        "401",
+    )
+)
+
 
 # ============================================================
 # СИСТЕМА ОЧКОВ
@@ -34,6 +39,7 @@ POP_MAX_SCORE = 30
 
 DISTANCE_MAX_SCORE = 40
 DISTANCE_MIN_SCORE = 1
+
 DISTANCE_FULL_SCORE_DISTANCE = 10.0
 DISTANCE_MIN_SCORE_DISTANCE = 200.0
 
@@ -44,12 +50,19 @@ INACTIVE_MAX_SCORE = 30
 # TELEGRAM API
 # ============================================================
 
-def telegram_request(method, payload=None, timeout=40):
+def telegram_request(
+    method,
+    payload=None,
+    timeout=40,
+):
     if not TELEGRAM_TOKEN:
-        raise RuntimeError("TELEGRAM_TOKEN не задан")
+        raise RuntimeError(
+            "TELEGRAM_TOKEN не задан"
+        )
 
     response = requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}",
+        f"https://api.telegram.org/bot"
+        f"{TELEGRAM_TOKEN}/{method}",
         json=payload or {},
         timeout=timeout,
     )
@@ -106,12 +119,6 @@ def edit_message(
         "disable_web_page_preview": True,
     }
 
-    # Для editMessageText Telegram определяет сообщение
-    # по chat_id + message_id. message_thread_id здесь
-    # не является обязательным.
-    #
-    # Но оставляем аргумент thread_id в функции для совместимости.
-
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
 
@@ -133,6 +140,7 @@ def answer_callback(callback_id):
             },
             timeout=20,
         )
+
     except Exception as exc:
         print(
             f"Не удалось ответить на callback: {exc}"
@@ -145,7 +153,8 @@ def answer_callback(callback_id):
 
 def snapshot_files():
     """
-    Возвращает все snapshot-файлы в хронологическом порядке.
+    Возвращает snapshot-файлы
+    в хронологическом порядке.
     """
 
     if not SNAPSHOT_DIR.exists():
@@ -153,11 +162,14 @@ def snapshot_files():
 
     result = []
 
-    for path in SNAPSHOT_DIR.glob("**/map_*.sql"):
-
+    for path in SNAPSHOT_DIR.glob(
+        "**/map_*.sql"
+    ):
         name = path.name
 
-        if len(name) != len("map_2026-01-01.sql"):
+        if len(name) != len(
+            "map_2026-01-01.sql"
+        ):
             continue
 
         try:
@@ -213,24 +225,9 @@ def load_latest_snapshot():
 
 def build_population_history():
     """
-    Строит историю населения ВСЕХ игроков.
+    Строит историю населения всех игроков.
 
-    ВАЖНО:
     Каждый snapshot разбирается только один раз.
-
-    Результат:
-
-        {
-            player_id: [
-                (date, population),
-                (date, population),
-                ...
-            ]
-        }
-
-    Это намного быстрее старой реализации,
-    которая разбирала каждый snapshot отдельно
-    для каждого игрока.
     """
 
     history = {}
@@ -254,7 +251,10 @@ def build_population_history():
                 )
             )
 
-        except (OSError, RuntimeError) as exc:
+        except (
+            OSError,
+            RuntimeError,
+        ) as exc:
 
             print(
                 f"Не удалось прочитать snapshot "
@@ -263,7 +263,6 @@ def build_population_history():
 
             continue
 
-        # Население игроков в данном snapshot.
         populations = {}
 
         for village in villages.values():
@@ -274,17 +273,20 @@ def build_population_history():
                 continue
 
             populations[uid] = (
-                populations.get(uid, 0)
+                populations.get(
+                    uid,
+                    0,
+                )
                 + village["pop"]
             )
 
-        # Добавляем результат snapshot
-        # в историю каждого игрока.
-        for uid, population in populations.items():
+        for uid, population in (
+            populations.items()
+        ):
 
             history.setdefault(
                 uid,
-                []
+                [],
             ).append(
                 (
                     date_value,
@@ -306,34 +308,19 @@ def calculate_inactivity_days(
     population_history,
 ):
     """
-    Определяет количество полных последовательных дней,
-    в течение которых население игрока не менялось.
-
-    Например:
-
-        01.09 — 500
-        02.09 — 500
-        03.09 — 500
-        04.09 — 510
-
-    На 03.09 игрок имеет 2 дня неактивности.
-
-    Если последний snapshot имеет изменение населения,
-    неактивность = 0.
-
-    Если между snapshot есть пропуск дня,
-    последовательность прекращается.
+    Определяет количество последовательных дней,
+    в течение которых население игрока
+    не менялось.
     """
 
     history = population_history.get(
         player_id,
-        []
+        [],
     )
 
     if len(history) < 2:
         return 0
 
-    # Берём только данные до latest_date.
     history = [
         item
         for item in history
@@ -343,22 +330,19 @@ def calculate_inactivity_days(
     if len(history) < 2:
         return 0
 
-    latest_date_value, latest_population = history[-1]
+    latest_date_value, latest_population = (
+        history[-1]
+    )
 
-    # Последний snapshot должен совпадать
-    # с актуальной датой.
     if latest_date_value != latest_date:
         return 0
 
-    # Игрок должен существовать.
     if latest_population <= 0:
         return 0
 
     days = 0
-
     previous_population = latest_population
 
-    # Идём назад по истории.
     for index in range(
         len(history) - 2,
         -1,
@@ -369,13 +353,9 @@ def calculate_inactivity_days(
             history[index]
         )
 
-        # Население изменилось —
-        # игрок больше не считается неактивным
-        # дальше этой точки.
         if current_population != previous_population:
             break
 
-        # Между snapshot должен быть ровно один день.
         if (
             history[index + 1][0]
             - current_date
@@ -383,7 +363,6 @@ def calculate_inactivity_days(
             break
 
         days += 1
-
         previous_population = current_population
 
     return days
@@ -393,9 +372,14 @@ def calculate_inactivity_days(
 # РАССТОЯНИЕ TRAVIAN
 # ============================================================
 
-def distance(x1, y1, x2, y2):
+def distance(
+    x1,
+    y1,
+    x2,
+    y2,
+):
     """
-    Расстояние по формуле Travian
+    Формула расстояния Travian
     с учётом перехода через край карты.
     """
 
@@ -409,16 +393,17 @@ def distance(x1, y1, x2, y2):
 
     dx = min(
         dx_raw,
-        MAP_SIZE - dx_raw
+        MAP_SIZE - dx_raw,
     )
 
     dy = min(
         dy_raw,
-        MAP_SIZE - dy_raw
+        MAP_SIZE - dy_raw,
     )
 
     return math.sqrt(
-        dx * dx + dy * dy
+        dx * dx
+        + dy * dy
     )
 
 
@@ -429,7 +414,7 @@ def distance(x1, y1, x2, y2):
 def population_score(population):
     return min(
         POP_MAX_SCORE,
-        population // 8
+        population // 8,
     )
 
 
@@ -467,8 +452,8 @@ def distance_score(dist):
         DISTANCE_MIN_SCORE,
         min(
             DISTANCE_MAX_SCORE,
-            score
-        )
+            score,
+        ),
     )
 
 
@@ -479,7 +464,7 @@ def distance_score(dist):
 def inactivity_score(days):
     return min(
         INACTIVE_MAX_SCORE,
-        days
+        days,
     )
 
 
@@ -506,19 +491,6 @@ def parse_origins(
     origin_spec,
     villages,
 ):
-    """
-    Поддерживаются:
-
-        coords:10,20
-
-    или:
-
-        coords:10,20;30,40
-
-    Также оставлена поддержка старого формата:
-
-        player:123
-    """
 
     if origin_spec.startswith(
         "coords:"
@@ -526,12 +498,10 @@ def parse_origins(
 
         origins = []
 
-        coordinates = (
+        for pair in (
             origin_spec[7:]
             .split(";")
-        )
-
-        for pair in coordinates:
+        ):
 
             if not pair:
                 continue
@@ -562,19 +532,15 @@ def parse_origins(
             villages,
             int(
                 origin_spec[7:]
-            )
+            ),
         )
 
-
-    # Старый вариант:
-    # если FEEDER_PLAYER_ID задан,
-    # ищем от всех деревень игрока.
 
     if FEEDER_PLAYER_ID:
 
         return player_villages(
             villages,
-            int(FEEDER_PLAYER_ID)
+            int(FEEDER_PLAYER_ID),
         )
 
     return []
@@ -591,13 +557,10 @@ def find_feeders(
     population_history,
 ):
     """
-    Ищет неактивных игроков и выбирает
-    ближайшую к исходным деревням деревню каждого игрока.
+    Ищет неактивных игроков.
 
-    ВАЖНО:
     Минимального населения 100 НЕТ.
-
-    Любое население > 0 подходит.
+    Подходит любое население > 0.
     """
 
     player_pop = {}
@@ -605,20 +568,18 @@ def find_feeders(
     player_alliances = {}
     player_villages_map = {}
 
-    # --------------------------------------------------------
-    # Собираем информацию по игрокам
-    # --------------------------------------------------------
-
     for village in villages.values():
 
         uid = village["uid"]
 
-        # UID 0 — не игрок.
         if uid == 0:
             continue
 
         player_pop[uid] = (
-            player_pop.get(uid, 0)
+            player_pop.get(
+                uid,
+                0,
+            )
             + village["pop"]
         )
 
@@ -632,13 +593,9 @@ def find_feeders(
 
         player_villages_map.setdefault(
             uid,
-            []
+            [],
         ).append(village)
 
-
-    # --------------------------------------------------------
-    # Игроки, чьи деревни являются исходными
-    # --------------------------------------------------------
 
     origin_uids = {
         village.get("uid")
@@ -655,34 +612,26 @@ def find_feeders(
     candidates = []
 
 
-    # --------------------------------------------------------
-    # Проверяем игроков
-    # --------------------------------------------------------
-
     for uid, villages_of_player in (
         player_villages_map.items()
     ):
 
-        # Самого себя в кормушки не включаем.
+        # Не показываем самого игрока,
+        # от чьих деревень выполняется поиск.
         if uid in origin_uids:
             continue
 
 
         population = player_pop.get(
             uid,
-            0
+            0,
         )
 
-        # Население 0 или меньше исключаем.
-        #
-        # НИКАКОГО ограничения 100 населения НЕТ.
+
+        # Любое население > 0 подходит.
         if population <= 0:
             continue
 
-
-        # ----------------------------------------------------
-        # Неактивность
-        # ----------------------------------------------------
 
         inactive = calculate_inactivity_days(
             uid,
@@ -690,14 +639,11 @@ def find_feeders(
             population_history,
         )
 
-        # Нужен минимум 1 день отсутствия роста.
+
+        # Минимум 1 день без роста.
         if inactive < 1:
             continue
 
-
-        # ----------------------------------------------------
-        # Ищем ближайшую деревню игрока
-        # ----------------------------------------------------
 
         best_village = None
         best_distance = None
@@ -728,7 +674,10 @@ def find_feeders(
 
 
         # ----------------------------------------------------
-        # Очки
+        # Расчёт рейтинга
+        #
+        # Сам расчёт сохраняем.
+        # В сообщении пользователю он НЕ показывается.
         # ----------------------------------------------------
 
         pop_points = population_score(
@@ -784,7 +733,7 @@ def find_feeders(
 
 
     # --------------------------------------------------------
-    # Сортировка
+    # Сортировка по рейтингу
     # --------------------------------------------------------
 
     candidates.sort(
@@ -839,11 +788,18 @@ def format_feeder(
     item,
     number,
 ):
+    """
+    Имя игрока не показываем.
 
-    player = html.escape(
-        str(item["player"]),
-        quote=True,
-    )
+    Расчёт рейтинга не показываем.
+
+    Рейтинг показываем внизу каждой
+    отдельной кормушки.
+
+    Рейтинг:
+    - со звездой;
+    - округлён до целого.
+    """
 
     alliance = html.escape(
         str(
@@ -860,12 +816,15 @@ def format_feeder(
         quote=True,
     )
 
-    return (
-        f"<b>{number}. {player}</b>"
-        f" — {item['score']} баллов\n"
+    # Округление рейтинга до целого.
+    rounded_score = round(
+        item["score"]
+    )
 
-        f"   🏘 {village_name} "
-        f"{village_link(item['village'])}\n"
+    return (
+        f"<b>{number}. "
+        f"{village_name} "
+        f"{village_link(item['village'])}</b>\n"
 
         f"   👥 население: "
         f"{item['population']}\n"
@@ -876,14 +835,9 @@ def format_feeder(
         f"   📏 расстояние: "
         f"{item['distance']:.1f}\n"
 
-        f"   🎯 население "
-        f"{item['pop_points']} + "
-        f"расстояние "
-        f"{item['distance_points']:.1f} + "
-        f"неактивность "
-        f"{item['inactive_points']}\n"
+        f"   🔴 {alliance}\n"
 
-        f"   🔴 {alliance}"
+        f"   ⭐ <b>{rounded_score}</b>"
     )
 
 
@@ -936,10 +890,6 @@ def make_page(
         f"из {len(items)}."
     )
 
-
-    # --------------------------------------------------------
-    # Кнопки
-    # --------------------------------------------------------
 
     buttons = []
 
@@ -1005,14 +955,12 @@ def parse_legacy_command(text):
     if len(parts) == 2:
 
         try:
-
             return (
                 f"player:"
                 f"{int(parts[1])}"
             )
 
         except ValueError:
-
             return ""
 
 
@@ -1156,11 +1104,9 @@ def process_request():
 
 
     # ========================================================
-    # СТРОИМ ИСТОРИЮ
+    # Строим историю населения
     #
-    # Это главный фикс производительности.
-    #
-    # Каждый snapshot читается только один раз.
+    # Каждый snapshot читается один раз.
     # ========================================================
 
     population_history = (
@@ -1238,7 +1184,7 @@ def process_request():
 
 
     # ========================================================
-    # Обычный новый запрос
+    # Новый запрос
     # ========================================================
 
     if action == "command":
@@ -1301,4 +1247,3 @@ def process_request():
 
 if __name__ == "__main__":
     process_request()
-
