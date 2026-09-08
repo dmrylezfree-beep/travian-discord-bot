@@ -499,21 +499,35 @@ def send_to_telegram(message, thread_id=None):
             timeout=30
         )
 
-        response.raise_for_status()
+        try:
+            result = response.json()
+        except ValueError:
+            result = {"raw_response": response.text}
 
-        result = response.json()
-
-        if not result.get("ok"):
-
+        if not response.ok or not result.get("ok"):
             fail(
-                f"Telegram API вернул ошибку: {result}"
+                "Telegram API вернул ошибку "
+                f"HTTP {response.status_code}: {result}"
             )
 
     except requests.RequestException as exc:
 
+        response_text = ""
+        if getattr(exc, "response", None) is not None:
+            try:
+                response_text = exc.response.text
+            except Exception:
+                response_text = ""
+
+        details = (
+            f"; ответ Telegram: {response_text}"
+            if response_text
+            else ""
+        )
+
         fail(
-            f"Не удалось отправить сообщение "
-            f"в Telegram: {exc}"
+            "Не удалось отправить сообщение "
+            f"в Telegram: {exc}{details}"
         )
 
 
@@ -540,6 +554,9 @@ def escape_markdown(text):
         "_",
         "`",
         "[",
+        "]",
+        "(",
+        ")",
     ]:
 
         text = text.replace(
