@@ -1,17 +1,18 @@
+
 export default {
   async fetch(request, env) {
 
-    // ============================================================
-    // ПРОВЕРКА МЕТОДА
-    // ============================================================
+    // ------------------------------------------------------------
+    // Принимаем только POST от Telegram
+    // ------------------------------------------------------------
 
     if (request.method !== "POST") {
       return new Response("OK", { status: 200 });
     }
 
-    // ============================================================
-    // ПРОВЕРКА TELEGRAM WEBHOOK SECRET
-    // ============================================================
+    // ------------------------------------------------------------
+    // Проверка секретного токена Telegram webhook
+    // ------------------------------------------------------------
 
     const secret = request.headers.get(
       "X-Telegram-Bot-Api-Secret-Token"
@@ -24,9 +25,9 @@ export default {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    // ============================================================
-    // ЧИТАЕМ UPDATE
-    // ============================================================
+    // ------------------------------------------------------------
+    // Читаем Telegram update
+    // ------------------------------------------------------------
 
     let update;
 
@@ -37,7 +38,7 @@ export default {
     }
 
     // ============================================================
-    // CALLBACK "ПОКАЗАТЬ ЕЩЁ"
+    // CALLBACK — кнопка "Показать ещё" / "Назад"
     // ============================================================
 
     if (update.callback_query) {
@@ -45,6 +46,7 @@ export default {
       const callback = update.callback_query;
       const data = callback.data || "";
 
+      // Нас интересуют только callback нашего бота
       if (!data.startsWith("feeders|")) {
         return new Response("OK");
       }
@@ -52,8 +54,11 @@ export default {
       const parts = data.split("|");
 
       const page = parts[1] || "0";
+
+      // Всё после номера страницы — исходные координаты
       const originSpec = parts.slice(2).join("|");
 
+      // Убираем "часики" с кнопки Telegram
       await telegramRequest(
         env,
         "answerCallbackQuery",
@@ -63,24 +68,33 @@ export default {
       );
 
       const result = await dispatchWorkflow(env, {
-        action: "feeders",
+        action: "callback",
+
         chat_id: callback.message.chat.id,
+
         message_id: callback.message.message_id,
+
         thread_id:
           callback.message.message_thread_id || "75984",
+
         origin_spec: originSpec,
+
         page: page,
+
         callback_id: ""
       });
 
       if (!result.ok) {
+
         await telegramRequest(
           env,
           "sendMessage",
           {
             chat_id: callback.message.chat.id,
+
             message_thread_id:
               callback.message.message_thread_id,
+
             text:
               "❌ Ошибка запуска GitHub Actions:\n\n" +
               result.error
@@ -92,7 +106,7 @@ export default {
     }
 
     // ============================================================
-    // ОБЫЧНОЕ СООБЩЕНИЕ
+    // Обычное сообщение
     // ============================================================
 
     const message = update.message;
@@ -101,28 +115,9 @@ export default {
       return new Response("OK");
     }
 
-    // ============================================================
-    // DEBUG
-    // ============================================================
-
-    await telegramRequest(
-      env,
-      "sendMessage",
-      {
-        chat_id: message.chat.id,
-        message_thread_id: message.message_thread_id,
-        text:
-          "🔧 DEBUG\n" +
-          "thread_id: " +
-          String(message.message_thread_id) +
-          "\ntext: " +
-          String(message.text || "")
-      }
-    );
-
-    // ============================================================
-    // ПРОВЕРКА ТЕМЫ
-    // ============================================================
+    // ------------------------------------------------------------
+    // Работаем только в теме 75984
+    // ------------------------------------------------------------
 
     if (
       String(message.message_thread_id || "") !== "75984"
@@ -132,98 +127,202 @@ export default {
 
     const text = (message.text || "").trim();
 
-    if (!text.startsWith("/feeders")) {
+    if (!text) {
       return new Response("OK");
     }
 
     // ============================================================
-    // РАЗБИРАЕМ КОМАНДУ
+    // Определяем координаты
     // ============================================================
-
-    const args = text.split(/\s+/).slice(1);
 
     let originSpec = "";
 
-    if (args.length === 0) {
+    // ------------------------------------------------------------
+    // Вариант 1:
+    //
+    // /feeders 10 20
+    //
+    // ------------------------------------------------------------
 
-      originSpec = "";
+    if (text.startsWith("/feeders")) {
 
-    } else if (args.length === 1) {
+      const args = text.split(/\s+/).slice(1);
 
-      originSpec =
-        "player:" + args[0];
+      if (args.length === 0) {
 
-    } else if (args.length === 2) {
+        await telegramRequest(
+          env,
+          "sendMessage",
+          {
+            chat_id: message.chat.id,
 
-      originSpec =
-        "coords:" + args[0] + "," + args[1];
+            message_thread_id:
+              message.message_thread_id,
 
-    } else if (args.length % 2 === 0) {
+            text:
+              "🌾 Введите координаты деревни.\n\n" +
+              "Например:\n" +
+              "<code>10 20</code>\n\n" +
+              "Или несколько деревень:\n" +
+              "<code>10 20 30 40</code>"
+          }
+        );
+
+        return new Response("OK");
+      }
+
+      if (args.length % 2 !== 0) {
+
+        await telegramRequest(
+          env,
+          "sendMessage",
+          {
+            chat_id: message.chat.id,
+
+            message_thread_id:
+              message.message_thread_id,
+
+            text:
+              "❌ Неверный формат координат.\n\n" +
+              "Используйте:\n" +
+              "<code>10 20</code>\n" +
+              "или\n" +
+              "<code>10 20 30 40</code>"
+          }
+        );
+
+        return new Response("OK");
+      }
 
       const coords = [];
 
       for (let i = 0; i < args.length; i += 2) {
+
+        const x = args[i];
+        const y = args[i + 1];
+
+        if (
+          !/^-?\d+$/.test(x) ||
+          !/^-?\d+$/.test(y)
+        ) {
+
+          await telegramRequest(
+            env,
+            "sendMessage",
+            {
+              chat_id: message.chat.id,
+
+              message_thread_id:
+                message.message_thread_id,
+
+              text:
+                "❌ Координаты должны быть числами.\n\n" +
+                "Например:\n" +
+                "<code>10 20</code>"
+            }
+          );
+
+          return new Response("OK");
+        }
+
         coords.push(
-          args[i] + "," + args[i + 1]
+          x + "," + y
         );
       }
 
       originSpec =
         "coords:" + coords.join(";");
 
-    } else {
-
-      await telegramRequest(
-        env,
-        "sendMessage",
-        {
-          chat_id: message.chat.id,
-          message_thread_id:
-            message.message_thread_id,
-
-          text:
-            "Неверный формат команды.\n\n" +
-            "Примеры:\n" +
-            "/feeders\n" +
-            "/feeders 123456\n" +
-            "/feeders 10 20\n" +
-            "/feeders 10 20 30 40"
-        }
-      );
-
-      return new Response("OK");
     }
 
     // ============================================================
-    // ЗАПУСК GITHUB ACTIONS
+    // Вариант 2:
+    //
+    // Просто:
+    //
+    // 10 20
+    //
+    // ============================================================
+
+    else {
+
+      const args = text.split(/\s+/);
+
+      // Только чётное количество чисел.
+      // 2 = одна деревня
+      // 4 = две деревни
+      // 6 = три деревни и т.д.
+      if (
+        args.length >= 2 &&
+        args.length % 2 === 0
+      ) {
+
+        let valid = true;
+
+        for (const value of args) {
+
+          if (!/^-?\d+$/.test(value)) {
+            valid = false;
+            break;
+          }
+        }
+
+        if (valid) {
+
+          const coords = [];
+
+          for (
+            let i = 0;
+            i < args.length;
+            i += 2
+          ) {
+
+            coords.push(
+              args[i] + "," + args[i + 1]
+            );
+          }
+
+          originSpec =
+            "coords:" + coords.join(";");
+
+        } else {
+
+          // Обычный текст — игнорируем
+          return new Response("OK");
+        }
+
+      } else {
+
+        // Обычный текст или неправильное количество аргументов
+        return new Response("OK");
+      }
+    }
+
+    // ============================================================
+    // Запускаем GitHub Actions
     // ============================================================
 
     const result = await dispatchWorkflow(env, {
 
-      action: "feeders",
+      action: "command",
 
-      chat_id:
-        message.chat.id,
+      chat_id: message.chat.id,
 
-      message_id:
-        message.message_id,
+      message_id: message.message_id,
 
       thread_id:
         message.message_thread_id,
 
-      origin_spec:
-        originSpec,
+      origin_spec: originSpec,
 
-      page:
-        "0",
+      page: "0",
 
-      callback_id:
-        ""
+      callback_id: ""
     });
 
-    // ============================================================
-    // ЕСЛИ GITHUB ОТВЕРГ ЗАПУСК
-    // ============================================================
+    // ------------------------------------------------------------
+    // Если GitHub Actions не удалось запустить
+    // ------------------------------------------------------------
 
     if (!result.ok) {
 
@@ -231,8 +330,7 @@ export default {
         env,
         "sendMessage",
         {
-          chat_id:
-            message.chat.id,
+          chat_id: message.chat.id,
 
           message_thread_id:
             message.message_thread_id,
@@ -251,9 +349,9 @@ export default {
 };
 
 
-// ============================================================
+// ==================================================================
 // TELEGRAM API
-// ============================================================
+// ==================================================================
 
 async function telegramRequest(env, method, body) {
 
@@ -278,9 +376,9 @@ async function telegramRequest(env, method, body) {
 }
 
 
-// ============================================================
+// ==================================================================
 // GITHUB ACTIONS
-// ============================================================
+// ==================================================================
 
 async function dispatchWorkflow(env, inputs) {
 
@@ -334,24 +432,29 @@ async function dispatchWorkflow(env, inputs) {
             String(inputs.message_id || ""),
 
           thread_id:
-            String(inputs.thread_id || "75984"),
+            String(
+              inputs.thread_id || "75984"
+            ),
 
           origin_spec:
-            String(inputs.origin_spec || ""),
+            String(
+              inputs.origin_spec || ""
+            ),
 
           page:
             String(inputs.page || "0"),
 
           callback_id:
-            String(inputs.callback_id || "")
+            String(
+              inputs.callback_id || ""
+            )
         }
       })
     });
 
+    // GitHub отвечает 204 No Content при успешном dispatch
     if (response.ok) {
-      return {
-        ok: true
-      };
+      return { ok: true };
     }
 
     const errorText =
@@ -364,7 +467,9 @@ async function dispatchWorkflow(env, inputs) {
     );
 
     return {
+
       ok: false,
+
       error:
         "HTTP " +
         response.status +
@@ -380,9 +485,12 @@ async function dispatchWorkflow(env, inputs) {
     );
 
     return {
+
       ok: false,
+
       error:
         String(error)
     };
   }
 }
+
