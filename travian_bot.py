@@ -1,6 +1,5 @@
 import os
 import re
-import json
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -18,12 +17,6 @@ SERVER_URL = "https://ts7.x1.asia.travian.com"
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 
 SNAPSHOT_DIR = Path("data/snapshots")
-
-# Файл памяти уже показанных игроков
-# в отчётах "неактивны 3 дня подряд".
-INACTIVE_3D_STATE_FILE = Path(
-    "data/inactive_3d_state.json"
-)
 
 # None = хранить всю историю
 RETENTION_DAYS = None
@@ -575,68 +568,13 @@ def player_with_alliance(player, alliance):
 
 
 # ============================================================
-# СОСТОЯНИЕ ОТЧЁТА НЕАКТИВНОСТИ 3 ДНЯ
-# ============================================================
-
-def load_inactive_3d_state():
-    """Загружает список игроков, уже показанных в отчётах 3 дней."""
-
-    if not INACTIVE_3D_STATE_FILE.exists():
-        return set()
-
-    try:
-
-        data = json.loads(
-            INACTIVE_3D_STATE_FILE.read_text(
-                encoding="utf-8"
-            )
-        )
-
-        return {
-            int(player_id)
-            for player_id in data
-        }
-
-    except (
-        OSError,
-        ValueError,
-        TypeError
-    ):
-
-        print(
-            "ВНИМАНИЕ: не удалось прочитать "
-            "inactive_3d_state.json. "
-            "Состояние будет сброшено."
-        )
-
-        return set()
-
-
-def save_inactive_3d_state(player_ids):
-    """Сохраняет список игроков, уже показанных в отчётах 3 дней."""
-
-    INACTIVE_3D_STATE_FILE.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    INACTIVE_3D_STATE_FILE.write_text(
-        json.dumps(
-            sorted(player_ids),
-            ensure_ascii=False,
-            indent=2
-        ),
-        encoding="utf-8"
-    )
-
-
-# ============================================================
 # СРАВНЕНИЕ СНИМКОВ
 # ============================================================
 
 def compare_snapshots(
     raw_today,
-    raw_previous
+    raw_previous,
+    raw_day_before
 ):
 
     v_today, p_today = parse_map_data(
@@ -680,23 +618,6 @@ def compare_snapshots(
                 if v["uid"] == p_id
             )
 
-            # Ищем последний альянс игрока
-            # в предыдущем снимке.
-            previous_alliance = ""
-
-            for village in v_previous.values():
-
-                if (
-                    village["uid"] == p_id
-                    and village["alliance"]
-                ):
-
-                    previous_alliance = (
-                        village["alliance"]
-                    )
-
-                    break
-
             if (
                 previous_pop
                 >= DELETED_PLAYER_MIN_POP
@@ -706,8 +627,7 @@ def compare_snapshots(
                     (
                         p_id,
                         p_name,
-                        previous_pop,
-                        previous_alliance
+                        previous_pop
                     )
                 )
 
@@ -754,18 +674,19 @@ def compare_snapshots(
                 )
 
     # ========================================================
-    # НЕАКТИВНЫЕ 24 ЧАСА
+    # НЕАКТИВНЫЕ ЗА ПОСЛЕДНИЕ 24 ЧАСА
     # ========================================================
 
     inactive_players = []
 
-    for p_id, p_name in p_today:
-
-        pop_previous = sum(
-            v["pop"]
-            for v in v_previous.values()
-            if v["uid"] == p_id
+    if raw_day_before is not None:
+        v_day_before, _ = parse_map_data(
+            raw_day_before
         )
+    else:
+        v_day_before = {}
+
+    for p_id, p_name in p_today:
 
         pop_today = sum(
             v["pop"]
@@ -773,16 +694,45 @@ def compare_snapshots(
             if v["uid"] == p_id
         )
 
+        pop_yesterday = sum(
+            v["pop"]
+            for v in v_previous.values()
+            if v["uid"] == p_id
+        )
+
+        pop_day_before = sum(
+            v["pop"]
+            for v in v_day_before.values()
+            if v["uid"] == p_id
+        )
+
+        # Показываем игрока, если он не изменился
+        # сегодня относительно вчера, но при этом
+        # вчера отличался от позавчера.
         if (
-            pop_previous == pop_today
+            raw_day_before is not None
             and pop_today > 0
+            and pop_today == pop_yesterday
+            and pop_yesterday != pop_day_before
         ):
+
+            alliance = ""
+
+            for village in v_today.values():
+
+                if (
+                    village["uid"] == p_id
+                    and village["alliance"]
+                ):
+
+                    alliance = village["alliance"]
+                    break
 
             inactive_players.append(
                 (
                     p_id,
                     p_name,
-                    pop_today
+                    alliance
                 )
             )
 
@@ -1062,150 +1012,11 @@ def find_enemy_alliance_activity(
 
 
 # ============================================================
-# НЕАКТИВНОСТЬ 3 ДНЯ
-# ============================================================
-
-def find_inactive_3_days(
-    raw_today,
-    raw_yesterday,
-    raw_day_before
-):
-    """
-    Находит игроков, население которых не менялось
-    3 дня подряд.
-
-    Игрок, уже показанный в предыдущем отчёте
-    за 3 дня, повторно не показывается, пока
-    снова не станет активным.
-    """
-
-    v_today, p_today = parse_map_data(
-        raw_today
-    )
-
-    v_yesterday, _ = parse_map_data(
-        raw_yesterday
-    )
-
-    v_day_before, _ = parse_map_data(
-        raw_day_before
-    )
-
-    # ========================================================
-    # ЗАГРУЖАЕМ СОСТОЯНИЕ
-    # ========================================================
-
-    reported_players = (
-        load_inactive_3d_state()
-    )
-
-    inactive_players = []
-
-    # Игроки, которые снова стали активными.
-    active_players = set()
-
-    # ========================================================
-    # ПРОВЕРЯЕМ КАЖДОГО ИГРОКА
-    # ========================================================
-
-    for p_id, p_name in p_today:
-
-        pop_today = sum(
-            v["pop"]
-            for v in v_today.values()
-            if v["uid"] == p_id
-        )
-
-        pop_yesterday = sum(
-            v["pop"]
-            for v in v_yesterday.values()
-            if v["uid"] == p_id
-        )
-
-        pop_day_before = sum(
-            v["pop"]
-            for v in v_day_before.values()
-            if v["uid"] == p_id
-        )
-
-        # ----------------------------------------------------
-        # ЕСЛИ НАСЕЛЕНИЕ ИЗМЕНИЛОСЬ
-        # ----------------------------------------------------
-
-        if (
-            pop_today != pop_yesterday
-            or pop_yesterday != pop_day_before
-        ):
-
-            active_players.add(
-                p_id
-            )
-
-            continue
-
-        # ----------------------------------------------------
-        # ИГРОК НЕАКТИВЕН 3 ДНЯ
-        # ----------------------------------------------------
-
-        if (
-            pop_today > 0
-            and pop_today == pop_yesterday
-            and pop_today == pop_day_before
-        ):
-
-            # Если игрок уже был показан раньше,
-            # повторно его не добавляем.
-            if p_id not in reported_players:
-
-                inactive_players.append(
-                    (
-                        p_id,
-                        p_name,
-                        pop_today
-                    )
-                )
-
-    # ========================================================
-    # СБРАСЫВАЕМ СОСТОЯНИЕ ДЛЯ АКТИВНЫХ
-    # ========================================================
-
-    reported_players.difference_update(
-        active_players
-    )
-
-    # ========================================================
-    # ЗАПОМИНАЕМ ИГРОКОВ, КОТОРЫХ ПОКАЖЕМ
-    # ========================================================
-
-    for p_id, _, _ in inactive_players:
-
-        reported_players.add(
-            p_id
-        )
-
-    # ========================================================
-    # СОХРАНЯЕМ СОСТОЯНИЕ
-    # ========================================================
-
-    save_inactive_3d_state(
-        reported_players
-    )
-
-    inactive_players.sort(
-        key=lambda x: x[2],
-        reverse=True
-    )
-
-    return inactive_players
-
-
-# ============================================================
 # ОТПРАВКА ОТЧЁТОВ
 # ============================================================
 
 def send_reports(
     results,
-    inactive_players_3d=None,
     enemy_activity=None
 ):
 
@@ -1226,23 +1037,10 @@ def send_reports(
 
     if deleted_players:
 
-        for _, name, pop, alliance in deleted_players[:30]:
-
-            if alliance:
-
-                alliance_text = (
-                    f" ({escape_markdown(alliance)})"
-                )
-
-            else:
-
-                alliance_text = (
-                    " (без альянса)"
-                )
+        for _, name, pop in deleted_players[:30]:
 
             report_del += (
-                f"- {escape_markdown(name)}"
-                f"{alliance_text} "
+                f"- {escape_markdown(name)} "
                 f"(население: {pop})\n"
             )
 
@@ -1328,34 +1126,38 @@ def send_reports(
     # ========================================================
 
     report_inact = (
-        "💤 *Неактивны за последние 24 часа (Asia 7):*\n"
+        "💤 *Неактивны за последние 24 часа (Asia 7):*\\n"
     )
 
     if inactive_players:
 
         inactive_players.sort(
-            key=lambda x: x[2],
-            reverse=True
+            key=lambda x: x[1].lower()
         )
 
-        for p_id, p_name, pop in inactive_players[:30]:
+        for p_id, p_name, alliance in inactive_players[:30]:
 
             profile_url = (
                 f"{SERVER_URL}/profile/{p_id}"
             )
 
+            alliance_text = (
+                escape_markdown(alliance)
+                if alliance
+                else "без альянса"
+            )
+
             report_inact += (
                 f"- [{escape_markdown(p_name)}]"
                 f"({profile_url}) — "
-                f"население: {pop} "
-                f"(без изменений за 24 часа)\n"
+                f"{alliance_text}\\n"
             )
 
     else:
 
         report_inact += (
-            "Нет игроков без изменений "
-            "за 24 часа.\n"
+            "Нет игроков, которые были неактивны "
+            "только сегодня и вчера.\\n"
         )
 
     send_to_telegram(
@@ -1364,43 +1166,9 @@ def send_reports(
     )
 
     # ========================================================
-    # 5. НЕАКТИВНЫЕ 3 ДНЯ ПОДРЯД
+    # 5. АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
     # ========================================================
 
-    report_inact_3d = (
-        "😴 *Неактивны 3 дня подряд (Asia 7):*\n"
-    )
-
-    if inactive_players_3d:
-
-        for p_id, p_name, pop in inactive_players_3d[:30]:
-
-            profile_url = (
-                f"{SERVER_URL}/profile/{p_id}"
-            )
-
-            report_inact_3d += (
-                f"- [{escape_markdown(p_name)}]"
-                f"({profile_url}) — "
-                f"население: {pop} "
-                f"(без изменений 3 дня подряд)\n"
-            )
-
-    else:
-
-        report_inact_3d += (
-            "Нет игроков без изменений "
-            "3 дня подряд.\n"
-        )
-
-    send_to_telegram(
-        report_inact_3d,
-        THREAD_ID
-    )
-
-    # ========================================================
-    # 6. АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
-    # ========================================================
 
     print(
         "\n=== ПОДГОТОВКА ОТЧЁТА ВРАЖЕСКОГО АЛЬЯНСА ==="
@@ -1683,26 +1451,6 @@ def main():
     )
 
     # ========================================================
-    # СРАВНЕНИЕ СЕГОДНЯ ↔ ВЧЕРА
-    # ========================================================
-
-    results = compare_snapshots(
-        raw_today,
-        raw_previous
-    )
-
-    # ========================================================
-    # АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
-    # ========================================================
-
-    enemy_activity = (
-        find_enemy_alliance_activity(
-            raw_today,
-            raw_previous
-        )
-    )
-
-    # ========================================================
     # ПОИСК СНИМКА ПОЗАВЧЕРА
     # ========================================================
 
@@ -1720,13 +1468,16 @@ def main():
         day_before_date
     )
 
-    # ========================================================
-    # НЕАКТИВНОСТЬ 3 ДНЯ ПОДРЯД
-    # ========================================================
+    if day_before_path is None:
 
-    inactive_players_3d = None
+        print(
+            "Снимок позавчера не найден — "
+            "отчёт по неактивности пропущен."
+        )
 
-    if day_before_path is not None:
+        raw_day_before = None
+
+    else:
 
         print(
             f"Снимок позавчера найден: "
@@ -1739,26 +1490,27 @@ def main():
             )
         )
 
-        inactive_players_3d = (
-            find_inactive_3_days(
-                raw_today,
-                raw_previous,
-                raw_day_before
-            )
-        )
+    # ========================================================
+    # СРАВНЕНИЕ СЕГОДНЯ ↔ ВЧЕРА ↔ ПОЗАВЧЕРА
+    # ========================================================
 
-        print(
-            f"Неактивны 3 дня подряд: "
-            f"{len(inactive_players_3d)} игроков"
-        )
+    results = compare_snapshots(
+        raw_today,
+        raw_previous,
+        raw_day_before
+    )
 
-    else:
+    # ========================================================
+    # АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
+    # ========================================================
 
-        print(
-            "Снимок позавчера не найден — "
-            "проверка неактивности "
-            "за 3 дня пропущена."
+    enemy_activity = (
+        find_enemy_alliance_activity(
+            raw_today,
+            raw_previous
         )
+    )
+
 
     # ========================================================
     # ОТПРАВКА ОТЧЁТОВ
@@ -1766,7 +1518,6 @@ def main():
 
     send_reports(
         results,
-        inactive_players_3d,
         enemy_activity
     )
 
