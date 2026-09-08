@@ -1,5 +1,6 @@
 import os
 import re
+import html
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -470,7 +471,6 @@ def send_to_telegram(message, thread_id=None):
         return
 
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-
         fail(
             "Не заданы TELEGRAM_TOKEN "
             "и/или TELEGRAM_CHAT_ID."
@@ -484,7 +484,7 @@ def send_to_telegram(message, thread_id=None):
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
         "disable_web_page_preview": True,
     }
 
@@ -492,7 +492,6 @@ def send_to_telegram(message, thread_id=None):
         payload["message_thread_id"] = thread_id
 
     try:
-
         response = requests.post(
             url,
             json=payload,
@@ -511,7 +510,6 @@ def send_to_telegram(message, thread_id=None):
             )
 
     except requests.RequestException as exc:
-
         response_text = ""
         if getattr(exc, "response", None) is not None:
             try:
@@ -530,58 +528,33 @@ def send_to_telegram(message, thread_id=None):
             f"в Telegram: {exc}{details}"
         )
 
+def html_escape(text):
+    """Безопасно экранирует динамический текст для Telegram HTML."""
+    return html.escape(str(text or ""), quote=True)
+
 
 def village_link(x, y):
-    """Markdown-ссылка на деревню по координатам."""
-
+    """HTML-ссылка на деревню по координатам."""
     url = (
         f"{SERVER_URL}/karte.php"
         f"?x={x}&y={y}"
     )
-
-    return f"[{x}|{y}]({url})"
-
-
-def escape_markdown(text):
-    """Экранирует специальные символы Telegram Markdown."""
-
-    if not text:
-        return ""
-
-    for char in [
-        "\\",
-        "*",
-        "_",
-        "`",
-        "[",
-        "]",
-        "(",
-        ")",
-    ]:
-
-        text = text.replace(
-            char,
-            "\\" + char
-        )
-
-    return text
+    return (
+        f'<a href="{html_escape(url)}">'
+        f'{html_escape(x)}|{html_escape(y)}'
+        f'</a>'
+    )
 
 
 def player_with_alliance(player, alliance):
-    """Формирует отображение игрока и его альянса."""
-
-    player = escape_markdown(player)
-    alliance = escape_markdown(alliance)
+    """Формирует безопасное HTML-отображение игрока и альянса."""
+    player = html_escape(player)
+    alliance = html_escape(alliance)
 
     if alliance:
+        return f"<b>{player}</b> 🔴 {alliance}"
 
-        return (
-            f"*{player}* 🔴 {alliance}"
-        )
-
-    return (
-        f"*{player}* ⚫ без альянса"
-    )
+    return f"<b>{player}</b> ⚫ без альянса"
 
 
 # ============================================================
@@ -1049,15 +1022,15 @@ def send_reports(
     # ========================================================
 
     report_del = (
-        "❌ *Удаленные аккаунты (Asia 7):*\n"
+        "❌ <b>Удаленные аккаунты (Asia 7):</b>\n"
     )
 
     if deleted_players:
 
-        for _, name, pop in deleted_players[:30]:
+        for _, name, pop, alliance in deleted_players[:30]:
 
             report_del += (
-                f"- {escape_markdown(name)} "
+                f"- {html_escape(name)} "
                 f"(население: {pop})\n"
             )
 
@@ -1077,7 +1050,7 @@ def send_reports(
     # ========================================================
 
     report_conq = (
-        "⚔️ *Захваченные деревни (Asia 7):*\n"
+        "⚔️ <b>Захваченные деревни (Asia 7):</b>\n"
     )
 
     if conquered_villages:
@@ -1086,7 +1059,7 @@ def send_reports(
 
             report_conq += (
                 f"- Деревня "
-                f"`{escape_markdown(today['name'])}` "
+                f"<code>{html_escape(today['name'])}</code> "
                 f"{village_link(today['x'], today['y'])} "
                 f"игрока "
                 f"{player_with_alliance(previous['player'], previous['alliance'])} "
@@ -1110,7 +1083,7 @@ def send_reports(
     # ========================================================
 
     report_pop = (
-        "📉 *Деревни с потерей населения (Asia 7):*\n"
+        "📉 <b>Деревни с потерей населения (Asia 7):</b>\n"
     )
 
     if dropped_pop_villages:
@@ -1119,7 +1092,7 @@ def send_reports(
 
             report_pop += (
                 f"- Деревня "
-                f"`{escape_markdown(today['name'])}` "
+                f"<code>{html_escape(today['name'])}</code> "
                 f"{village_link(today['x'], today['y'])} "
                 f"игрока "
                 f"{player_with_alliance(today['player'], today['alliance'])}: "
@@ -1143,7 +1116,7 @@ def send_reports(
     # ========================================================
 
     report_inact = (
-        "💤 *Неактивны за последние 24 часа (Asia 7):*\\n"
+        "💤 <b>Неактивны за последние 24 часа (Asia 7):</b>\n"
     )
 
     if inactive_players:
@@ -1159,22 +1132,22 @@ def send_reports(
             )
 
             alliance_text = (
-                escape_markdown(alliance)
+                html_escape(alliance)
                 if alliance
                 else "без альянса"
             )
 
             report_inact += (
-                f"- [{escape_markdown(p_name)}]"
-                f"({profile_url}) — "
-                f"{alliance_text}\\n"
+                f'- <a href="{html_escape(profile_url)}">'
+                f'{html_escape(p_name)}</a> — '
+                f'{alliance_text}\n'
             )
 
     else:
 
         report_inact += (
             "Нет игроков, которые были неактивны "
-            "только сегодня и вчера.\\n"
+            "только сегодня и вчера.\n"
         )
 
     send_to_telegram(
@@ -1198,7 +1171,7 @@ def send_reports(
         )
 
         report_enemy = (
-            "⚠️ *Активность альянса:*\n"
+            "⚠️ <b>Активность альянса:</b>\n"
             "Данные об альянсе не получены."
         )
 
@@ -1211,9 +1184,9 @@ def send_reports(
         )
 
         report_enemy = (
-            f"⚔️ *Активность альянса "
-            f"{escape_markdown(alliance)} "
-            f"(ID: {alliance_id}, Asia 7):*\n\n"
+            f"⚔️ <b>Активность альянса "
+            f"{html_escape(alliance)} "
+            f"(ID: {alliance_id}, Asia 7):</b>\n\n"
         )
 
         # ----------------------------------------------------
@@ -1221,7 +1194,7 @@ def send_reports(
         # ----------------------------------------------------
 
         report_enemy += (
-            "🆕 *Новые деревни:*\n"
+            "🆕 <b>Новые деревни:</b>\n"
         )
 
         if enemy_activity["founded"]:
@@ -1230,7 +1203,7 @@ def send_reports(
 
                 report_enemy += (
                     f"- Деревня "
-                    f"`{escape_markdown(village['name'])}` "
+                    f"<code>{html_escape(village['name'])}</code> "
                     f"{village_link(village['x'], village['y'])} "
                     f"основана игроком "
                     f"{player_with_alliance(village['player'], village['alliance'])}\n"
@@ -1249,7 +1222,7 @@ def send_reports(
         # ----------------------------------------------------
 
         report_enemy += (
-            "⚔️ *Захваченные деревни:*\n"
+            "⚔️ <b>Захваченные деревни:</b>\n"
         )
 
         if enemy_activity["captured"]:
@@ -1258,7 +1231,7 @@ def send_reports(
 
                 report_enemy += (
                     f"- Деревня "
-                    f"`{escape_markdown(today['name'])}` "
+                    f"<code>{html_escape(today['name'])}</code> "
                     f"{village_link(today['x'], today['y'])} "
                     f"захвачена игроком "
                     f"{player_with_alliance(today['player'], today['alliance'])} "
@@ -1279,7 +1252,7 @@ def send_reports(
         # ----------------------------------------------------
 
         report_enemy += (
-            "💀 *Потерянные деревни:*\n"
+            "💀 <b>Потерянные деревни:</b>\n"
         )
 
         if enemy_activity["lost"]:
@@ -1288,7 +1261,7 @@ def send_reports(
 
                 report_enemy += (
                     f"- Деревня "
-                    f"`{escape_markdown(previous['name'])}` "
+                    f"<code>{html_escape(previous['name'])}</code> "
                     f"{village_link(previous['x'], previous['y'])} "
                     f"потеряна игроком "
                     f"{player_with_alliance(previous['player'], previous['alliance'])} "
@@ -1447,9 +1420,9 @@ def main():
         )
 
         send_to_telegram(
-            "🟢 *Бот Travian запущен "
-            "в режиме исторических снимков.*\n"
-            f"Первый снимок: `{today_string}`.\n"
+            "🟢 <b>Бот Travian запущен "
+            "в режиме исторических снимков.</b>\n"
+            f"Первый снимок: <code>{html_escape(today_string)}</code>.\n"
             "Начиная со следующего снимка "
             "будет выполняться сравнительный анализ.",
             THREAD_ID,
