@@ -301,6 +301,10 @@ async function dispatchWorkflow(env, inputs) {
 
         "Content-Type":
           "application/json"
+
+         "User-Agent":
+           "travian-feeders"
+        
       },
 
       body: JSON.stringify({
