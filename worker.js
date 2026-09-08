@@ -115,6 +115,24 @@ export default {
       return new Response("OK");
     }
 
+    // DEBUG: показываем, что именно Telegram прислал Worker
+    await telegramRequest(
+      env,
+      "sendMessage",
+      {
+        chat_id: message.chat.id,
+        text:
+          "🔧 DEBUG\n" +
+          "chat_id: " + String(message.chat.id) + "\n" +
+          "thread_id: " + String(message.message_thread_id || "нет") + "\n" +
+          "text: " + String(message.text || "")
+      }
+    );
+
+    if (!message.message_thread_id) {
+      return new Response("OK");
+    }
+
     // ------------------------------------------------------------
     // Работаем только в теме 75984
     // ------------------------------------------------------------
