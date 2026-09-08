@@ -613,11 +613,25 @@ def compare_snapshots(
                 >= DELETED_PLAYER_MIN_POP
             ):
 
+                # Последний альянс игрока перед удалением.
+                # Берём его из предыдущего снимка.
+                last_alliance = ""
+
+                for village in v_previous.values():
+
+                    if (
+                        village["uid"] == p_id
+                        and village["alliance"]
+                    ):
+                        last_alliance = village["alliance"]
+                        break
+
                 deleted_players.append(
                     (
                         p_id,
                         p_name,
-                        previous_pop
+                        previous_pop,
+                        last_alliance
                     )
                 )
 
