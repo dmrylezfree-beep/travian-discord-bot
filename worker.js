@@ -1,3 +1,4 @@
+```javascript
 export default {
   async fetch(request, env) {
 
@@ -101,6 +102,10 @@ export default {
     if (!message) {
       return new Response("OK");
     }
+
+    // ============================================================
+    // DEBUG
+    // ============================================================
 
     await telegramRequest(
       env,
@@ -300,11 +305,10 @@ async function dispatchWorkflow(env, inputs) {
           "2022-11-28",
 
         "Content-Type":
-          "application/json"
+          "application/json",
 
-         "User-Agent":
-           "travian-feeders"
-        
+        "User-Agent":
+          "travian-feeders"
       },
 
       body: JSON.stringify({
@@ -373,3 +377,4 @@ async function dispatchWorkflow(env, inputs) {
     };
   }
 }
+```
