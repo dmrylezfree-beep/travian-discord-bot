@@ -1041,19 +1041,19 @@ def send_reports(
 
     if deleted_players:
 
-    for _, name, pop, alliance in deleted_players[:30]:
+        for _, name, pop, alliance in deleted_players[:30]:
 
-        alliance_text = (
-            f" ({html_escape(alliance)})"
-            if alliance
-            else " (без альянса)"
-        )
+            alliance_text = (
+                f" ({html_escape(alliance)})"
+                if alliance
+                else " (без альянса)"
+            )
 
-    report_del += (
-        f"- {html_escape(name)}"
-        f"{alliance_text} "
-        f"(население: {pop})\n"
-    )
+            report_del += (
+                f"- {html_escape(name)}"
+                f"{alliance_text} "
+                f"(население: {pop})\n"
+            )
 
     else:
 
