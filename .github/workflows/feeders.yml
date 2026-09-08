@@ -1,3 +1,4 @@
+
 name: Travian Feeders Bot
 
 on:
@@ -6,26 +7,32 @@ on:
       action:
         description: "Action"
         required: true
-        default: "feeders"
+        default: "command"
+
       chat_id:
         description: "Telegram chat ID"
         required: true
+
       message_id:
         description: "Telegram message ID"
         required: false
         default: ""
+
       thread_id:
         description: "Telegram thread ID"
         required: false
         default: "75984"
+
       origin_spec:
         description: "Origin villages/players"
         required: false
         default: ""
+
       page:
         description: "Page number"
         required: false
         default: "0"
+
       callback_id:
         description: "Telegram callback query ID"
         required: false
@@ -57,14 +64,14 @@ jobs:
       - name: Run feeders bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-          FEEDER_CHAT_ID: ${{ inputs.chat_id }}
-          FEEDER_MESSAGE_ID: ${{ inputs.message_id }}
-          FEEDER_THREAD_ID: ${{ inputs.thread_id }}
-          FEEDER_ORIGIN_SPEC: ${{ inputs.origin_spec }}
-          FEEDER_PAGE: ${{ inputs.page }}
-          FEEDER_CALLBACK_ID: ${{ inputs.callback_id }}
+          ACTION: ${{ inputs.action }}
+          CHAT_ID: ${{ inputs.chat_id }}
+          MESSAGE_ID: ${{ inputs.message_id }}
+          THREAD_ID: ${{ inputs.thread_id }}
+          ORIGIN_SPEC: ${{ inputs.origin_spec }}
+          PAGE: ${{ inputs.page }}
+          CALLBACK_ID: ${{ inputs.callback_id }}
 
           TRAVIAN_MAP_SIZE: "401"
 
