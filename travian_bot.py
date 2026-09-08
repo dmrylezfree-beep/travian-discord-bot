@@ -613,11 +613,25 @@ def compare_snapshots(
                 >= DELETED_PLAYER_MIN_POP
             ):
 
+                # Последний альянс игрока перед удалением.
+                # Берём его из предыдущего снимка.
+                last_alliance = ""
+
+                for village in v_previous.values():
+
+                    if (
+                        village["uid"] == p_id
+                        and village["alliance"]
+                    ):
+                        last_alliance = village["alliance"]
+                        break
+
                 deleted_players.append(
                     (
                         p_id,
                         p_name,
-                        previous_pop
+                        previous_pop,
+                        last_alliance
                     )
                 )
 
@@ -701,7 +715,7 @@ def compare_snapshots(
         # вчера отличался от позавчера.
         if (
             raw_day_before is not None
-            and pop_today > 0
+            and pop_today > 100
             and pop_today == pop_yesterday
             and pop_yesterday != pop_day_before
         ):
@@ -1029,8 +1043,15 @@ def send_reports(
 
         for _, name, pop, alliance in deleted_players[:30]:
 
+            alliance_text = (
+                f" ({html_escape(alliance)})"
+                if alliance
+                else " (без альянса)"
+            )
+
             report_del += (
-                f"- {html_escape(name)} "
+                f"- {html_escape(name)}"
+                f"{alliance_text} "
                 f"(население: {pop})\n"
             )
 
@@ -1083,7 +1104,7 @@ def send_reports(
     # ========================================================
 
     report_pop = (
-        "📉 <b>Деревни с потерей населения (Asia 7):</b>\n"
+        "📉 <b>Кого катали за прошедшие сутки (Asia 7):</b>\n"
     )
 
     if dropped_pop_villages:
