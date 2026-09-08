@@ -102,6 +102,21 @@ export default {
       return new Response("OK");
     }
 
+    await telegramRequest(
+      env,
+      "sendMessage",
+      {
+        chat_id: message.chat.id,
+        message_thread_id: message.message_thread_id,
+        text:
+          "🔧 DEBUG\n" +
+          "thread_id: " +
+          String(message.message_thread_id) +
+          "\ntext: " +
+          String(message.text || "")
+      }
+    );
+
     // ============================================================
     // ПРОВЕРКА ТЕМЫ
     // ============================================================
