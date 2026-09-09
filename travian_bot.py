@@ -1,3 +1,4 @@
+
 import os
 import re
 import html
@@ -38,6 +39,41 @@ ENEMY_ALLIANCE_ID = 5
 
 # Тема Telegram
 THREAD_ID = 75792
+
+
+# ============================================================
+# ИКОНКИ ПЛЕМЁН
+# ============================================================
+
+# Travian map.sql:
+# 1 = Romans
+# 2 = Teutons
+# 3 = Gauls
+
+TRIBE_ICONS = {
+    1: "🏛️",  # Римляне
+    2: "🪓",  # Германцы
+    3: "🛡️",  # Галлы
+}
+
+
+def tribe_icon(tribe_id):
+    """
+    Возвращает иконку племени.
+
+    Для неизвестного племени используется нейтральная
+    иконка, чтобы отчёт не ломался.
+    """
+
+    try:
+        tribe_id = int(tribe_id)
+    except (TypeError, ValueError):
+        return "👤"
+
+    return TRIBE_ICONS.get(
+        tribe_id,
+        "👤"
+    )
 
 
 # ============================================================
@@ -273,7 +309,7 @@ def parse_map_data(raw_data):
             # 0  id
             # 1  x
             # 2  y
-            # 3  tid
+            # 3  tid      ← племя
             # 4  vid
             # 5  village
             # 6  uid
@@ -284,6 +320,10 @@ def parse_map_data(raw_data):
 
             x = clean_sql_value(parts[1])
             y = clean_sql_value(parts[2])
+
+            tribe_id = int(
+                clean_sql_value(parts[3])
+            )
 
             village_id = int(
                 clean_sql_value(parts[4])
@@ -326,8 +366,9 @@ def parse_map_data(raw_data):
                 "name": village_name,
                 "x": x,
                 "y": y,
-                "uid": player_id,
+                "tribe_id": tribe_id,
                 "player": player_name,
+                "uid": player_id,
                 "alliance_id": alliance_id,
                 "alliance": alliance_name,
                 "pop": population,
@@ -528,6 +569,7 @@ def send_to_telegram(message, thread_id=None):
             f"в Telegram: {exc}{details}"
         )
 
+
 def html_escape(text):
     """Безопасно экранирует динамический текст для Telegram HTML."""
     return html.escape(str(text or ""), quote=True)
@@ -539,6 +581,7 @@ def village_link(x, y):
         f"{SERVER_URL}/karte.php"
         f"?x={x}&y={y}"
     )
+
     return (
         f'<a href="{html_escape(url)}">'
         f'{html_escape(x)}|{html_escape(y)}'
@@ -555,6 +598,37 @@ def player_with_alliance(player, alliance):
         return f"<b>{player}</b> 🔴 {alliance}"
 
     return f"<b>{player}</b> ⚫ без альянса"
+
+
+def player_with_tribe_and_alliance(
+    player,
+    alliance,
+    tribe_id
+):
+    """
+    Форматирование игрока для блока захватов.
+
+    Формат:
+    🏛️ Игрок — Альянс
+
+    Иконка определяется по tid из map.sql.
+    """
+
+    icon = tribe_icon(tribe_id)
+
+    player = html_escape(player)
+    alliance = html_escape(alliance)
+
+    if alliance:
+        return (
+            f"{icon} <b>{player}</b>"
+            f" — {alliance}"
+        )
+
+    return (
+        f"{icon} <b>{player}</b>"
+        f" — без альянса"
+    )
 
 
 # ============================================================
@@ -1071,22 +1145,47 @@ def send_reports(
     # ========================================================
 
     report_conq = (
-        "⚔️ <b>Захваченные деревни (Asia 7):</b>\n"
+        "⚔️ <b>Захваченные деревни (Asia 7):</b>\n\n"
     )
 
     if conquered_villages:
 
-        for previous, today in conquered_villages[:30]:
+        for number, (previous, today) in enumerate(
+            conquered_villages[:30],
+            start=1
+        ):
+
+            # Игрок, который получил деревню.
+            new_owner = player_with_tribe_and_alliance(
+                today["player"],
+                today["alliance"],
+                today["tribe_id"]
+            )
+
+            # Игрок, который потерял деревню.
+            old_owner = player_with_tribe_and_alliance(
+                previous["player"],
+                previous["alliance"],
+                previous["tribe_id"]
+            )
 
             report_conq += (
-                f"- Деревня "
-                f"<code>{html_escape(today['name'])}</code> "
-                f"{village_link(today['x'], today['y'])} "
-                f"игрока "
-                f"{player_with_alliance(previous['player'], previous['alliance'])} "
-                f"захвачена игроком "
-                f"{player_with_alliance(today['player'], today['alliance'])}\n"
+                f"<b>{number}.</b> "
+                f"{new_owner}\n"
+                f"      ⬇️ <b>ЗАХВАТИЛ У</b>\n"
+                f"   {old_owner}\n\n"
+                f"   👥 {previous['pop']} → {today['pop']}\n"
+                f"   📍 {village_link(today['x'], today['y'])}\n"
             )
+
+            if number < min(
+                len(conquered_villages),
+                30
+            ):
+                report_conq += (
+                    "\n"
+                    "────────────────────\n\n"
+                )
 
     else:
 
@@ -1179,7 +1278,6 @@ def send_reports(
     # ========================================================
     # 5. АКТИВНОСТЬ ВРАЖЕСКОГО АЛЬЯНСА
     # ========================================================
-
 
     print(
         "\n=== ПОДГОТОВКА ОТЧЁТА ВРАЖЕСКОГО АЛЬЯНСА ==="
@@ -1521,7 +1619,6 @@ def main():
             raw_previous
         )
     )
-
 
     # ========================================================
     # ОТПРАВКА ОТЧЁТОВ
