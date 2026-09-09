@@ -848,6 +848,7 @@ def compare_snapshots(
                     p_id,
                     p_name,
                     alliance
+                    pop_today
                 )
             )
 
@@ -1274,7 +1275,7 @@ def send_reports(
             key=lambda x: x[1].lower()
         )
 
-        for p_id, p_name, alliance in inactive_players[:30]:
+        for p_id, p_name, alliance, pop_today in inactive_players[:30]:
 
             profile_url = (
                 f"{SERVER_URL}/profile/{p_id}"
@@ -1289,7 +1290,8 @@ def send_reports(
             report_inact += (
                 f'- <a href="{html_escape(profile_url)}">'
                 f'{html_escape(p_name)}</a> — '
-                f'{alliance_text}\n'
+                f'{alliance_text} — '
+                f'👥 {pop_today}\n'
             )
 
     else:
