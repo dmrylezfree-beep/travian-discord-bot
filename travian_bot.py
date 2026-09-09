@@ -1,4 +1,3 @@
-
 import os
 import re
 import html
@@ -51,29 +50,21 @@ THREAD_ID = 75792
 # 3 = Gauls
 
 TRIBE_ICONS = {
-    1: "🏛️",  # Римляне
-    2: "🪓",  # Германцы
-    3: "🛡️",  # Галлы
+    1: "🏛️",
+    2: "🪓",
+    3: "🛡️",
 }
 
 
 def tribe_icon(tribe_id):
-    """
-    Возвращает иконку племени.
-
-    Для неизвестного племени используется нейтральная
-    иконка, чтобы отчёт не ломался.
-    """
+    """Возвращает иконку племени."""
 
     try:
         tribe_id = int(tribe_id)
     except (TypeError, ValueError):
         return "👤"
 
-    return TRIBE_ICONS.get(
-        tribe_id,
-        "👤"
-    )
+    return TRIBE_ICONS.get(tribe_id, "👤")
 
 
 # ============================================================
@@ -309,7 +300,7 @@ def parse_map_data(raw_data):
             # 0  id
             # 1  x
             # 2  y
-            # 3  tid      ← племя
+            # 3  tid
             # 4  vid
             # 5  village
             # 6  uid
@@ -542,7 +533,9 @@ def send_to_telegram(message, thread_id=None):
         try:
             result = response.json()
         except ValueError:
-            result = {"raw_response": response.text}
+            result = {
+                "raw_response": response.text
+            }
 
         if not response.ok or not result.get("ok"):
             fail(
@@ -551,8 +544,11 @@ def send_to_telegram(message, thread_id=None):
             )
 
     except requests.RequestException as exc:
+
         response_text = ""
+
         if getattr(exc, "response", None) is not None:
+
             try:
                 response_text = exc.response.text
             except Exception:
@@ -572,11 +568,16 @@ def send_to_telegram(message, thread_id=None):
 
 def html_escape(text):
     """Безопасно экранирует динамический текст для Telegram HTML."""
-    return html.escape(str(text or ""), quote=True)
+
+    return html.escape(
+        str(text or ""),
+        quote=True
+    )
 
 
 def village_link(x, y):
     """HTML-ссылка на деревню по координатам."""
+
     url = (
         f"{SERVER_URL}/karte.php"
         f"?x={x}&y={y}"
@@ -591,6 +592,7 @@ def village_link(x, y):
 
 def player_with_alliance(player, alliance):
     """Формирует безопасное HTML-отображение игрока и альянса."""
+
     player = html_escape(player)
     alliance = html_escape(alliance)
 
@@ -610,8 +612,6 @@ def player_with_tribe_and_alliance(
 
     Формат:
     🏛️ Игрок — Альянс
-
-    Иконка определяется по tid из map.sql.
     """
 
     icon = tribe_icon(tribe_id)
@@ -687,8 +687,6 @@ def compare_snapshots(
                 >= DELETED_PLAYER_MIN_POP
             ):
 
-                # Последний альянс игрока перед удалением.
-                # Берём его из предыдущего снимка.
                 last_alliance = ""
 
                 for village in v_previous.values():
@@ -697,7 +695,9 @@ def compare_snapshots(
                         village["uid"] == p_id
                         and village["alliance"]
                     ):
-                        last_alliance = village["alliance"]
+                        last_alliance = (
+                            village["alliance"]
+                        )
                         break
 
                 deleted_players.append(
@@ -758,10 +758,13 @@ def compare_snapshots(
     inactive_players = []
 
     if raw_day_before is not None:
+
         v_day_before, _ = parse_map_data(
             raw_day_before
         )
+
     else:
+
         v_day_before = {}
 
     for p_id, p_name in p_today:
@@ -784,9 +787,6 @@ def compare_snapshots(
             if v["uid"] == p_id
         )
 
-        # Показываем игрока, если он не изменился
-        # сегодня относительно вчера, но при этом
-        # вчера отличался от позавчера.
         if (
             raw_day_before is not None
             and pop_today > 100
@@ -803,7 +803,9 @@ def compare_snapshots(
                     and village["alliance"]
                 ):
 
-                    alliance = village["alliance"]
+                    alliance = (
+                        village["alliance"]
+                    )
                     break
 
             inactive_players.append(
@@ -904,9 +906,6 @@ def find_enemy_alliance_activity(
                     village["alliance"]
                 )
 
-    # Если сегодня деревень альянса нет,
-    # ищем название во вчерашнем снимке.
-
     if not alliance_name:
 
         for village in v_previous.values():
@@ -965,9 +964,6 @@ def find_enemy_alliance_activity(
             and previous["uid"] != 0
         ):
 
-            # Сегодня деревня принадлежит Hero,
-            # вчера принадлежала другому альянсу.
-
             if (
                 today["alliance_id"]
                 == ENEMY_ALLIANCE_ID
@@ -997,9 +993,6 @@ def find_enemy_alliance_activity(
             previous["uid"] != today["uid"]
             and previous["uid"] != 0
         ):
-
-            # Вчера деревня принадлежала Hero,
-            # сегодня принадлежит другому альянсу.
 
             if (
                 previous["alliance_id"]
@@ -1140,43 +1133,42 @@ def send_reports(
         THREAD_ID
     )
 
-# ========================================================
-# 2. ЗАХВАЧЕННЫЕ ДЕРЕВНИ
-# ========================================================
+    # ========================================================
+    # 2. ЗАХВАЧЕННЫЕ ДЕРЕВНИ
+    # ========================================================
 
-report_conq = (
-    "⚔️ <b>Захваченные деревни:</b>\n\n"
-)
-
-# Показываем только захваты деревень, которые
-# имели не менее 50 населения в предыдущем снимке
-visible_conquered_villages = [
-    (previous, today)
-    for previous, today in conquered_villages
-    if previous["pop"] >= 50
-]
-
-if visible_conquered_villages:
-
-    for previous, today in visible_conquered_villages[:30]:
-
-        report_conq += (
-            f"{player_with_tribe_alliance(today['player'], today['alliance'], today['tribe'])}\n"
-            f"   <i>захватил у</i>\n"
-            f"{player_with_tribe_alliance(previous['player'], previous['alliance'], previous['tribe'])}\n"
-            f"   👥 {previous['pop']} → {today['pop']}\n"
-            f"   📍 {village_link(today['x'], today['y'])}\n\n"
-        )
-
-else:
-    report_conq += (
-        "Нет изменений за период.\n"
+    report_conq = (
+        "⚔️ <b>Захваченные деревни:</b>\n\n"
     )
 
-send_to_telegram(
-    report_conq,
-    THREAD_ID
-)
+    visible_conquered_villages = [
+        (previous, today)
+        for previous, today in conquered_villages
+        if previous["pop"] >= 50
+    ]
+
+    if visible_conquered_villages:
+
+        for previous, today in visible_conquered_villages[:30]:
+
+            report_conq += (
+                f"{player_with_tribe_and_alliance(today['player'], today['alliance'], today['tribe_id'])}\n"
+                f"   <i>захватил у</i>\n"
+                f"{player_with_tribe_and_alliance(previous['player'], previous['alliance'], previous['tribe_id'])}\n"
+                f"   👥 {previous['pop']} → {today['pop']}\n"
+                f"   📍 {village_link(today['x'], today['y'])}\n\n"
+            )
+
+    else:
+
+        report_conq += (
+            "Нет изменений за период.\n"
+        )
+
+    send_to_telegram(
+        report_conq,
+        THREAD_ID
+    )
 
     # ========================================================
     # 3. ПАДЕНИЕ НАСЕЛЕНИЯ
@@ -1285,7 +1277,7 @@ send_to_telegram(
         report_enemy = (
             f"⚔️ <b>Активность альянса "
             f"{html_escape(alliance)} "
-            f"(ID: {alliance_id}, Asia 7):</b>\n\n"
+            f"(ID: {alliance_id}):</b>\n\n"
         )
 
         # ----------------------------------------------------
