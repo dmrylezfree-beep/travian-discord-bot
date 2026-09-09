@@ -1110,7 +1110,7 @@ def send_reports(
     # ========================================================
 
     report_del = (
-        "❌ <b>Удаленные аккаунты (Asia 7):</b>\n"
+        "❌ <b>Удаленные аккаунты:</b>\n"
     )
 
     if deleted_players:
@@ -1140,70 +1140,50 @@ def send_reports(
         THREAD_ID
     )
 
-    # ========================================================
-    # 2. ЗАХВАЧЕННЫЕ ДЕРЕВНИ
-    # ========================================================
+# ========================================================
+# 2. ЗАХВАЧЕННЫЕ ДЕРЕВНИ
+# ========================================================
 
-    report_conq = (
-        "⚔️ <b>Захваченные деревни (Asia 7):</b>\n\n"
-    )
+report_conq = (
+    "⚔️ <b>Захваченные деревни:</b>\n\n"
+)
 
-    if conquered_villages:
+# Показываем только захваты деревень, которые
+# имели не менее 50 населения в предыдущем снимке
+visible_conquered_villages = [
+    (previous, today)
+    for previous, today in conquered_villages
+    if previous["pop"] >= 50
+]
 
-        for number, (previous, today) in enumerate(
-            conquered_villages[:30],
-            start=1
-        ):
+if visible_conquered_villages:
 
-            # Игрок, который получил деревню.
-            new_owner = player_with_tribe_and_alliance(
-                today["player"],
-                today["alliance"],
-                today["tribe_id"]
-            )
-
-            # Игрок, который потерял деревню.
-            old_owner = player_with_tribe_and_alliance(
-                previous["player"],
-                previous["alliance"],
-                previous["tribe_id"]
-            )
-
-            report_conq += (
-                f"<b>{number}.</b> "
-                f"{new_owner}\n"
-                f"      ⬇️ <b>ЗАХВАТИЛ У</b>\n"
-                f"   {old_owner}\n\n"
-                f"   👥 {previous['pop']} → {today['pop']}\n"
-                f"   📍 {village_link(today['x'], today['y'])}\n"
-            )
-
-            if number < min(
-                len(conquered_villages),
-                30
-            ):
-                report_conq += (
-                    "\n"
-                    "────────────────────\n\n"
-                )
-
-    else:
+    for previous, today in visible_conquered_villages[:30]:
 
         report_conq += (
-            "Нет изменений за период.\n"
+            f"{player_with_tribe_alliance(today['player'], today['alliance'], today['tribe'])}\n"
+            f"   <i>захватил у</i>\n"
+            f"{player_with_tribe_alliance(previous['player'], previous['alliance'], previous['tribe'])}\n"
+            f"   👥 {previous['pop']} → {today['pop']}\n"
+            f"   📍 {village_link(today['x'], today['y'])}\n\n"
         )
 
-    send_to_telegram(
-        report_conq,
-        THREAD_ID
+else:
+    report_conq += (
+        "Нет изменений за период.\n"
     )
+
+send_to_telegram(
+    report_conq,
+    THREAD_ID
+)
 
     # ========================================================
     # 3. ПАДЕНИЕ НАСЕЛЕНИЯ
     # ========================================================
 
     report_pop = (
-        "📉 <b>Кого катали за прошедшие сутки (Asia 7):</b>\n"
+        "📉 <b>Кого катали за прошедшие сутки:</b>\n"
     )
 
     if dropped_pop_villages:
@@ -1236,7 +1216,7 @@ def send_reports(
     # ========================================================
 
     report_inact = (
-        "💤 <b>Неактивны за последние 24 часа (Asia 7):</b>\n"
+        "💤 <b>Неактивны за последние 24 часа:</b>\n"
     )
 
     if inactive_players:
