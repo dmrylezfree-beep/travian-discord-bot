@@ -720,8 +720,39 @@ def compare_snapshots(
 
         today = v_today.get(v_id)
 
+        # ----------------------------------------------------
+        # ДЕРЕВНЯ ИСЧЕЗЛА С КАРТЫ
+        # ----------------------------------------------------
+
         if not today:
+
+            # Если игрок всё ещё существует сегодня,
+            # значит деревня не исчезла вместе с аккаунтом.
+            #
+            # Это рассматриваем как зануление деревни:
+            #
+            # вчера: существовала
+            # сегодня: исчезла → население 0
+            #
+            # Если игрок удалён полностью, он находится
+            # в deleted_players и в этот блок не попадает.
+
+            if previous["uid"] in today_uids:
+
+                if previous["pop"] >= POP_DROP_THRESHOLD:
+
+                    dropped_pop_villages.append(
+                        (
+                            previous,
+                            previous["pop"]
+                        )
+                    )
+
             continue
+
+        # ----------------------------------------------------
+        # ДЕРЕВНЯ СУЩЕСТВУЕТ — ПРОВЕРЯЕМ ЗАХВАТ
+        # ----------------------------------------------------
 
         if (
             previous["uid"] != today["uid"]
@@ -734,6 +765,10 @@ def compare_snapshots(
                     today
                 )
             )
+
+        # ----------------------------------------------------
+        # ОБЫЧНОЕ ПАДЕНИЕ НАСЕЛЕНИЯ
+        # ----------------------------------------------------
 
         elif today["pop"] < previous["pop"]:
 
@@ -829,7 +864,7 @@ def compare_snapshots(
     )
 
     print(
-        f"Падение населения: "
+        f"Падение населения / зануления: "
         f"{len(dropped_pop_villages)}"
     )
 
@@ -1171,7 +1206,7 @@ def send_reports(
     )
 
     # ========================================================
-    # 3. ПАДЕНИЕ НАСЕЛЕНИЯ
+    # 3. ПАДЕНИЕ НАСЕЛЕНИЯ / ЗАНУЛЕНИЯ
     # ========================================================
 
     report_pop = (
@@ -1180,17 +1215,39 @@ def send_reports(
 
     if dropped_pop_villages:
 
-        for today, diff in dropped_pop_villages[:30]:
+        for village, diff in dropped_pop_villages[:30]:
 
-            report_pop += (
-                f"- Деревня "
-                f"<code>{html_escape(today['name'])}</code> "
-                f"{village_link(today['x'], today['y'])} "
-                f"игрока "
-                f"{player_with_alliance(today['player'], today['alliance'])}: "
-                f"-{diff} "
-                f"(сейчас: {today['pop']})\n"
-            )
+            # Если деревня исчезла с карты, это зануление.
+            # В таком случае village содержит данные
+            # предыдущего снимка, а текущее население = 0.
+
+            if village["pop"] == diff:
+
+                current_pop = 0
+
+                report_pop += (
+                    f"- Деревня "
+                    f"<code>{html_escape(village['name'])}</code> "
+                    f"{village_link(village['x'], village['y'])} "
+                    f"игрока "
+                    f"{player_with_alliance(village['player'], village['alliance'])}: "
+                    f"-{diff} "
+                    f"(сейчас: {current_pop})\n"
+                )
+
+            else:
+
+                current_pop = village["pop"]
+
+                report_pop += (
+                    f"- Деревня "
+                    f"<code>{html_escape(village['name'])}</code> "
+                    f"{village_link(village['x'], village['y'])} "
+                    f"игрока "
+                    f"{player_with_alliance(village['player'], village['alliance'])}: "
+                    f"-{diff} "
+                    f"(сейчас: {current_pop})\n"
+                )
 
     else:
 
@@ -1396,8 +1453,7 @@ def cleanup_old_snapshots():
 
     cutoff = (
         datetime.now(timezone.utc)
-        .date()
-        .toordinal()
+        .date().toordinal()
         - RETENTION_DAYS
     )
 
