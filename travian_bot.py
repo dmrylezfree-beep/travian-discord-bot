@@ -847,7 +847,7 @@ def compare_snapshots(
                 (
                     p_id,
                     p_name,
-                    alliance
+                    alliance,
                     pop_today
                 )
             )
