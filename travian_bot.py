@@ -671,7 +671,7 @@ def find_positive_sector_intruders(raw_today, raw_previous):
         if x <= 0 or y <= 0:
             continue
 
-        if village["alliance_id"] == OUR_ALLIANCE_IDS:
+        if village["alliance_id"] in OUR_ALLIANCE_IDS:
             continue
 
         intruders.append(village)
