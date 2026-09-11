@@ -28,6 +28,9 @@ POP_DROP_THRESHOLD = 50
 # Минимальное население удалённого игрока
 DELETED_PLAYER_MIN_POP = 100
 
+# ID нашего альянса
+OUR_ALLIANCE_ID = 26
+
 
 # ============================================================
 # ВРАЖЕСКИЙ АЛЬЯНС
@@ -660,6 +663,57 @@ def compare_snapshots(
         f"Ранее:   {len(v_previous):,} деревень / "
         f"{len(p_previous):,} игроков"
     )
+
+    def find_positive_sector_intruders(raw_today, raw_previous):
+    """
+    Ищет деревни, которые появились на карте впервые
+    и находятся в секторе (+,+).
+
+    Условия:
+    - village_id отсутствовал в предыдущем снимке;
+    - x > 0;
+    - y > 0;
+    - деревня не принадлежит нашему альянсу.
+
+    Деревни без альянса также считаются чужими.
+    """
+
+    v_today, _ = parse_map_data(raw_today)
+    v_previous, _ = parse_map_data(raw_previous)
+
+    intruders = []
+
+    for v_id, village in v_today.items():
+
+        # Деревня уже была на предыдущем снимке
+        if v_id in v_previous:
+            continue
+
+        try:
+            x = int(village["x"])
+            y = int(village["y"])
+        except (TypeError, ValueError):
+            continue
+
+        # Только сектор (+,+)
+        if x <= 0 or y <= 0:
+            continue
+
+        # Свои деревни не учитываем
+        if village["alliance_id"] == OUR_ALLIANCE_ID:
+            continue
+
+        intruders.append(village)
+
+    # Сортировка по координатам
+    intruders.sort(
+        key=lambda v: (
+            int(v["x"]),
+            int(v["y"])
+        )
+    )
+
+    return intruders
 
     # ========================================================
     # УДАЛЁННЫЕ АККАУНТЫ
@@ -1589,6 +1643,15 @@ def main():
         encoding="utf-8"
     )
 
+    positive_sector_intruders = find_positive_sector_intruders(
+    raw_today,
+    raw_previous
+    )
+
+send_positive_sector_alert(
+    positive_sector_intruders
+    )
+
     # ========================================================
     # ПОИСК СНИМКА ПОЗАВЧЕРА
     # ========================================================
@@ -1648,6 +1711,43 @@ def main():
             raw_today,
             raw_previous
         )
+    )
+
+    def send_positive_sector_alert(intruders):
+
+    if not intruders:
+        return
+
+    report = (
+        "🚨 <b>НОВЫЕ ЧУЖИЕ ДЕРЕВНИ В СЕКТОРЕ (+,+)</b>\n\n"
+    )
+
+    for village in intruders:
+
+        alliance = village["alliance"]
+
+        if alliance:
+            alliance_text = (
+                f"🔴 {html_escape(alliance)}"
+            )
+        else:
+            alliance_text = "⚫ без альянса"
+
+        report += (
+            f"📍 {village_link(village['x'], village['y'])}\n"
+            f"👤 {html_escape(village['player'])}\n"
+            f"{alliance_text}\n"
+            f"👥 {village['pop']}\n\n"
+        )
+
+    report += (
+        "⚠️ <b>Обнаружена новая деревня, "
+        "не принадлежащая нашему альянсу.</b>"
+    )
+
+    send_telegram_message(
+        report,
+        THREAD_ID
     )
 
     # ========================================================
