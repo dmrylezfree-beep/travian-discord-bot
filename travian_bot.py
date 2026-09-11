@@ -29,7 +29,12 @@ POP_DROP_THRESHOLD = 50
 DELETED_PLAYER_MIN_POP = 100
 
 # ID нашего альянса
-OUR_ALLIANCE_ID = 26
+OUR_ALLIANCE_IDS = {
+    26,  # Alliance 1
+    9,  # Alliance 2
+    19,  # Alliance 3
+    
+}
 
 
 # ============================================================
@@ -666,7 +671,7 @@ def find_positive_sector_intruders(raw_today, raw_previous):
         if x <= 0 or y <= 0:
             continue
 
-        if village["alliance_id"] == OUR_ALLIANCE_ID:
+        if village["alliance_id"] == OUR_ALLIANCE_IDS:
             continue
 
         intruders.append(village)
