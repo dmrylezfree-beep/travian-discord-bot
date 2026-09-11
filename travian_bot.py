@@ -14,7 +14,7 @@ import requests
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-SERVER_URL = "https://ts7.x1.x1.asia.travian.com"
+SERVER_URL = "https://ts7.x1.asia.travian.com"
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 
 SNAPSHOT_DIR = Path("data/snapshots")
