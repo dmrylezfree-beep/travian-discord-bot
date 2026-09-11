@@ -14,7 +14,7 @@ import requests
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-SERVER_URL = "https://ts7.x1.asia.travian.com"
+SERVER_URL = "https://ts7.x1.x1.asia.travian.com"
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 
 SNAPSHOT_DIR = Path("data/snapshots")
@@ -36,7 +36,6 @@ OUR_ALLIANCE_ID = 26
 # ВРАЖЕСКИЙ АЛЬЯНС
 # ============================================================
 
-# Постоянный ID альянса Hero
 ENEMY_ALLIANCE_ID = 5
 
 # Тема Telegram
@@ -46,11 +45,6 @@ THREAD_ID = 75792
 # ============================================================
 # ИКОНКИ ПЛЕМЁН
 # ============================================================
-
-# Travian map.sql:
-# 1 = Romans
-# 2 = Teutons
-# 3 = Gauls
 
 TRIBE_ICONS = {
     1: "🏛️",
@@ -660,7 +654,6 @@ def find_positive_sector_intruders(raw_today, raw_previous):
 
     for v_id, village in v_today.items():
 
-        # Деревня уже существовала на предыдущем снимке
         if v_id in v_previous:
             continue
 
@@ -670,17 +663,14 @@ def find_positive_sector_intruders(raw_today, raw_previous):
         except (TypeError, ValueError):
             continue
 
-        # Только сектор (+,+)
         if x <= 0 or y <= 0:
             continue
 
-        # Свои деревни не учитываем
         if village["alliance_id"] == OUR_ALLIANCE_ID:
             continue
 
         intruders.append(village)
 
-    # Сортировка по координатам
     intruders.sort(
         key=lambda v: (
             int(v["x"]),
@@ -747,10 +737,7 @@ def compare_snapshots(
                 if v["uid"] == p_id
             )
 
-            if (
-                previous_pop
-                >= DELETED_PLAYER_MIN_POP
-            ):
+            if previous_pop >= DELETED_PLAYER_MIN_POP:
 
                 last_alliance = ""
 
@@ -790,11 +777,6 @@ def compare_snapshots(
         # ----------------------------------------------------
 
         if not today:
-
-            # Если игрок всё ещё существует сегодня,
-            # значит деревня не исчезла вместе с аккаунтом.
-            #
-            # Это рассматриваем как зануление деревни.
 
             if previous["uid"] in today_uids:
 
@@ -1216,11 +1198,6 @@ def send_positive_sector_alert(intruders):
             f"👥 {village['pop']}\n\n"
         )
 
-    report += (
-        "⚠️ <b>Обнаружена новая деревня, "
-        "не принадлежащая нашему альянсу.</b>"
-    )
-
     send_to_telegram(
         report,
         THREAD_ID
@@ -1332,16 +1309,9 @@ def send_reports(
 
         for village, diff in dropped_pop_villages[:30]:
 
-            # Если деревня исчезла с карты, это зануление.
-            # В таком случае village содержит данные
-            # предыдущего снимка, а текущее население = 0.
-
             if village["pop"] == diff:
-
                 current_pop = 0
-
             else:
-
                 current_pop = village["pop"]
 
             report_pop += (
@@ -1704,10 +1674,6 @@ def main():
         )
     )
 
-    send_positive_sector_alert(
-        positive_sector_intruders
-    )
-
     # ========================================================
     # ПОИСК СНИМКА ПОЗАВЧЕРА
     # ========================================================
@@ -1770,12 +1736,21 @@ def main():
     )
 
     # ========================================================
-    # ОТПРАВКА ОТЧЁТОВ
+    # ОТПРАВКА ОСНОВНЫХ ОТЧЁТОВ
     # ========================================================
 
     send_reports(
         results,
         enemy_activity
+    )
+
+    # ========================================================
+    # НОВЫЕ ЧУЖИЕ ДЕРЕВНИ В СЕКТОРЕ (+,+)
+    # ПОСЛЕ ОТЧЁТА HERO
+    # ========================================================
+
+    send_positive_sector_alert(
+        positive_sector_intruders
     )
 
     # ========================================================
