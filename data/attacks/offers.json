@@ -13,9 +13,9 @@
     "offer_id": "offer_2",
     "x": 139,
     "y": 187,
-    "arena": 14,
+    "arena": 17,
     "arena_source": "manual",
-    "arena_updated_at": "2026-09-12T11:19:50Z",
+    "arena_updated_at": "2026-09-12T11:31:20Z",
     "arena_status": "confirmed",
     "arena_reason": "Установлено вручную через Telegram."
   },
