@@ -3295,6 +3295,10 @@ def run():
                     f"Получено обновление: {update.get('update_id')}",
                     flush=True,
                 )
+                print(
+                json.dumps(update, ensure_ascii=False, indent=2),
+                flush=True,
+                )
 
                 offset = (
                     update["update_id"]
