@@ -19,6 +19,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 # Telegram thread, в котором работает бот
 TELEGRAM_THREAD_ID = 76303
 
+
 # ============================================================
 # СЕРВЕР
 # ============================================================
@@ -81,6 +82,9 @@ DATA_DIR = Path("data/attacks")
 OFFERS_FILE = DATA_DIR / "offers.json"
 ATTACKS_FILE = DATA_DIR / "attacks.json"
 SCOUTS_FILE = DATA_DIR / "scouts.json"
+
+# Снимки map.sql, которые уже создаёт основной бот.
+SNAPSHOTS_DIR = Path("data/snapshots")
 
 
 # ============================================================
@@ -191,6 +195,521 @@ def load_scouts():
 
 
 # ============================================================
+# ПОИСК ПОСЛЕДНЕГО MAP.SQL
+# ============================================================
+
+def find_latest_map_sql():
+    """
+    Находит самый свежий сохранённый map.sql.
+
+    Ожидаемая структура:
+
+        data/snapshots/YYYY/MM/map_YYYY-MM-DD.sql
+    """
+
+    if not SNAPSHOTS_DIR.exists():
+        return None
+
+    files = list(
+        SNAPSHOTS_DIR.glob(
+            "*/*/map_*.sql"
+        )
+    )
+
+    if not files:
+        return None
+
+    return max(
+        files,
+        key=lambda path: path.stat().st_mtime
+    )
+
+
+# ============================================================
+# РАЗБОР MAP.SQL
+# ============================================================
+
+def split_sql_values(text):
+    """
+    Разбирает содержимое одной строки VALUES(...).
+
+    Учитывает:
+    - строки в кавычках;
+    - экранированные символы;
+    - NULL;
+    - запятые внутри строк.
+    """
+
+    values = []
+    current = []
+
+    in_string = False
+    escape = False
+
+    for char in text:
+
+        if escape:
+
+            current.append(char)
+            escape = False
+            continue
+
+        if char == "\\" and in_string:
+
+            current.append(char)
+            escape = True
+            continue
+
+        if char == "'":
+
+            in_string = not in_string
+            current.append(char)
+            continue
+
+        if char == "," and not in_string:
+
+            values.append(
+                "".join(current).strip()
+            )
+
+            current = []
+            continue
+
+        current.append(char)
+
+    values.append(
+        "".join(current).strip()
+    )
+
+    return values
+
+
+def unquote_sql_value(value):
+
+    value = value.strip()
+
+    if value.upper() == "NULL":
+        return None
+
+    if (
+        len(value) >= 2
+        and value[0] == "'"
+        and value[-1] == "'"
+    ):
+
+        value = value[1:-1]
+
+        value = value.replace(
+            "\\'",
+            "'"
+        )
+
+        value = value.replace(
+            "\\\\",
+            "\\"
+        )
+
+    return value
+
+
+def extract_insert_rows(
+    sql,
+    table_name,
+):
+    """
+    Извлекает строки INSERT INTO указанной таблицы.
+
+    Возвращает список списков значений.
+    """
+
+    rows = []
+
+    pattern = re.compile(
+        rf"INSERT\s+INTO\s+`?{re.escape(table_name)}`?"
+        rf"\s*(?:\([^;]*?\))?"
+        rf"\s*VALUES\s*(.*?);",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for match in pattern.finditer(sql):
+
+        values_block = match.group(1)
+
+        tuples = []
+
+        current = []
+        depth = 0
+        in_string = False
+        escape = False
+
+        for char in values_block:
+
+            if escape:
+
+                current.append(char)
+                escape = False
+                continue
+
+            if char == "\\" and in_string:
+
+                current.append(char)
+                escape = True
+                continue
+
+            if char == "'":
+
+                in_string = not in_string
+                current.append(char)
+                continue
+
+            if not in_string:
+
+                if char == "(":
+
+                    if depth == 0:
+                        current = []
+
+                    depth += 1
+                    current.append(char)
+                    continue
+
+                if char == ")":
+
+                    depth -= 1
+                    current.append(char)
+
+                    if depth == 0:
+
+                        tuples.append(
+                            "".join(current)
+                        )
+
+                        current = []
+
+                    continue
+
+            if depth > 0:
+                current.append(char)
+
+        for row_text in tuples:
+
+            if (
+                row_text.startswith("(")
+                and row_text.endswith(")")
+            ):
+
+                row_text = row_text[1:-1]
+
+                rows.append(
+                    split_sql_values(
+                        row_text
+                    )
+                )
+
+    return rows
+
+
+def get_table_columns(
+    sql,
+    table_name,
+):
+    """
+    Возвращает имена колонок таблицы в том порядке,
+    в котором они находятся в CREATE TABLE.
+    """
+
+    pattern = re.compile(
+        rf"CREATE\s+TABLE\s+`?{re.escape(table_name)}`?"
+        rf"\s*\((.*?)\)\s*;",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    match = pattern.search(sql)
+
+    if not match:
+        return []
+
+    columns_text = match.group(1)
+
+    columns = []
+
+    for line in columns_text.splitlines():
+
+        line = line.strip()
+
+        column_match = re.match(
+            r"`([^`]+)`",
+            line,
+        )
+
+        if column_match:
+
+            columns.append(
+                column_match.group(1).lower()
+            )
+
+    return columns
+
+
+def load_offer_owners():
+    """
+    Загружает владельцев пяти офферов из последнего map.sql.
+
+    Возвращает:
+
+        {
+            (x, y): "Имя игрока"
+        }
+    """
+
+    latest_file = find_latest_map_sql()
+
+    if latest_file is None:
+
+        print(
+            "map.sql не найден. "
+            "Имена владельцев недоступны."
+        )
+
+        return {}
+
+    print(
+        f"Используется map.sql: {latest_file}"
+    )
+
+    try:
+
+        sql = latest_file.read_text(
+            encoding="utf-8",
+            errors="ignore",
+        )
+
+    except Exception as error:
+
+        print(
+            "Не удалось прочитать map.sql:",
+            error,
+        )
+
+        return {}
+
+    # --------------------------------------------------------
+    # Определяем структуру x_player
+    # --------------------------------------------------------
+
+    player_columns = get_table_columns(
+        sql,
+        "x_player",
+    )
+
+    player_id_index = None
+    player_name_index = None
+
+    for index, column in enumerate(
+        player_columns
+    ):
+
+        if column in (
+            "uid",
+            "id",
+            "player_id",
+        ):
+
+            if player_id_index is None:
+                player_id_index = index
+
+        if column in (
+            "name",
+            "player_name",
+        ):
+
+            player_name_index = index
+
+    if player_id_index is None:
+        player_id_index = 0
+
+    if player_name_index is None:
+        player_name_index = 1
+
+    # --------------------------------------------------------
+    # Загружаем игроков
+    # --------------------------------------------------------
+
+    players = {}
+
+    player_rows = extract_insert_rows(
+        sql,
+        "x_player",
+    )
+
+    for row in player_rows:
+
+        if (
+            len(row) <= player_id_index
+            or len(row) <= player_name_index
+        ):
+            continue
+
+        raw_id = unquote_sql_value(
+            row[player_id_index]
+        )
+
+        name = unquote_sql_value(
+            row[player_name_index]
+        )
+
+        if raw_id is None or name is None:
+            continue
+
+        try:
+
+            uid = int(raw_id)
+
+        except ValueError:
+
+            continue
+
+        players[uid] = name
+
+    # --------------------------------------------------------
+    # Определяем структуру x_world
+    # --------------------------------------------------------
+
+    world_columns = get_table_columns(
+        sql,
+        "x_world",
+    )
+
+    x_index = None
+    y_index = None
+    uid_index = None
+
+    for index, column in enumerate(
+        world_columns
+    ):
+
+        if column == "x":
+            x_index = index
+
+        elif column == "y":
+            y_index = index
+
+        elif column in (
+            "uid",
+            "player_uid",
+        ):
+
+            uid_index = index
+
+    # В используемом map.sql:
+    # uid игрока = индекс 6.
+    if uid_index is None:
+        uid_index = 6
+
+    if x_index is None or y_index is None:
+
+        print(
+            "Не удалось определить x/y "
+            "в таблице x_world."
+        )
+
+        return {}
+
+    # --------------------------------------------------------
+    # Находим владельцев деревень
+    # --------------------------------------------------------
+
+    owners = {}
+
+    target_coordinates = {
+        (
+            offer["x"],
+            offer["y"],
+        )
+        for offer in ENEMY_OFFERS
+    }
+
+    world_rows = extract_insert_rows(
+        sql,
+        "x_world",
+    )
+
+    for row in world_rows:
+
+        if any(
+            index >= len(row)
+            for index in (
+                x_index,
+                y_index,
+                uid_index,
+            )
+        ):
+            continue
+
+        try:
+
+            x = int(
+                unquote_sql_value(
+                    row[x_index]
+                )
+            )
+
+            y = int(
+                unquote_sql_value(
+                    row[y_index]
+                )
+            )
+
+            player_uid = int(
+                unquote_sql_value(
+                    row[uid_index]
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            continue
+
+        coordinate = (x, y)
+
+        if coordinate not in target_coordinates:
+            continue
+
+        player_name = players.get(
+            player_uid
+        )
+
+        if player_name:
+
+            owners[
+                coordinate
+            ] = player_name
+
+    print(
+        f"Найдено владельцев офферов: "
+        f"{len(owners)} / {len(target_coordinates)}"
+    )
+
+    for coordinate in sorted(
+        target_coordinates
+    ):
+
+        print(
+            f"Оффер {coordinate}: "
+            f"{owners.get(coordinate, 'не найден')}"
+        )
+
+    return owners
+
+
+# Загружается один раз при запуске.
+offer_owners = {}
+
+
+# ============================================================
 # TELEGRAM API
 # ============================================================
 
@@ -237,7 +756,10 @@ def send_message(
     )
 
 
-def answer_callback(callback_id, text=None):
+def answer_callback(
+    callback_id,
+    text=None,
+):
 
     data = {
         "callback_query_id": callback_id,
@@ -334,9 +856,11 @@ def parse_time(text):
 def parse_integer(text):
 
     try:
+
         return int(text.strip())
 
     except ValueError:
+
         return None
 
 
@@ -377,7 +901,9 @@ def format_range(levels):
 
         if start == end:
 
-            result.append(str(start))
+            result.append(
+                str(start)
+            )
 
         else:
 
@@ -435,12 +961,6 @@ def travel_time_seconds(
 
         каждый уровень Арены
         увеличивает скорость на 20%.
-
-    При скорости 3:
-
-        speed = 3 * (1 + 0.2 * arena)
-
-    Возвращаем время в секундах.
     """
 
     if distance <= 20:
@@ -484,30 +1004,18 @@ def possible_arena_levels(
 ):
 
     """
-    Игрок обнаружил атаку.
-
-    В этот момент до прибытия осталось:
-
-        remaining_seconds
-
-    До этого игрок мог находиться офлайн:
-
-        offline_minutes
-
-    Поэтому фактическое время движения атаки
+    Фактическое время движения атаки
     может находиться между:
 
         remaining_seconds
 
-    и
+    и:
 
         remaining_seconds
         + offline_minutes * 60
 
-    Мы НЕ пытаемся определить точную Арену.
-
-    Мы просто исключаем уровни, которые
-    невозможны в этом временном интервале.
+    Это фильтр невозможных уровней,
+    а не определение точного уровня.
     """
 
     minimum_time = float(
@@ -521,7 +1029,6 @@ def possible_arena_levels(
 
     possible = []
 
-    # Арена 0–20.
     for arena in range(0, 21):
 
         travel_time = travel_time_seconds(
@@ -587,6 +1094,16 @@ def set_arena(
     return True
 
 
+def get_offer_owner(offer):
+
+    return offer_owners.get(
+        (
+            offer["x"],
+            offer["y"],
+        )
+    )
+
+
 def offers_keyboard(prefix):
 
     offers = load_offers()
@@ -610,11 +1127,21 @@ def offers_keyboard(prefix):
         else:
             arena_text = str(arena)
 
+        owner = get_offer_owner(
+            offer
+        )
+
+        if owner:
+            owner_text = owner
+        else:
+            owner_text = "Владелец не найден"
+
         keyboard.append(
             [
                 {
                     "text": (
-                        f"({offer['x']}|{offer['y']}) "
+                        f"{owner_text} — "
+                        f"({offer['x']}|{offer['y']}) — "
                         f"A{arena_text}"
                     ),
                     "callback_data": (
@@ -723,6 +1250,10 @@ def create_attack(session):
         0,
     )
 
+    owner = get_offer_owner(
+        offer
+    )
+
     attack = {
 
         "id": next_id(
@@ -753,6 +1284,8 @@ def create_attack(session):
             "x": offer["x"],
             "y": offer["y"],
         },
+
+        "offer_owner": owner,
 
         "waves": session["waves"],
 
@@ -793,8 +1326,6 @@ def create_attack(session):
             format_range(possible)
         ),
 
-        # Какой была текущая информация
-        # на момент регистрации атаки.
         "arena_at_report": (
             current_arena
         ),
@@ -872,13 +1403,9 @@ def add_scout_evidence(
 
         "attack_id": attack_id,
 
-        "tested_arena": (
-            tested_arena
-        ),
+        "tested_arena": tested_arena,
 
-        "observed_change": (
-            observed_change
-        ),
+        "observed_change": observed_change,
 
         "verdict": verdict,
 
@@ -916,15 +1443,6 @@ def add_scout_evidence(
             "possible_arena_levels",
             [],
         )
-
-        # Проверяем:
-        #
-        # 1. это действительно атака этого оффера;
-        # 2. проверяемая Арена входит в диапазон атаки;
-        # 3. скаут подтверждает именно эту гипотезу.
-        #
-        # Только тогда разрешаем автоматическое
-        # изменение текущей Арены.
 
         if (
             attack.get(
@@ -1086,9 +1604,7 @@ def start_attack_report(
 
     session["flow"] = "attack"
 
-    session["step"] = (
-        "own_coords"
-    )
+    session["step"] = "own_coords"
 
     send_message(
         chat_id,
@@ -1148,17 +1664,27 @@ def attack_offer_selected(
         user_id,
     )
 
-    session["offer_id"] = (
-        offer_id
-    )
+    session["offer_id"] = offer_id
 
     session["step"] = "waves"
+
+    owner = get_offer_owner(
+        offer
+    )
+
+    if owner:
+        owner_text = (
+            f"{html.escape(owner)} "
+        )
+    else:
+        owner_text = ""
 
     send_message(
         chat_id,
         (
             f"Выбран оффер "
-            f"<b>({offer['x']}|{offer['y']})</b>.\n\n"
+            f"<b>{owner_text}"
+            f"({offer['x']}|{offer['y']})</b>.\n\n"
             "Введите количество волн."
         ),
         reply_markup=cancel_keyboard(),
@@ -1222,6 +1748,17 @@ def finish_attack_report(
             current_arena
         )
 
+    owner = get_offer_owner(
+        offer
+    )
+
+    if owner:
+        owner_text = html.escape(
+            owner
+        )
+    else:
+        owner_text = "не найден"
+
     text = (
 
         "✅ <b>Отчёт об атаке сохранён</b>\n\n"
@@ -1234,6 +1771,7 @@ def finish_attack_report(
         f"{attack['own_coords']['y']})\n"
 
         f"<b>Оффер:</b> "
+        f"{owner_text} "
         f"({offer['x']}|{offer['y']})\n"
 
         f"<b>Расстояние:</b> "
@@ -1335,24 +1873,32 @@ def manual_offer_selected(
         user_id,
     )
 
-    session["offer_id"] = (
-        offer_id
-    )
+    session["offer_id"] = offer_id
 
-    session["step"] = (
-        "arena_value"
-    )
+    session["step"] = "arena_value"
 
     current = offer.get(
         "arena",
         0,
     )
 
+    owner = get_offer_owner(
+        offer
+    )
+
+    if owner:
+        owner_text = html.escape(
+            owner
+        )
+    else:
+        owner_text = "Владелец не найден"
+
     send_message(
         chat_id,
         (
             f"Оффер: "
-            f"<b>({offer['x']}|{offer['y']})</b>\n"
+            f"<b>{owner_text} "
+            f"({offer['x']}|{offer['y']})</b>\n"
             f"Текущая Арена: "
             f"<b>{current}</b>\n\n"
             "Введите новый уровень Арены "
@@ -1412,12 +1958,24 @@ def save_manual_arena(
         user_id,
     )
 
+    owner = get_offer_owner(
+        offer
+    )
+
+    if owner:
+        owner_text = html.escape(
+            owner
+        )
+    else:
+        owner_text = "Владелец не найден"
+
     send_message(
         chat_id,
         (
             "✅ <b>Арена обновлена</b>\n\n"
 
             f"<b>Оффер:</b> "
+            f"{owner_text} "
             f"({offer['x']}|{offer['y']})\n"
 
             f"<b>Было:</b> "
@@ -1489,19 +2047,27 @@ def scout_offer_selected(
         user_id,
     )
 
-    session["offer_id"] = (
-        offer_id
+    session["offer_id"] = offer_id
+
+    session["step"] = "attack_id"
+
+    owner = get_offer_owner(
+        offer
     )
 
-    session["step"] = (
-        "attack_id"
-    )
+    if owner:
+        owner_text = html.escape(
+            owner
+        )
+    else:
+        owner_text = "Владелец не найден"
 
     send_message(
         chat_id,
         (
             f"Оффер: "
-            f"<b>({offer['x']}|{offer['y']})</b>\n\n"
+            f"<b>{owner_text} "
+            f"({offer['x']}|{offer['y']})</b>\n\n"
 
             "Введите ID входящей атаки, "
             "под которую проводилась "
@@ -1562,13 +2128,9 @@ def scout_attack_selected(
 
         return
 
-    session["attack_id"] = (
-        attack_id
-    )
+    session["attack_id"] = attack_id
 
-    session["step"] = (
-        "tested_arena"
-    )
+    session["step"] = "tested_arena"
 
     possible = attack.get(
         "possible_arena_levels",
@@ -1627,8 +2189,6 @@ def scout_arena_selected(
         [],
     )
 
-    # Нельзя проверять через этот отчёт
-    # уровень, который сам отчёт исключает.
     if arena not in possible:
 
         send_message(
@@ -1646,13 +2206,9 @@ def scout_arena_selected(
 
         return
 
-    session["tested_arena"] = (
-        arena
-    )
+    session["tested_arena"] = arena
 
-    session["step"] = (
-        "observed_change"
-    )
+    session["step"] = "observed_change"
 
     send_message(
         chat_id,
@@ -1690,22 +2246,16 @@ def scout_observation_entered(
         user_id,
     )
 
-    session[
-        "observed_change"
-    ] = text
+    session["observed_change"] = text
 
-    session["step"] = (
-        "verdict"
-    )
+    session["step"] = "verdict"
 
     keyboard = {
         "inline_keyboard": [
 
             [
                 {
-                    "text": (
-                        "✅ Подтверждает"
-                    ),
+                    "text": "✅ Подтверждает",
                     "callback_data": (
                         "scout_verdict:confirmed"
                     ),
@@ -1714,9 +2264,7 @@ def scout_observation_entered(
 
             [
                 {
-                    "text": (
-                        "❌ Опровергает"
-                    ),
+                    "text": "❌ Опровергает",
                     "callback_data": (
                         "scout_verdict:rejected"
                     ),
@@ -1759,22 +2307,10 @@ def finish_scout(
     )
 
     evidence = add_scout_evidence(
-        offer_id=session[
-            "offer_id"
-        ],
-
-        attack_id=session[
-            "attack_id"
-        ],
-
-        tested_arena=session[
-            "tested_arena"
-        ],
-
-        observed_change=session[
-            "observed_change"
-        ],
-
+        offer_id=session["offer_id"],
+        attack_id=session["attack_id"],
+        tested_arena=session["tested_arena"],
+        observed_change=session["observed_change"],
         verdict=verdict,
     )
 
@@ -1813,12 +2349,24 @@ def finish_scout(
             "Текущая Арена не изменена."
         )
 
+    owner = get_offer_owner(
+        offer
+    )
+
+    if owner:
+        owner_text = html.escape(
+            owner
+        )
+    else:
+        owner_text = "Владелец не найден"
+
     send_message(
         chat_id,
         (
             "<b>Скаут-проверка сохранена</b>\n\n"
 
             f"<b>Оффер:</b> "
+            f"{owner_text} "
             f"({offer['x']}|{offer['y']})\n"
 
             f"<b>Атака:</b> "
@@ -1852,8 +2400,8 @@ def show_offers_status(
     offers = load_offers()
 
     lines = [
-        f"<b>Состояние офферов</b>",
-        f"{SERVER_NAME}",
+        "<b>Состояние офферов</b>",
+        SERVER_NAME,
         "",
     ]
 
@@ -1888,8 +2436,20 @@ def show_offers_status(
             else str(arena)
         )
 
+        owner = get_offer_owner(
+            offer
+        )
+
+        if owner:
+            owner_text = html.escape(
+                owner
+            )
+        else:
+            owner_text = "Владелец не найден"
+
         lines.append(
-            f"<b>({offer['x']}|{offer['y']})</b>\n"
+            f"<b>{owner_text} "
+            f"({offer['x']}|{offer['y']})</b>\n"
             f"Арена: <b>{arena_text}</b>\n"
             f"Источник: "
             f"{html.escape(source)}\n"
@@ -2248,9 +2808,7 @@ def process_message(
 
                 return
 
-            session[
-                "own_coords"
-            ] = coords
+            session["own_coords"] = coords
 
             attack_choose_offer(
                 chat_id,
@@ -2282,13 +2840,9 @@ def process_message(
 
                 return
 
-            session[
-                "waves"
-            ] = waves
+            session["waves"] = waves
 
-            session[
-                "step"
-            ] = "detected_time"
+            session["step"] = "detected_time"
 
             send_message(
                 chat_id,
@@ -2327,17 +2881,11 @@ def process_message(
 
                 return
 
-            session[
-                "detected_time_text"
-            ] = text
+            session["detected_time_text"] = text
 
-            session[
-                "detected_time_seconds"
-            ] = seconds
+            session["detected_time_seconds"] = seconds
 
-            session[
-                "step"
-            ] = "remaining"
+            session["step"] = "remaining"
 
             send_message(
                 chat_id,
@@ -2382,17 +2930,11 @@ def process_message(
 
                 return
 
-            session[
-                "remaining_text"
-            ] = text
+            session["remaining_text"] = text
 
-            session[
-                "remaining_seconds"
-            ] = seconds
+            session["remaining_seconds"] = seconds
 
-            session[
-                "step"
-            ] = "offline"
+            session["step"] = "offline"
 
             send_message(
                 chat_id,
@@ -2436,9 +2978,7 @@ def process_message(
 
                 return
 
-            session[
-                "offline_minutes"
-            ] = minutes
+            session["offline_minutes"] = minutes
 
             finish_attack_report(
                 chat_id,
@@ -2594,6 +3134,8 @@ def process_update(
 
 def run():
 
+    global offer_owners
+
     if not TELEGRAM_TOKEN:
 
         raise RuntimeError(
@@ -2601,6 +3143,9 @@ def run():
         )
 
     ensure_data()
+
+    # Загружаем владельцев из самого свежего map.sql.
+    offer_owners = load_offer_owners()
 
     print(
         "attacks_bot started"
@@ -2631,9 +3176,7 @@ def run():
 
             if offset is not None:
 
-                kwargs[
-                    "offset"
-                ] = offset
+                kwargs["offset"] = offset
 
             updates = telegram(
                 "getUpdates",
@@ -2643,9 +3186,7 @@ def run():
             for update in updates:
 
                 offset = (
-                    update[
-                        "update_id"
-                    ]
+                    update["update_id"]
                     + 1
                 )
 
