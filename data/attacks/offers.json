@@ -14,10 +14,10 @@
     "x": 139,
     "y": 187,
     "arena": 17,
-    "arena_source": "manual",
-    "arena_updated_at": "2026-09-12T11:31:20Z",
+    "arena_source": "scout_auto",
+    "arena_updated_at": "2026-09-12T11:35:29Z",
     "arena_status": "confirmed",
-    "arena_reason": "Установлено вручную через Telegram."
+    "arena_reason": "Подтверждено скаут-проверкой scout_1 по входящей атаке attack_1. Наблюдение: 76+4 за 20 секунд"
   },
   "offer_3": {
     "offer_id": "offer_3",
