@@ -1533,7 +1533,7 @@ def create_attack(
             "y": own_y,
         },
 
-        "offer_id": offer["id"],
+        "offer_id": offer["offer_id"],
 
         "offer_coords": {
             "x": offer["x"],
