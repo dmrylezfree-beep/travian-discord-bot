@@ -10,6 +10,8 @@ from pathlib import Path
 
 import requests
 
+print("ATTACKS BOT STARTED", flush=True)
+
 
 # ============================================================
 # НАСТРОЙКИ
@@ -3313,5 +3315,7 @@ def run():
 # ============================================================
 
 if __name__ == "__main__":
+    
+    print("STARTING TELEGRAM POLLING", flush=True)
 
     run()
