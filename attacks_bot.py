@@ -3291,15 +3291,31 @@ def run():
             )
 
             for update in updates:
+                print(
+                    f"Получено обновление: {update.get('update_id')}",
+                    flush=True,
+                )
 
                 offset = (
                     update["update_id"]
                     + 1
                 )
 
+                 print(
+                     "Перед process_update",
+                     flush=True,
+                )
+
                 process_update(
                     update
                 )
+                
+                print(
+                    "process_update завершён",
+                    flush=True,
+                )
+
+        
 
         except requests.RequestException as error:
 
