@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "id": "scout_1",
+    "created_at": "2026-09-12T11:35:29Z",
+    "offer_id": "offer_2",
+    "attack_id": "attack_1",
+    "tested_arena": 17,
+    "observed_change": "76+4 за 20 секунд",
+    "verdict": "confirmed",
+    "attack_exists": true,
+    "automatic_arena_change": true,
+    "arena_before": 17,
+    "arena_after": 17
+  }
+]
