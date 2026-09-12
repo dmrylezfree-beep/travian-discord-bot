@@ -238,10 +238,6 @@ def persist_attacks_data_to_github():
 
     try:
 
-        # ----------------------------------------------------
-        # Проверяем наличие изменений
-        # ----------------------------------------------------
-
         status = subprocess.run(
             [
                 "git",
@@ -270,10 +266,6 @@ def persist_attacks_data_to_github():
 
             return True
 
-        # ----------------------------------------------------
-        # Настраиваем Git
-        # ----------------------------------------------------
-
         subprocess.run(
             [
                 "git",
@@ -294,10 +286,6 @@ def persist_attacks_data_to_github():
             check=True,
         )
 
-        # ----------------------------------------------------
-        # Добавляем файлы
-        # ----------------------------------------------------
-
         print(
             "Git add...",
             flush=True,
@@ -313,10 +301,6 @@ def persist_attacks_data_to_github():
             ],
             check=True,
         )
-
-        # ----------------------------------------------------
-        # Commit
-        # ----------------------------------------------------
 
         print(
             "Git commit...",
@@ -355,10 +339,6 @@ def persist_attacks_data_to_github():
 
             return False
 
-        # ----------------------------------------------------
-        # Получаем актуальный main
-        # ----------------------------------------------------
-
         print(
             "Git fetch origin main...",
             flush=True,
@@ -395,10 +375,6 @@ def persist_attacks_data_to_github():
             )
 
             return False
-
-        # ----------------------------------------------------
-        # Rebase на актуальный main
-        # ----------------------------------------------------
 
         print(
             "Git rebase origin/main...",
@@ -450,10 +426,6 @@ def persist_attacks_data_to_github():
             )
 
             return False
-
-        # ----------------------------------------------------
-        # Push
-        # ----------------------------------------------------
 
         print(
             "Git push origin HEAD:main...",
@@ -752,23 +724,6 @@ def extract_insert_rows(
 
 def load_offer_owners():
 
-    """
-    В нашем map.sql структура x_world такая:
-
-    0 = vid
-    1 = x
-    2 = y
-    3 = tid
-    4 = village_id
-    5 = village_name
-    6 = uid
-    7 = player_name
-    8 = alliance_id
-    9 = alliance_name
-
-    Поэтому x_player вообще не нужен.
-    """
-
     latest_file = find_latest_map_sql()
 
     if latest_file is None:
@@ -986,6 +941,32 @@ def edit_message(
         "editMessageText",
         **data,
     )
+
+
+# ============================================================
+# КЛАВИАТУРЫ ДЛЯ ВВОДА
+# ============================================================
+
+def input_keyboard():
+
+    return {
+        "force_reply": True,
+        "selective": True,
+    }
+
+
+def cancel_keyboard():
+
+    return {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "❌ Отмена",
+                    "callback_data": "menu",
+                }
+            ]
+        ]
+    }
 
 
 # ============================================================
@@ -1345,8 +1326,6 @@ def set_arena(
         flush=True,
     )
 
-    # ВАЖНО:
-    # теперь возвращаем именно результат GitHub save.
     github_saved = persist_attacks_data_to_github()
 
     if github_saved:
@@ -1450,20 +1429,6 @@ def offers_keyboard(
 
     return {
         "inline_keyboard": keyboard
-    }
-
-
-def cancel_keyboard():
-
-    return {
-        "inline_keyboard": [
-            [
-                {
-                    "text": "❌ Отмена",
-                    "callback_data": "menu",
-                }
-            ]
-        ]
     }
 
 
@@ -1928,7 +1893,7 @@ def start_attack_report(
             "Например:\n"
             "<code>46|-62</code>"
         ),
-        reply_markup=cancel_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
@@ -2005,7 +1970,7 @@ def attack_offer_selected(
             f"({offer['x']}|{offer['y']})</b>.\n\n"
             "Введите количество волн."
         ),
-        reply_markup=cancel_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
@@ -2221,6 +2186,15 @@ def manual_offer_selected(
             "Владелец не найден"
         )
 
+    print(
+        "MANUAL ARENA INPUT: "
+        f"chat_id={chat_id}, "
+        f"user_id={user_id}, "
+        f"offer_id={offer_id}, "
+        f"current_arena={current}",
+        flush=True,
+    )
+
     send_message(
         chat_id,
         (
@@ -2232,7 +2206,7 @@ def manual_offer_selected(
             "Введите новый уровень Арены "
             "от 0 до 20."
         ),
-        reply_markup=cancel_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
@@ -2442,7 +2416,7 @@ def scout_offer_selected(
             "Связь с атакой обязательна для "
             "автоматического изменения Арены."
         ),
-        reply_markup=cancel_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
@@ -2464,7 +2438,7 @@ def scout_attack_selected(
                 "❌ Такая атака не найдена.\n"
                 "Введите существующий ID."
             ),
-            reply_markup=cancel_keyboard(),
+            reply_markup=input_keyboard(),
         )
 
         return
@@ -2486,7 +2460,7 @@ def scout_attack_selected(
                 "❌ Эта атака относится "
                 "к другому офферу."
             ),
-            reply_markup=cancel_keyboard(),
+            reply_markup=input_keyboard(),
         )
 
         return
@@ -2512,7 +2486,7 @@ def scout_attack_selected(
             "Введите уровень Арены, "
             "который проверяли скаутами."
         ),
-        reply_markup=cancel_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
@@ -2564,7 +2538,7 @@ def scout_arena_selected(
                 "Введите уровень, который "
                 "действительно проверяли."
             ),
-            reply_markup=cancel_keyboard(),
+            reply_markup=input_keyboard(),
         )
 
         return
@@ -2584,7 +2558,7 @@ def scout_arena_selected(
             "Это наблюдение будет сохранено "
             "в истории."
         ),
-        reply_markup=cancel_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
@@ -2599,7 +2573,7 @@ def scout_observation_entered(
         send_message(
             chat_id,
             "Введите результат проверки.",
-            reply_markup=cancel_keyboard(),
+            reply_markup=input_keyboard(),
         )
 
         return
@@ -2887,6 +2861,16 @@ def process_callback(
         "id"
     )
 
+    print(
+        "CALLBACK:",
+        json.dumps(
+            callback,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        flush=True,
+    )
+
     if thread_id != TELEGRAM_THREAD_ID:
 
         answer_callback(
@@ -3028,6 +3012,16 @@ def process_message(
     message,
 ):
 
+    print(
+        "PROCESS MESSAGE:",
+        json.dumps(
+            message,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        flush=True,
+    )
+
     chat = message.get(
         "chat",
         {},
@@ -3057,7 +3051,23 @@ def process_message(
         or ""
     ).strip()
 
+    print(
+        "MESSAGE INFO:",
+        f"chat_id={chat_id}",
+        f"user_id={user_id}",
+        f"thread_id={thread_id}",
+        f"text={text!r}",
+        flush=True,
+    )
+
     if thread_id != TELEGRAM_THREAD_ID:
+
+        print(
+            f"Сообщение проигнорировано: "
+            f"thread_id={thread_id}, "
+            f"ожидался={TELEGRAM_THREAD_ID}",
+            flush=True,
+        )
 
         return
 
@@ -3110,7 +3120,23 @@ def process_message(
         user_id,
     )
 
+    print(
+        "CURRENT SESSION:",
+        json.dumps(
+            session,
+            ensure_ascii=False,
+            indent=2,
+        ),
+        flush=True,
+    )
+
     if not session:
+
+        print(
+            "Сообщение получено, "
+            "но активной сессии нет.",
+            flush=True,
+        )
 
         return
 
@@ -3120,6 +3146,14 @@ def process_message(
 
     step = session.get(
         "step"
+    )
+
+    print(
+        f"PROCESSING TEXT: "
+        f"flow={flow}, "
+        f"step={step}, "
+        f"text={text!r}",
+        flush=True,
     )
 
     # ========================================================
@@ -3144,7 +3178,7 @@ def process_message(
                         "например:\n"
                         "<code>46|-62</code>"
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3177,7 +3211,7 @@ def process_message(
                         "Введите положительное "
                         "целое число волн."
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3198,7 +3232,7 @@ def process_message(
                     "Например:\n"
                     "<code>08:37:12</code>"
                 ),
-                reply_markup=cancel_keyboard(),
+                reply_markup=input_keyboard(),
             )
 
             return
@@ -3218,7 +3252,7 @@ def process_message(
                         "Введите, например:\n"
                         "<code>08:37:12</code>"
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3248,7 +3282,7 @@ def process_message(
                     "Например:\n"
                     "<code>18:36:55</code>"
                 ),
-                reply_markup=cancel_keyboard(),
+                reply_markup=input_keyboard(),
             )
 
             return
@@ -3269,7 +3303,7 @@ def process_message(
                         "например:\n"
                         "<code>18:36:55</code>"
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3295,7 +3329,7 @@ def process_message(
                     "Например:\n"
                     "<code>27</code>"
                 ),
-                reply_markup=cancel_keyboard(),
+                reply_markup=input_keyboard(),
             )
 
             return
@@ -3319,7 +3353,7 @@ def process_message(
                         "Например:\n"
                         "<code>27</code>"
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3343,6 +3377,14 @@ def process_message(
 
         if step == "arena_value":
 
+            print(
+                "MANUAL ARENA STEP RECEIVED:",
+                f"text={text!r}",
+                f"chat_id={chat_id}",
+                f"user_id={user_id}",
+                flush=True,
+            )
+
             arena = parse_integer(
                 text
             )
@@ -3353,13 +3395,18 @@ def process_message(
                 or arena > 20
             ):
 
+                print(
+                    f"Некорректный уровень Арены: {text!r}",
+                    flush=True,
+                )
+
                 send_message(
                     chat_id,
                     (
                         "Уровень Арены должен "
                         "быть от 0 до 20."
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3411,7 +3458,7 @@ def process_message(
                         "Уровень Арены должен "
                         "быть от 0 до 20."
                     ),
-                    reply_markup=cancel_keyboard(),
+                    reply_markup=input_keyboard(),
                 )
 
                 return
@@ -3445,7 +3492,18 @@ def process_update(
 
     try:
 
+        print(
+            "UPDATE TYPE:",
+            list(update.keys()),
+            flush=True,
+        )
+
         if "callback_query" in update:
+
+            print(
+                "Обрабатываем callback_query",
+                flush=True,
+            )
 
             process_callback(
                 update[
@@ -3455,10 +3513,22 @@ def process_update(
 
         elif "message" in update:
 
+            print(
+                "Обрабатываем message",
+                flush=True,
+            )
+
             process_message(
                 update[
                     "message"
                 ]
+            )
+
+        else:
+
+            print(
+                "Неизвестный тип update.",
+                flush=True,
             )
 
     except Exception as error:
