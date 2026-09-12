@@ -10,6 +10,7 @@ from pathlib import Path
 
 import requests
 
+
 print("ATTACKS BOT STARTED", flush=True)
 
 
@@ -124,14 +125,14 @@ def ensure_data():
 
         save_json(
             ATTACKS_FILE,
-            []
+            [],
         )
 
     if not SCOUTS_FILE.exists():
 
         save_json(
             SCOUTS_FILE,
-            []
+            [],
         )
 
 
@@ -220,11 +221,26 @@ def persist_attacks_data_to_github():
     Сохраняет изменения data/attacks
     обратно в ветку main.
 
-    Это необходимо, потому что GitHub Actions
-    работает во временной копии репозитория.
+    GitHub Actions работает во временной
+    копии репозитория, поэтому после изменения
+    JSON необходимо сделать commit и push.
+
+    Перед push получаем актуальный main
+    и выполняем rebase, чтобы избежать
+    ошибки non-fast-forward, если параллельно
+    другой workflow уже изменил репозиторий.
     """
 
+    print(
+        "=== НАЧАЛО СОХРАНЕНИЯ В GITHUB ===",
+        flush=True,
+    )
+
     try:
+
+        # ----------------------------------------------------
+        # Проверяем наличие изменений
+        # ----------------------------------------------------
 
         status = subprocess.run(
             [
@@ -239,13 +255,24 @@ def persist_attacks_data_to_github():
             check=True,
         )
 
+        print(
+            "Git status:",
+            repr(status.stdout),
+            flush=True,
+        )
+
         if not status.stdout.strip():
 
             print(
-                "Изменений в data/attacks нет."
+                "Изменений в data/attacks нет.",
+                flush=True,
             )
 
             return True
+
+        # ----------------------------------------------------
+        # Настраиваем Git
+        # ----------------------------------------------------
 
         subprocess.run(
             [
@@ -267,6 +294,15 @@ def persist_attacks_data_to_github():
             check=True,
         )
 
+        # ----------------------------------------------------
+        # Добавляем файлы
+        # ----------------------------------------------------
+
+        print(
+            "Git add...",
+            flush=True,
+        )
+
         subprocess.run(
             [
                 "git",
@@ -276,6 +312,15 @@ def persist_attacks_data_to_github():
                 "data/attacks/scouts.json",
             ],
             check=True,
+        )
+
+        # ----------------------------------------------------
+        # Commit
+        # ----------------------------------------------------
+
+        print(
+            "Git commit...",
+            flush=True,
         )
 
         commit = subprocess.run(
@@ -289,34 +334,172 @@ def persist_attacks_data_to_github():
             text=True,
         )
 
+        print(
+            "Git commit stdout:",
+            commit.stdout,
+            flush=True,
+        )
+
+        print(
+            "Git commit stderr:",
+            commit.stderr,
+            flush=True,
+        )
+
         if commit.returncode != 0:
 
             print(
-                "Git commit не выполнен:"
-            )
-
-            print(
-                commit.stdout
-            )
-
-            print(
-                commit.stderr
+                "Git commit не выполнен.",
+                flush=True,
             )
 
             return False
 
-        subprocess.run(
+        # ----------------------------------------------------
+        # Получаем актуальный main
+        # ----------------------------------------------------
+
+        print(
+            "Git fetch origin main...",
+            flush=True,
+        )
+
+        fetch = subprocess.run(
+            [
+                "git",
+                "fetch",
+                "origin",
+                "main",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        print(
+            "Git fetch stdout:",
+            fetch.stdout,
+            flush=True,
+        )
+
+        print(
+            "Git fetch stderr:",
+            fetch.stderr,
+            flush=True,
+        )
+
+        if fetch.returncode != 0:
+
+            print(
+                "Git fetch не выполнен.",
+                flush=True,
+            )
+
+            return False
+
+        # ----------------------------------------------------
+        # Rebase на актуальный main
+        # ----------------------------------------------------
+
+        print(
+            "Git rebase origin/main...",
+            flush=True,
+        )
+
+        rebase = subprocess.run(
+            [
+                "git",
+                "rebase",
+                "origin/main",
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        print(
+            "Git rebase stdout:",
+            rebase.stdout,
+            flush=True,
+        )
+
+        print(
+            "Git rebase stderr:",
+            rebase.stderr,
+            flush=True,
+        )
+
+        if rebase.returncode != 0:
+
+            print(
+                "Git rebase не выполнен.",
+                flush=True,
+            )
+
+            print(
+                "Пытаемся отменить rebase...",
+                flush=True,
+            )
+
+            subprocess.run(
+                [
+                    "git",
+                    "rebase",
+                    "--abort",
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            return False
+
+        # ----------------------------------------------------
+        # Push
+        # ----------------------------------------------------
+
+        print(
+            "Git push origin HEAD:main...",
+            flush=True,
+        )
+
+        push = subprocess.run(
             [
                 "git",
                 "push",
                 "origin",
                 "HEAD:main",
             ],
-            check=True,
+            capture_output=True,
+            text=True,
         )
 
         print(
-            "Данные attacks bot сохранены в GitHub."
+            "Git push stdout:",
+            push.stdout,
+            flush=True,
+        )
+
+        print(
+            "Git push stderr:",
+            push.stderr,
+            flush=True,
+        )
+
+        if push.returncode != 0:
+
+            print(
+                "Git push НЕ выполнен.",
+                flush=True,
+            )
+
+            return False
+
+        print(
+            "Данные attacks bot успешно сохранены в GitHub.",
+            flush=True,
+        )
+
+        print(
+            "=== СОХРАНЕНИЕ В GITHUB УСПЕШНО ===",
+            flush=True,
         )
 
         return True
@@ -325,7 +508,13 @@ def persist_attacks_data_to_github():
 
         print(
             "Ошибка сохранения в GitHub:",
-            error,
+            repr(error),
+            flush=True,
+        )
+
+        print(
+            "=== СОХРАНЕНИЕ В GITHUB НЕ УДАЛОСЬ ===",
+            flush=True,
         )
 
         return False
@@ -578,16 +767,6 @@ def load_offer_owners():
     9 = alliance_name
 
     Поэтому x_player вообще не нужен.
-
-    Например:
-
-    (5553,139,187,2,24549,'02',181,'NEXT',5,'Hero',...)
-
-    означает:
-
-        координаты = 139|187
-        игрок = NEXT
-        альянс = Hero
     """
 
     latest_file = find_latest_map_sql()
@@ -1112,7 +1291,23 @@ def set_arena(
 
     if offer_id not in offers:
 
+        print(
+            f"Оффер {offer_id} не найден в offers.json.",
+            flush=True,
+        )
+
         return False
+
+    old_arena = offers[offer_id].get(
+        "arena",
+        0,
+    )
+
+    print(
+        f"Изменение Арены: "
+        f"{offer_id}: {old_arena} -> {arena}",
+        flush=True,
+    )
 
     offers[offer_id][
         "arena"
@@ -1145,11 +1340,31 @@ def set_arena(
         offers,
     )
 
-    # Ключевое изменение:
-    # сохраняем ручное изменение в GitHub.
-    persist_attacks_data_to_github()
+    print(
+        "offers.json изменён локально.",
+        flush=True,
+    )
 
-    return True
+    # ВАЖНО:
+    # теперь возвращаем именно результат GitHub save.
+    github_saved = persist_attacks_data_to_github()
+
+    if github_saved:
+
+        print(
+            "Арена успешно сохранена в GitHub.",
+            flush=True,
+        )
+
+    else:
+
+        print(
+            "Арена изменена локально, "
+            "но сохранить изменение в GitHub НЕ удалось.",
+            flush=True,
+        )
+
+    return github_saved
 
 
 def get_offer_owner(
@@ -1425,7 +1640,11 @@ def create_attack(
         attacks,
     )
 
-    # Сохраняем историю.
+    print(
+        f"Создана атака {attack['id']}.",
+        flush=True,
+    )
+
     persist_attacks_data_to_github()
 
     return attack
@@ -1539,7 +1758,7 @@ def add_scout_evidence(
                 0,
             )
 
-            set_arena(
+            arena_saved = set_arena(
                 offer_id,
                 tested_arena,
                 "scout_auto",
@@ -1554,9 +1773,17 @@ def add_scout_evidence(
                 ),
             )
 
-            evidence[
-                "automatic_arena_change"
-            ] = True
+            if arena_saved:
+
+                evidence[
+                    "automatic_arena_change"
+                ] = True
+
+            else:
+
+                evidence[
+                    "automatic_arena_change"
+                ] = False
 
             evidence[
                 "arena_before"
@@ -1575,7 +1802,6 @@ def add_scout_evidence(
         scouts,
     )
 
-    # Сохраняем историю скаутов.
     persist_attacks_data_to_github()
 
     return evidence
@@ -2048,6 +2274,12 @@ def save_manual_arena(
         0,
     )
 
+    print(
+        f"Получен ручной ввод Арены: "
+        f"offer={offer_id}, arena={arena}",
+        flush=True,
+    )
+
     success = set_arena(
         offer_id,
         arena,
@@ -2099,7 +2331,14 @@ def save_manual_arena(
     else:
 
         text = (
-            "❌ Не удалось обновить Арену."
+            "❌ <b>Арена не сохранена</b>\n\n"
+
+            "Локальный файл был изменён, "
+            "но GitHub не подтвердил сохранение.\n\n"
+
+            "Посмотрите лог текущего запуска "
+            "бота — там будет точная причина "
+            "ошибки Git."
         )
 
     send_message(
@@ -3125,6 +3364,11 @@ def process_message(
 
                 return
 
+            print(
+                f"Получено сообщение с уровнем Арены: {arena}",
+                flush=True,
+            )
+
             save_manual_arena(
                 chat_id,
                 user_id,
@@ -3221,7 +3465,8 @@ def process_update(
 
         print(
             "Ошибка обработки update:",
-            error,
+            repr(error),
+            flush=True,
         )
 
 
@@ -3244,15 +3489,18 @@ def run():
     offer_owners = load_offer_owners()
 
     print(
-        "attacks_bot started"
+        "attacks_bot started",
+        flush=True,
     )
 
     print(
-        f"Server: {SERVER_NAME}"
+        f"Server: {SERVER_NAME}",
+        flush=True,
     )
 
     print(
-        f"Thread: {TELEGRAM_THREAD_ID}"
+        f"Thread: {TELEGRAM_THREAD_ID}",
+        flush=True,
     )
 
     offset = None
@@ -3286,18 +3534,26 @@ def run():
             )
 
             print(
-                f"getUpdates завершён. Получено обновлений: {len(updates)}",
+                f"getUpdates завершён. "
+                f"Получено обновлений: {len(updates)}",
                 flush=True,
             )
 
             for update in updates:
+
                 print(
-                    f"Получено обновление: {update.get('update_id')}",
+                    f"Получено обновление: "
+                    f"{update.get('update_id')}",
                     flush=True,
                 )
+
                 print(
-                json.dumps(update, ensure_ascii=False, indent=2),
-                flush=True,
+                    json.dumps(
+                        update,
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    flush=True,
                 )
 
                 offset = (
@@ -3306,26 +3562,25 @@ def run():
                 )
 
                 print(
-                     "Перед process_update",
-                     flush=True,
+                    "Перед process_update",
+                    flush=True,
                 )
 
                 process_update(
                     update
                 )
-                
+
                 print(
                     "process_update завершён",
                     flush=True,
                 )
 
-        
-
         except requests.RequestException as error:
 
             print(
                 "Ошибка соединения с Telegram:",
-                error,
+                repr(error),
+                flush=True,
             )
 
             time.sleep(5)
@@ -3334,7 +3589,8 @@ def run():
 
             print(
                 "Ошибка основного цикла:",
-                error,
+                repr(error),
+                flush=True,
             )
 
             time.sleep(5)
@@ -3345,7 +3601,10 @@ def run():
 # ============================================================
 
 if __name__ == "__main__":
-    
-    print("STARTING TELEGRAM POLLING", flush=True)
+
+    print(
+        "STARTING TELEGRAM POLLING",
+        flush=True,
+    )
 
     run()
