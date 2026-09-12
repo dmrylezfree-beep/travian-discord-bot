@@ -1,0 +1,52 @@
+{
+  "offer_1": {
+    "offer_id": "offer_1",
+    "x": 42,
+    "y": 33,
+    "arena": 0,
+    "arena_source": null,
+    "arena_updated_at": null,
+    "arena_status": "unknown",
+    "arena_reason": null
+  },
+  "offer_2": {
+    "offer_id": "offer_2",
+    "x": 139,
+    "y": 187,
+    "arena": 14,
+    "arena_source": "manual",
+    "arena_updated_at": "2026-09-12T11:19:50Z",
+    "arena_status": "confirmed",
+    "arena_reason": "Установлено вручную через Telegram."
+  },
+  "offer_3": {
+    "offer_id": "offer_3",
+    "x": -8,
+    "y": 69,
+    "arena": 0,
+    "arena_source": null,
+    "arena_updated_at": null,
+    "arena_status": "unknown",
+    "arena_reason": null
+  },
+  "offer_4": {
+    "offer_id": "offer_4",
+    "x": 16,
+    "y": 29,
+    "arena": 0,
+    "arena_source": null,
+    "arena_updated_at": null,
+    "arena_status": "unknown",
+    "arena_reason": null
+  },
+  "offer_5": {
+    "offer_id": "offer_5",
+    "x": 15,
+    "y": 33,
+    "arena": 0,
+    "arena_source": null,
+    "arena_updated_at": null,
+    "arena_status": "unknown",
+    "arena_reason": null
+  }
+}
