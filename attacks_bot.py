@@ -3301,7 +3301,7 @@ def run():
                     + 1
                 )
 
-                 print(
+                print(
                      "Перед process_update",
                      flush=True,
                 )
