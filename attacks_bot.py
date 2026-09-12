@@ -3275,9 +3275,19 @@ def run():
                     "offset"
                 ] = offset
 
+            print(
+                "Перед запросом getUpdates",
+                flush=True,
+            )
+
             updates = telegram(
                 "getUpdates",
                 **kwargs,
+            )
+
+            print(
+                f"getUpdates завершён. Получено обновлений: {len(updates)}",
+                flush=True,
             )
 
             for update in updates:
