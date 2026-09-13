@@ -30,7 +30,7 @@ ENEMY_ALLIANCE_NAME = "Hero"
 ENEMY_ALLIANCE_ID = 5
 
 # ID нашего альянса. УКАЖИТЕ ЗДЕСЬ ФАКТИЧЕСКИЙ ID АЛЬЯНСА.
-OUR_ALLIANCE_ID = 0
+OUR_ALLIANCE_ID = 9
 
 # Атаки с прибытием в пределах +/- 30 минут относятся к одной операции.
 ATTACK_OPERATION_WINDOW_SECONDS = 30 * 60
