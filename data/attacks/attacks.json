@@ -69,5 +69,44 @@
     "arena_at_report": 20,
     "arena_at_report_source": "manual",
     "status": "new"
+  },
+  {
+    "id": "attack_3",
+    "created_at": "2026-09-13T09:40:11Z",
+    "report_date": "13.09.2026",
+    "report_message_datetime": "2026-09-13T10:40:02+01:00",
+    "server_name": "Азия 7 TEST",
+    "server_url": "https://ts7.x1.asia.travian.com",
+    "own_player_uid": null,
+    "own_player_name": null,
+    "own_village_id": null,
+    "own_village_name": null,
+    "own_coords": {
+      "x": 46,
+      "y": -62
+    },
+    "offer_id": "offer_4",
+    "offer_coords": {
+      "x": 16,
+      "y": 29
+    },
+    "offer_owner": "Obito",
+    "waves": 2,
+    "arrival_datetime": "2026-09-14T02:00:00",
+    "arrival_datetime_text": "14.09.2026 02:00:00",
+    "operation_id": "operation_1",
+    "operation_arrival_datetime": "2026-09-14T02:00:00",
+    "operation_status": "active",
+    "detected_server_time": "08:37:12",
+    "remaining_time": "18:36:55",
+    "remaining_seconds": 67015,
+    "offline_minutes": 20,
+    "distance": 95.8175,
+    "base_speed": 3.0,
+    "possible_arena_levels": [],
+    "possible_arena_text": "нет допустимых уровней",
+    "arena_at_report": 11,
+    "arena_at_report_source": "manual",
+    "status": "new"
   }
 ]
