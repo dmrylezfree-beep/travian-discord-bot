@@ -1365,6 +1365,10 @@ DATETIME_RE = re.compile(
     r"(\d{2})\s*$"
 )
 
+DURATION_HMS_RE = re.compile(
+    r"^\s*(\d+):(\d{1,2})(?::(\d{1,2}))?\s*$"
+)
+
 
 def parse_coordinates(text):
 
@@ -1409,10 +1413,6 @@ def parse_server_datetime(text):
 
     Формат:
         DD.MM.YYYY HH:MM:SS
-
-    Важно:
-    никакого часового пояса Telegram,
-    компьютера или телефона здесь нет.
 
     Значение трактуется исключительно как
     серверная дата/время Travian.
@@ -1475,6 +1475,95 @@ def format_duration(seconds):
         f"{minutes:02d}:"
         f"{remaining_seconds:02d}"
     )
+
+
+def parse_duration(text):
+
+    """
+    Разбирает длительность отсутствия игрока.
+
+    Поддерживаемые форматы:
+
+    1. HH:MM:SS
+       например 01:30:00
+
+    2. H:MM
+       например 1:30
+
+    3. Одно целое число
+       трактуется как количество минут.
+       например 90 = 01:30:00
+    """
+
+    text = text.strip()
+
+    if not text:
+
+        return None
+
+    # Простое число = количество минут.
+    if re.fullmatch(
+        r"\d+",
+        text,
+    ):
+
+        minutes = int(text)
+
+        if minutes < 0:
+
+            return None
+
+        return minutes * 60
+
+    match = DURATION_HMS_RE.match(
+        text
+    )
+
+    if not match:
+
+        return None
+
+    first = int(
+        match.group(1)
+    )
+
+    second = int(
+        match.group(2)
+    )
+
+    third_text = match.group(3)
+
+    if third_text is None:
+
+        # Формат H:MM
+        hours = first
+        minutes = second
+        seconds = 0
+
+    else:
+
+        # Формат HH:MM:SS
+        hours = first
+        minutes = second
+        seconds = int(
+            third_text
+        )
+
+    if minutes >= 60:
+
+        return None
+
+    if seconds >= 60:
+
+        return None
+
+    total_seconds = (
+        hours * 3600
+        + minutes * 60
+        + seconds
+    )
+
+    return total_seconds
 
 
 def parse_integer(text):
@@ -1638,8 +1727,8 @@ def possible_arena_levels(
     время движения которых находится рядом
     с фактически рассчитанным временем полёта.
 
-    Возвращает уровни в пределах технической
-    погрешности ARENA_ESTIMATION_TOLERANCE_SECONDS.
+    Используется для старой/точечной оценки
+    и для совместимости со скаут-проверкой.
     """
 
     target_time = float(
@@ -1675,6 +1764,65 @@ def possible_arena_levels(
     return possible
 
 
+def possible_arena_levels_by_time_range(
+    distance,
+    min_travel_seconds,
+    max_travel_seconds,
+):
+
+    """
+    Определяет возможные уровни Арены,
+    если известно не точное время в пути,
+    а его диапазон.
+
+    Для каждого уровня проверяется,
+    попадает ли теоретическое время движения
+    в допустимый диапазон с учётом технической
+    погрешности.
+
+    min_travel_seconds:
+        минимально возможное время в пути.
+
+    max_travel_seconds:
+        максимально возможное время в пути.
+    """
+
+    lower = min(
+        float(min_travel_seconds),
+        float(max_travel_seconds),
+    )
+
+    upper = max(
+        float(min_travel_seconds),
+        float(max_travel_seconds),
+    )
+
+    possible = []
+
+    for arena in range(
+        0,
+        21,
+    ):
+
+        theoretical_time = travel_time_seconds(
+            distance,
+            arena,
+        )
+
+        if (
+            theoretical_time
+            >= lower - ARENA_ESTIMATION_TOLERANCE_SECONDS
+            and theoretical_time
+            <= upper + ARENA_ESTIMATION_TOLERANCE_SECONDS
+        ):
+
+            possible.append(
+                arena
+            )
+
+    return possible
+
+
 def estimate_arena_level(
     distance,
     travel_seconds,
@@ -1682,7 +1830,7 @@ def estimate_arena_level(
 
     """
     Возвращает ближайший к фактическому
-    времени полёта уровень Арены.
+    времени в пути уровень Арены.
 
     Это именно оценка, а не подтверждённый
     уровень.
@@ -1728,6 +1876,28 @@ def estimate_arena_level(
         "difference_seconds": difference,
         "theoretical_seconds": theoretical_time,
     }
+
+
+def estimate_arena_for_time_range(
+    distance,
+    min_travel_seconds,
+    max_travel_seconds,
+):
+
+    """
+    Выбирает наиболее близкий уровень Арены
+    к середине возможного диапазона времени в пути.
+    """
+
+    midpoint = (
+        float(min_travel_seconds)
+        + float(max_travel_seconds)
+    ) / 2
+
+    return estimate_arena_level(
+        distance,
+        midpoint,
+    )
 
 
 # ============================================================
@@ -2207,14 +2377,26 @@ def create_attack(session):
         "travel_seconds"
     ]
 
-    possible = possible_arena_levels(
-        distance,
+    min_travel_seconds = session.get(
+        "min_travel_seconds",
         travel_seconds,
     )
 
-    arena_estimate = estimate_arena_level(
-        distance,
+    max_travel_seconds = session.get(
+        "max_travel_seconds",
         travel_seconds,
+    )
+
+    possible = possible_arena_levels_by_time_range(
+        distance,
+        min_travel_seconds,
+        max_travel_seconds,
+    )
+
+    arena_estimate = estimate_arena_for_time_range(
+        distance,
+        min_travel_seconds,
+        max_travel_seconds,
     )
 
     current_arena = offer.get(
@@ -2321,6 +2503,44 @@ def create_attack(session):
             ]
         ),
 
+        "offline_seconds": session.get(
+            "offline_seconds",
+            0,
+        ),
+
+        "offline_time_text": session.get(
+            "offline_time_text",
+            "00:00:00",
+        ),
+
+        "possible_send_from_datetime": (
+            session[
+                "possible_send_from_datetime"
+            ].isoformat(
+                timespec="seconds"
+            )
+        ),
+
+        "possible_send_from_datetime_text": (
+            session[
+                "possible_send_from_datetime_text"
+            ]
+        ),
+
+        "possible_send_to_datetime": (
+            session[
+                "possible_send_to_datetime"
+            ].isoformat(
+                timespec="seconds"
+            )
+        ),
+
+        "possible_send_to_datetime_text": (
+            session[
+                "possible_send_to_datetime_text"
+            ]
+        ),
+
         "operation_id": operation_id,
 
         "operation_arrival_datetime": (
@@ -2341,6 +2561,26 @@ def create_attack(session):
             session[
                 "travel_seconds"
             ]
+        ),
+
+        "min_travel_seconds": (
+            min_travel_seconds
+        ),
+
+        "max_travel_seconds": (
+            max_travel_seconds
+        ),
+
+        "min_travel_time": (
+            format_duration(
+                min_travel_seconds
+            )
+        ),
+
+        "max_travel_time": (
+            format_duration(
+                max_travel_seconds
+            )
         ),
 
         "distance": round(
@@ -2407,14 +2647,21 @@ def create_attack(session):
     )
 
     print(
-        f"Время полёта: "
+        f"Время в пути: "
         f"{session['travel_time_text']}",
         flush=True,
     )
 
     print(
-        f"Примерная Арена: "
-        f"A{arena_estimate['arena']}",
+        f"Возможный диапазон времени в пути: "
+        f"{format_duration(min_travel_seconds)} — "
+        f"{format_duration(max_travel_seconds)}",
+        flush=True,
+    )
+
+    print(
+        f"Возможная Арена: "
+        f"{format_range(possible)}",
         flush=True,
     )
 
@@ -3288,6 +3535,38 @@ def attack_detected_prompt(
     )
 
 
+def attack_offline_prompt(
+    chat_id,
+    user_id,
+):
+
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    session["step"] = "offline_duration"
+
+    send_message(
+        chat_id,
+        (
+            "⏱ <b>Сколько времени вы были офлайн?</b>\n\n"
+            "Это нужно для расчёта возможного "
+            "времени отправки атаки и диапазона "
+            "Арены.\n\n"
+            "Если вы заметили атаку сразу после "
+            "захода в игру — укажите <code>0</code>.\n\n"
+            "Можно указать:\n"
+            "• <code>01:30:00</code>\n"
+            "• <code>1:30</code>\n"
+            "• <code>90</code> — минут\n\n"
+            "Чем точнее это значение, тем уже будет "
+            "диапазон возможной Арены."
+        ),
+        reply_markup=input_keyboard(),
+    )
+
+
 def calculate_travel_time(
     detected_datetime,
     arrival_datetime,
@@ -3410,11 +3689,23 @@ def finish_attack_report(
         f"<b>Обнаружено:</b> "
         f"<b>{attack['detected_server_datetime_text']}</b>\n"
 
+        f"<b>Офлайн:</b> "
+        f"<b>{attack['offline_time_text']}</b>\n"
+
+        f"<b>Возможная отправка:</b>\n"
+        f"<code>"
+        f"{attack['possible_send_from_datetime_text']}"
+        f"</code> — "
+        f"<code>"
+        f"{attack['possible_send_to_datetime_text']}"
+        f"</code>\n"
+
         f"<b>Прибытие:</b> "
         f"<b>{attack['arrival_datetime_text']}</b>\n"
 
-        f"<b>Время полёта:</b> "
-        f"<b>{attack['travel_time']}</b>\n"
+        f"<b>Время в пути:</b> "
+        f"<b>{attack['min_travel_time']} — "
+        f"{attack['max_travel_time']}</b>\n"
 
         f"<b>Операция:</b> "
         f"<code>{attack['operation_id']}</code>\n"
@@ -3428,19 +3719,19 @@ def finish_attack_report(
         f"<b>Примерная Арена:</b> "
         f"<b>A{estimated_arena}</b>\n"
 
-        f"<b>Погрешность оценки:</b> "
-        f"{estimate_difference:.1f} сек.\n"
-
         f"<b>Ближайшие допустимые уровни:</b> "
         f"{possible_text}\n"
 
         f"<b>Уровни:</b> "
         f"{individual_levels}\n\n"
 
-        "Примерная Арена рассчитана по расстоянию "
-        "между деревней и оффером и фактической "
-        "длительности полёта.\n"
-        "Это оценка, а не подтверждённый уровень."
+        "Диапазон Арены рассчитан с учётом "
+        "времени, которое игрок мог находиться "
+        "офлайн. Поэтому фактическое время отправки "
+        "атаки могло находиться внутри указанного "
+        "диапазона.\n\n"
+
+        "Скаут-проверка при расчёте не учитывается."
     )
 
     clear_session(
@@ -4790,12 +5081,10 @@ def process_message(
 
                 return
 
-            travel_seconds = calculate_travel_time(
-                detected_datetime,
-                arrival_datetime,
-            )
-
-            if travel_seconds <= 0:
+            if (
+                detected_datetime
+                >= arrival_datetime
+            ):
 
                 send_message(
                     chat_id,
@@ -4832,14 +5121,201 @@ def process_message(
                 detected_datetime
             )
 
+            # Теперь, когда известно время обнаружения,
+            # спрашиваем продолжительность офлайна.
+            attack_offline_prompt(
+                chat_id,
+                user_id,
+            )
+
+            return
+
+        # ----------------------------------------------------
+        # ВРЕМЯ ОФЛАЙНА
+        # ----------------------------------------------------
+
+        if step == "offline_duration":
+
+            offline_seconds = parse_duration(
+                text
+            )
+
+            if (
+                offline_seconds is None
+                or offline_seconds < 0
+            ):
+
+                send_message(
+                    chat_id,
+                    (
+                        "❌ Неверный формат "
+                        "длительности.\n\n"
+
+                        "Используйте, например:\n"
+                        "<code>01:30:00</code>\n"
+                        "<code>1:30</code>\n"
+                        "<code>90</code> — минут."
+                    ),
+                    reply_markup=input_keyboard(),
+                )
+
+                return
+
+            arrival_datetime = session.get(
+                "arrival_datetime"
+            )
+
+            detected_datetime = session.get(
+                "detected_datetime"
+            )
+
+            if (
+                not arrival_datetime
+                or not detected_datetime
+            ):
+
+                send_message(
+                    chat_id,
+                    (
+                        "❌ Не удалось восстановить "
+                        "время обнаружения или прибытия.\n"
+                        "Начните отчёт заново."
+                    ),
+                    reply_markup=main_menu(),
+                )
+
+                clear_session(
+                    chat_id,
+                    user_id,
+                )
+
+                return
+
+            possible_send_from_datetime = (
+                detected_datetime
+                - timedelta(
+                    seconds=offline_seconds
+                )
+            )
+
+            possible_send_to_datetime = (
+                detected_datetime
+            )
+
+            # Если игрок был офлайн настолько долго,
+            # что предполагаемое время отправки уже
+            # получается после времени прибытия, это
+            # физически невозможно.
+            if (
+                possible_send_to_datetime
+                >= arrival_datetime
+            ):
+
+                send_message(
+                    chat_id,
+                    (
+                        "❌ Получился некорректный "
+                        "диапазон времени отправки.\n\n"
+
+                        "Проверьте время прибытия, "
+                        "время обнаружения и "
+                        "продолжительность офлайна."
+                    ),
+                    reply_markup=input_keyboard(),
+                )
+
+                return
+
+            min_travel_seconds = (
+                arrival_datetime
+                - possible_send_to_datetime
+            ).total_seconds()
+
+            max_travel_seconds = (
+                arrival_datetime
+                - possible_send_from_datetime
+            ).total_seconds()
+
+            if (
+                min_travel_seconds <= 0
+                or max_travel_seconds <= 0
+            ):
+
+                send_message(
+                    chat_id,
+                    (
+                        "❌ Получилось "
+                        "неположительное время в пути.\n\n"
+                        "Проверьте введённые значения."
+                    ),
+                    reply_markup=input_keyboard(),
+                )
+
+                return
+
+            # Для совместимости оставляем в session
+            # точечное время в пути от момента
+            # обнаружения до прибытия.
+            travel_seconds = min_travel_seconds
+
+            session[
+                "offline_seconds"
+            ] = offline_seconds
+
+            session[
+                "offline_time_text"
+            ] = format_duration(
+                offline_seconds
+            )
+
+            session[
+                "possible_send_from_datetime"
+            ] = possible_send_from_datetime
+
+            session[
+                "possible_send_from_datetime_text"
+            ] = format_server_datetime(
+                possible_send_from_datetime
+            )
+
+            session[
+                "possible_send_to_datetime"
+            ] = possible_send_to_datetime
+
+            session[
+                "possible_send_to_datetime_text"
+            ] = format_server_datetime(
+                possible_send_to_datetime
+            )
+
             session[
                 "travel_seconds"
             ] = travel_seconds
 
             session[
+                "min_travel_seconds"
+            ] = min_travel_seconds
+
+            session[
+                "max_travel_seconds"
+            ] = max_travel_seconds
+
+            session[
                 "travel_time_text"
             ] = format_duration(
                 travel_seconds
+            )
+
+            session[
+                "min_travel_time_text"
+            ] = format_duration(
+                min_travel_seconds
+            )
+
+            session[
+                "max_travel_time_text"
+            ] = format_duration(
+                max_travel_seconds
             )
 
             # Дата отчёта теперь берётся
@@ -4858,16 +5334,35 @@ def process_message(
             )
 
             print(
-                "Рассчитано время полёта:",
+                "Рассчитано минимальное время в пути:",
                 session[
-                    "travel_time_text"
+                    "min_travel_time_text"
+                ],
+                flush=True,
+            )
+
+            print(
+                "Рассчитано максимальное время в пути:",
+                session[
+                    "max_travel_time_text"
+                ],
+                flush=True,
+            )
+
+            print(
+                "Возможное время отправки:",
+                session[
+                    "possible_send_from_datetime_text"
+                ],
+                "—",
+                session[
+                    "possible_send_to_datetime_text"
                 ],
                 flush=True,
             )
 
             # ------------------------------------------------
-            # Сразу рассчитываем примерную Арену,
-            # чтобы показать пользователю результат.
+            # Рассчитываем диапазон возможной Арены.
             # ------------------------------------------------
 
             own_x, own_y = session[
@@ -4885,14 +5380,16 @@ def process_message(
                 offer["y"],
             )
 
-            arena_estimate = estimate_arena_level(
+            arena_estimate = estimate_arena_for_time_range(
                 distance,
-                travel_seconds,
+                min_travel_seconds,
+                max_travel_seconds,
             )
 
-            possible = possible_arena_levels(
+            possible = possible_arena_levels_by_time_range(
                 distance,
-                travel_seconds,
+                min_travel_seconds,
+                max_travel_seconds,
             )
 
             session[
@@ -4908,11 +5405,24 @@ def process_message(
             send_message(
                 chat_id,
                 (
-                    "✅ <b>Время полёта рассчитано</b>\n\n"
+                    "✅ <b>Время в пути рассчитано</b>\n\n"
 
                     f"<b>Обнаружение:</b>\n"
                     f"<code>"
                     f"{session['detected_datetime_text']}"
+                    f"</code>\n\n"
+
+                    f"<b>Офлайн:</b>\n"
+                    f"<b>"
+                    f"{session['offline_time_text']}"
+                    f"</b>\n\n"
+
+                    f"<b>Возможное время отправки:</b>\n"
+                    f"<code>"
+                    f"{session['possible_send_from_datetime_text']}"
+                    f"</code> — "
+                    f"<code>"
+                    f"{session['possible_send_to_datetime_text']}"
                     f"</code>\n\n"
 
                     f"<b>Прибытие:</b>\n"
@@ -4920,9 +5430,11 @@ def process_message(
                     f"{session['arrival_datetime_text']}"
                     f"</code>\n\n"
 
-                    f"<b>Длительность полёта:</b>\n"
+                    f"<b>Возможное время в пути:</b>\n"
                     f"<b>"
-                    f"{session['travel_time_text']}"
+                    f"{session['min_travel_time_text']}"
+                    f" — "
+                    f"{session['max_travel_time_text']}"
                     f"</b>\n\n"
 
                     f"<b>Расстояние:</b> "
@@ -4933,10 +5445,13 @@ def process_message(
                     f"{arena_estimate['arena']}"
                     f"</b>\n"
 
-                    f"<b>Ближайшие уровни:</b> "
-                    f"{format_range(possible)}\n\n"
+                    f"<b>Возможные уровни:</b> "
+                    f"<b>"
+                    f"{format_range(possible)}"
+                    f"</b>\n\n"
 
-                    "Оценка предварительная. "
+                    "Диапазон рассчитан с учётом "
+                    "времени офлайна. "
                     "Скаут-проверка пока не учитывается."
                 ),
             )
