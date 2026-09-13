@@ -228,6 +228,7 @@ def load_scouts():
         [],
     )
 
+
 def load_preferences():
 
     return load_json(
@@ -263,22 +264,27 @@ def get_user_preferences(user_id):
 def remember_recent_value(values, value, limit=20):
 
     value = str(value)
+
     result = [
         str(item)
         for item in values
         if str(item) != value
     ]
+
     result.insert(0, value)
+
     return result[:limit]
 
 
 def remember_player(user_id, player_uid):
 
     preferences, key, user_preferences = get_user_preferences(user_id)
+
     user_preferences["recent_players"] = remember_recent_value(
         user_preferences.get("recent_players", []),
         player_uid,
     )
+
     save_preferences(preferences)
     persist_attacks_data_to_github()
 
@@ -286,10 +292,12 @@ def remember_player(user_id, player_uid):
 def remember_village(user_id, village_vid):
 
     preferences, key, user_preferences = get_user_preferences(user_id)
+
     user_preferences["recent_villages"] = remember_recent_value(
         user_preferences.get("recent_villages", []),
         village_vid,
     )
+
     save_preferences(preferences)
     persist_attacks_data_to_github()
 
@@ -297,7 +305,9 @@ def remember_village(user_id, village_vid):
 def remember_arrival_datetime(user_id, arrival_datetime_text):
 
     preferences, key, user_preferences = get_user_preferences(user_id)
+
     user_preferences["last_arrival_datetime"] = arrival_datetime_text
+
     save_preferences(preferences)
     persist_attacks_data_to_github()
 
@@ -330,6 +340,7 @@ def load_latest_map_rows():
             error,
             flush=True,
         )
+
         return []
 
     return extract_insert_rows(
@@ -343,8 +354,11 @@ def safe_int(value, default=None):
     value = unquote_sql_value(value)
 
     try:
+
         return int(value)
+
     except (TypeError, ValueError):
+
         return default
 
 
@@ -354,16 +368,19 @@ def load_alliance_villages():
     villages = []
 
     if not rows:
+
         return villages
 
     for row in rows:
 
         if len(row) <= 10:
+
             continue
 
         alliance_id = safe_int(row[8])
 
         if alliance_id != OUR_ALLIANCE_ID:
+
             continue
 
         vid = safe_int(row[4])
@@ -371,19 +388,37 @@ def load_alliance_villages():
         y = safe_int(row[2])
         uid = safe_int(row[6])
 
-        if None in (vid, x, y, uid):
+        if None in (
+            vid,
+            x,
+            y,
+            uid,
+        ):
+
             continue
 
         villages.append({
             "vid": vid,
             "x": x,
             "y": y,
-            "village_name": unquote_sql_value(row[5]) or "Без названия",
+            "village_name": (
+                unquote_sql_value(row[5])
+                or "Без названия"
+            ),
             "uid": uid,
-            "player_name": unquote_sql_value(row[7]) or f"UID {uid}",
+            "player_name": (
+                unquote_sql_value(row[7])
+                or f"UID {uid}"
+            ),
             "alliance_id": alliance_id,
-            "alliance_name": unquote_sql_value(row[9]) or "",
-            "population": safe_int(row[10], 0),
+            "alliance_name": (
+                unquote_sql_value(row[9])
+                or ""
+            ),
+            "population": safe_int(
+                row[10],
+                0,
+            ),
         })
 
     print(
@@ -397,14 +432,32 @@ def load_alliance_villages():
 def alliance_players_keyboard(user_id):
 
     villages = load_alliance_villages()
-    preferences, key, user_preferences = get_user_preferences(user_id)
-    recent = [str(item) for item in user_preferences.get("recent_players", [])]
-    recent_index = {value: index for index, value in enumerate(recent)}
+
+    preferences, key, user_preferences = get_user_preferences(
+        user_id
+    )
+
+    recent = [
+        str(item)
+        for item in user_preferences.get(
+            "recent_players",
+            [],
+        )
+    ]
+
+    recent_index = {
+        value: index
+        for index, value in enumerate(recent)
+    }
 
     players = {}
 
     for village in villages:
-        uid = str(village["uid"])
+
+        uid = str(
+            village["uid"]
+        )
+
         players.setdefault(
             uid,
             {
@@ -413,30 +466,41 @@ def alliance_players_keyboard(user_id):
                 "villages": 0,
             },
         )
+
         players[uid]["villages"] += 1
 
     ordered = sorted(
         players.values(),
         key=lambda player: (
-            recent_index.get(str(player["uid"]), 999999),
-            str(player["name"]).lower(),
+            recent_index.get(
+                str(player["uid"]),
+                999999,
+            ),
+            str(
+                player["name"]
+            ).lower(),
         ),
     )
 
     keyboard = []
 
     for player in ordered:
+
         keyboard.append([
             {
                 "text": (
                     f"👤 {player['name']} "
                     f"({player['villages']})"
                 ),
-                "callback_data": f"attack_player:{player['uid']}",
+                "callback_data": (
+                    f"attack_player:"
+                    f"{player['uid']}"
+                ),
             }
         ])
 
     if not ordered:
+
         keyboard.append([
             {
                 "text": "⚠️ Игроки не найдены в map.sql",
@@ -450,6 +514,7 @@ def alliance_players_keyboard(user_id):
             "callback_data": "attack_manual_coords",
         }
     ])
+
     keyboard.append([
         {
             "text": "⬅️ Назад",
@@ -457,10 +522,15 @@ def alliance_players_keyboard(user_id):
         }
     ])
 
-    return {"inline_keyboard": keyboard}
+    return {
+        "inline_keyboard": keyboard
+    }
 
 
-def alliance_villages_keyboard(user_id, player_uid):
+def alliance_villages_keyboard(
+    user_id,
+    player_uid,
+):
 
     villages = [
         village
@@ -468,28 +538,49 @@ def alliance_villages_keyboard(user_id, player_uid):
         if village["uid"] == player_uid
     ]
 
-    preferences, key, user_preferences = get_user_preferences(user_id)
-    recent = [str(item) for item in user_preferences.get("recent_villages", [])]
-    recent_index = {value: index for index, value in enumerate(recent)}
+    preferences, key, user_preferences = get_user_preferences(
+        user_id
+    )
+
+    recent = [
+        str(item)
+        for item in user_preferences.get(
+            "recent_villages",
+            [],
+        )
+    ]
+
+    recent_index = {
+        value: index
+        for index, value in enumerate(recent)
+    }
 
     villages.sort(
         key=lambda village: (
-            recent_index.get(str(village["vid"]), 999999),
-            str(village["village_name"]).lower(),
+            recent_index.get(
+                str(village["vid"]),
+                999999,
+            ),
+            str(
+                village["village_name"]
+            ).lower(),
         )
     )
 
     keyboard = []
 
     for village in villages:
-        name = html.escape(village["village_name"])
+
         keyboard.append([
             {
                 "text": (
                     f"🏠 {village['village_name']} "
                     f"({village['x']}|{village['y']})"
                 ),
-                "callback_data": f"attack_village:{village['vid']}",
+                "callback_data": (
+                    f"attack_village:"
+                    f"{village['vid']}"
+                ),
             }
         ])
 
@@ -499,12 +590,14 @@ def alliance_villages_keyboard(user_id, player_uid):
             "callback_data": "attack_back_players",
         }
     ])
+
     keyboard.append([
         {
             "text": "✏️ Ввести координаты вручную",
             "callback_data": "attack_manual_coords",
         }
     ])
+
     keyboard.append([
         {
             "text": "❌ Отмена",
@@ -512,8 +605,9 @@ def alliance_villages_keyboard(user_id, player_uid):
         }
     ])
 
-    return {"inline_keyboard": keyboard}
-
+    return {
+        "inline_keyboard": keyboard
+    }
 
 
 # ============================================================
@@ -525,15 +619,6 @@ def persist_attacks_data_to_github():
     """
     Сохраняет изменения data/attacks
     обратно в ветку main.
-
-    GitHub Actions работает во временной
-    копии репозитория, поэтому после изменения
-    JSON необходимо сделать commit и push.
-
-    Перед push получаем актуальный main
-    и выполняем rebase, чтобы избежать
-    ошибки non-fast-forward, если параллельно
-    другой workflow уже изменил репозиторий.
     """
 
     print(
@@ -854,9 +939,7 @@ def split_sql_values(text):
         if char == "'":
 
             in_string = not in_string
-
             current.append(char)
-
             continue
 
         if char == "," and not in_string:
@@ -866,7 +949,6 @@ def split_sql_values(text):
             )
 
             current = []
-
             continue
 
         current.append(char)
@@ -935,13 +1017,9 @@ def extract_insert_rows(
         values_block = match.group(1)
 
         current = []
-
         depth = 0
-
         in_string = False
-
         escape = False
-
         tuples = []
 
         for char in values_block:
@@ -949,17 +1027,13 @@ def extract_insert_rows(
             if escape:
 
                 current.append(char)
-
                 escape = False
-
                 continue
 
             if char == "\\" and in_string:
 
                 current.append(char)
-
                 escape = True
-
                 continue
 
             if char == "'":
@@ -981,15 +1055,12 @@ def extract_insert_rows(
                         current = []
 
                     depth += 1
-
                     current.append(char)
-
                     continue
 
                 if char == ")":
 
                     depth -= 1
-
                     current.append(char)
 
                     if depth == 0:
@@ -1045,22 +1116,31 @@ def load_offer_owners():
     for row in rows:
 
         if len(row) <= 7:
+
             continue
 
         x = safe_int(row[1])
         y = safe_int(row[2])
 
         if x is None or y is None:
+
             continue
 
-        coordinate = (x, y)
+        coordinate = (
+            x,
+            y,
+        )
 
         if coordinate not in target_coordinates:
+
             continue
 
-        player_name = unquote_sql_value(row[7])
+        player_name = unquote_sql_value(
+            row[7]
+        )
 
         if player_name:
+
             owners[coordinate] = player_name
 
     print(
@@ -1071,7 +1151,10 @@ def load_offer_owners():
         flush=True,
     )
 
-    for coordinate in sorted(target_coordinates):
+    for coordinate in sorted(
+        target_coordinates
+    ):
+
         print(
             f"{coordinate}: "
             f"{owners.get(coordinate, 'не найден')}",
@@ -1079,7 +1162,6 @@ def load_offer_owners():
         )
 
     return owners
-
 
 
 offer_owners = {}
@@ -1115,11 +1197,51 @@ def telegram(
     )
 
 
+# ============================================================
+# КОНТЕКСТ ЧАТОВ
+# ============================================================
+
+# Здесь запоминается, откуда пришло последнее
+# сообщение пользователя:
+#
+# private chat:
+#     None
+#
+# forum topic 76303:
+#     76303
+#
+# Это позволяет всем функциям ниже вызывать
+# send_message(chat_id, ...) без необходимости
+# вручную передавать thread_id в каждую функцию.
+
+chat_thread_context = {}
+
+
+def set_chat_thread_context(
+    chat_id,
+    thread_id,
+):
+
+    chat_thread_context[
+        chat_id
+    ] = thread_id
+
+
+def get_chat_thread_context(
+    chat_id,
+):
+
+    return chat_thread_context.get(
+        chat_id,
+        None,
+    )
+
+
 def send_message(
     chat_id,
     text,
     reply_markup=None,
-    thread_id=TELEGRAM_THREAD_ID,
+    thread_id="auto",
 ):
 
     data = {
@@ -1127,6 +1249,12 @@ def send_message(
         "text": text,
         "parse_mode": "HTML",
     }
+
+    if thread_id == "auto":
+
+        thread_id = get_chat_thread_context(
+            chat_id
+        )
 
     if thread_id is not None:
 
@@ -1329,7 +1457,6 @@ def format_range(levels):
     ranges = []
 
     start = levels[0]
-
     previous = levels[0]
 
     for level in levels[1:]:
@@ -1348,7 +1475,6 @@ def format_range(levels):
             )
 
             start = level
-
             previous = level
 
     ranges.append(
@@ -1650,30 +1776,26 @@ def offers_keyboard(
                 "Владелец не найден"
             )
 
-        keyboard.append(
-            [
-                {
-                    "text": (
-                        f"{owner_text} — "
-                        f"({offer['x']}|{offer['y']}) — "
-                        f"A{arena_text}"
-                    ),
-                    "callback_data": (
-                        f"{prefix}:"
-                        f"{offer['id']}"
-                    ),
-                }
-            ]
-        )
-
-    keyboard.append(
-        [
+        keyboard.append([
             {
-                "text": "⬅️ Назад",
-                "callback_data": "menu",
+                "text": (
+                    f"{owner_text} — "
+                    f"({offer['x']}|{offer['y']}) — "
+                    f"A{arena_text}"
+                ),
+                "callback_data": (
+                    f"{prefix}:"
+                    f"{offer['id']}"
+                ),
             }
-        ]
-    )
+        ])
+
+    keyboard.append([
+        {
+            "text": "⬅️ Назад",
+            "callback_data": "menu",
+        }
+    ])
 
     return {
         "inline_keyboard": keyboard
@@ -1731,10 +1853,18 @@ def parse_arrival_datetime(text):
     )
 
     for fmt in formats:
+
         try:
-            value = datetime.strptime(text, fmt)
+
+            value = datetime.strptime(
+                text,
+                fmt,
+            )
+
             return value
+
         except ValueError:
+
             continue
 
     return None
@@ -1742,7 +1872,9 @@ def parse_arrival_datetime(text):
 
 def format_arrival_datetime(value):
 
-    return value.strftime("%d.%m.%Y %H:%M:%S")
+    return value.strftime(
+        "%d.%m.%Y %H:%M:%S"
+    )
 
 
 def operation_ids(attacks):
@@ -1758,39 +1890,67 @@ def next_operation_id(attacks):
 
     highest = 0
 
-    for operation_id in operation_ids(attacks):
+    for operation_id in operation_ids(
+        attacks
+    ):
+
         match = re.match(
             r"^operation_(\d+)$",
             str(operation_id),
         )
 
         if match:
+
             highest = max(
                 highest,
-                int(match.group(1)),
+                int(
+                    match.group(1)
+                ),
             )
 
-    return f"operation_{highest + 1}"
+    return (
+        f"operation_{highest + 1}"
+    )
 
 
 def close_expired_operations():
 
     attacks = load_attacks()
-    now = datetime.now(SERVER_TIMEZONE).replace(tzinfo=None)
-    changed = False
 
+    now = datetime.now(
+        SERVER_TIMEZONE
+    ).replace(
+        tzinfo=None
+    )
+
+    changed = False
     operation_times = {}
 
     for attack in attacks:
-        operation_id = attack.get("operation_id")
-        arrival_text = attack.get("operation_arrival_datetime")
 
-        if not operation_id or not arrival_text:
+        operation_id = attack.get(
+            "operation_id"
+        )
+
+        arrival_text = attack.get(
+            "operation_arrival_datetime"
+        )
+
+        if (
+            not operation_id
+            or not arrival_text
+        ):
+
             continue
 
         try:
-            arrival = datetime.fromisoformat(arrival_text)
+
+            arrival = datetime.fromisoformat(
+                arrival_text
+            )
+
         except ValueError:
+
             continue
 
         operation_times.setdefault(
@@ -1800,53 +1960,84 @@ def close_expired_operations():
 
     expired_ids = {
         operation_id
-        for operation_id, arrival in operation_times.items()
+        for operation_id, arrival
+        in operation_times.items()
         if arrival <= now
     }
 
     if not expired_ids:
+
         return False
 
     for attack in attacks:
+
         if (
-            attack.get("operation_id") in expired_ids
-            and attack.get("operation_status") == "active"
+            attack.get("operation_id")
+            in expired_ids
+            and attack.get(
+                "operation_status"
+            ) == "active"
         ):
-            attack["operation_status"] = "closed"
+
+            attack[
+                "operation_status"
+            ] = "closed"
+
             changed = True
 
     if changed:
+
         save_json(
             ATTACKS_FILE,
             attacks,
         )
+
         persist_attacks_data_to_github()
 
     return changed
 
 
-def find_or_create_operation(attacks, arrival_datetime):
+def find_or_create_operation(
+    attacks,
+    arrival_datetime,
+):
 
     close_expired_operations()
+
     attacks = load_attacks()
 
     candidates = {}
 
     for attack in attacks:
-        operation_id = attack.get("operation_id")
-        operation_status = attack.get("operation_status")
-        operation_arrival = attack.get("operation_arrival_datetime")
+
+        operation_id = attack.get(
+            "operation_id"
+        )
+
+        operation_status = attack.get(
+            "operation_status"
+        )
+
+        operation_arrival = attack.get(
+            "operation_arrival_datetime"
+        )
 
         if (
             not operation_id
             or operation_status != "active"
             or not operation_arrival
         ):
+
             continue
 
         try:
-            canonical = datetime.fromisoformat(operation_arrival)
+
+            canonical = datetime.fromisoformat(
+                operation_arrival
+            )
+
         except ValueError:
+
             continue
 
         candidates.setdefault(
@@ -1856,31 +2047,61 @@ def find_or_create_operation(attacks, arrival_datetime):
 
     matching = []
 
-    for operation_id, canonical in candidates.items():
+    for (
+        operation_id,
+        canonical,
+    ) in candidates.items():
+
         difference = abs(
-            (arrival_datetime - canonical).total_seconds()
+            (
+                arrival_datetime
+                - canonical
+            ).total_seconds()
         )
 
-        if difference <= ATTACK_OPERATION_WINDOW_SECONDS:
+        if (
+            difference
+            <= ATTACK_OPERATION_WINDOW_SECONDS
+        ):
+
             matching.append(
-                (difference, operation_id, canonical)
+                (
+                    difference,
+                    operation_id,
+                    canonical,
+                )
             )
 
     if matching:
-        matching.sort(key=lambda item: item[0])
+
+        matching.sort(
+            key=lambda item: item[0]
+        )
+
         _, operation_id, canonical = matching[0]
 
-        return operation_id, canonical
+        return (
+            operation_id,
+            canonical,
+        )
 
-    operation_id = next_operation_id(attacks)
-    return operation_id, arrival_datetime
+    operation_id = next_operation_id(
+        attacks
+    )
+
+    return (
+        operation_id,
+        arrival_datetime,
+    )
 
 
 def create_attack(session):
 
     attacks = load_attacks()
 
-    own_x, own_y = session["own_coords"]
+    own_x, own_y = session[
+        "own_coords"
+    ]
 
     offer = get_offer(
         session["offer_id"]
@@ -1908,7 +2129,10 @@ def create_attack(session):
         offer
     )
 
-    operation_id, operation_arrival = find_or_create_operation(
+    (
+        operation_id,
+        operation_arrival,
+    ) = find_or_create_operation(
         attacks,
         session["arrival_datetime"],
     )
@@ -1921,27 +2145,47 @@ def create_attack(session):
 
         "created_at": (
             datetime.utcnow()
-            .isoformat(timespec="seconds")
+            .isoformat(
+                timespec="seconds"
+            )
             + "Z"
         ),
 
-        "report_date": session.get("report_date"),
-        "report_message_datetime": session.get("report_message_datetime"),
+        "report_date": session.get(
+            "report_date"
+        ),
+
+        "report_message_datetime": session.get(
+            "report_message_datetime"
+        ),
 
         "server_name": SERVER_NAME,
         "server_url": SERVER_URL,
 
-        "own_player_uid": session.get("own_player_uid"),
-        "own_player_name": session.get("own_player_name"),
-        "own_village_id": session.get("own_village_id"),
-        "own_village_name": session.get("own_village_name"),
+        "own_player_uid": session.get(
+            "own_player_uid"
+        ),
+
+        "own_player_name": session.get(
+            "own_player_name"
+        ),
+
+        "own_village_id": session.get(
+            "own_village_id"
+        ),
+
+        "own_village_name": session.get(
+            "own_village_name"
+        ),
 
         "own_coords": {
             "x": own_x,
             "y": own_y,
         },
 
-        "offer_id": offer["offer_id"],
+        "offer_id": offer[
+            "offer_id"
+        ],
 
         "offer_coords": {
             "x": offer["x"],
@@ -1950,30 +2194,47 @@ def create_attack(session):
 
         "offer_owner": owner,
 
-        "waves": session["waves"],
+        "waves": session[
+            "waves"
+        ],
 
         "arrival_datetime": (
-            session["arrival_datetime"].isoformat(
+            session[
+                "arrival_datetime"
+            ].isoformat(
                 timespec="seconds"
             )
         ),
 
-        "arrival_datetime_text": session["arrival_datetime_text"],
+        "arrival_datetime_text": session[
+            "arrival_datetime_text"
+        ],
 
         "operation_id": operation_id,
+
         "operation_arrival_datetime": (
             operation_arrival.isoformat(
                 timespec="seconds"
             )
         ),
+
         "operation_status": "active",
 
-        "detected_server_time": session["detected_time_text"],
+        "detected_server_time": session[
+            "detected_time_text"
+        ],
 
-        "remaining_time": session["remaining_text"],
-        "remaining_seconds": session["remaining_seconds"],
+        "remaining_time": session[
+            "remaining_text"
+        ],
 
-        "offline_minutes": session["offline_minutes"],
+        "remaining_seconds": session[
+            "remaining_seconds"
+        ],
+
+        "offline_minutes": session[
+            "offline_minutes"
+        ],
 
         "distance": round(
             distance,
@@ -1983,15 +2244,23 @@ def create_attack(session):
         "base_speed": BASE_SPEED,
 
         "possible_arena_levels": possible,
-        "possible_arena_text": format_range(possible),
+
+        "possible_arena_text": format_range(
+            possible
+        ),
 
         "arena_at_report": current_arena,
-        "arena_at_report_source": offer.get("arena_source"),
+
+        "arena_at_report_source": offer.get(
+            "arena_source"
+        ),
 
         "status": "new",
     }
 
-    attacks.append(attack)
+    attacks.append(
+        attack
+    )
 
     save_json(
         ATTACKS_FILE,
@@ -2007,7 +2276,6 @@ def create_attack(session):
     persist_attacks_data_to_github()
 
     return attack
-
 
 
 def find_attack(
@@ -2279,6 +2547,7 @@ def start_attack_report(
     session["step"] = "player"
 
     if OUR_ALLIANCE_ID == 0:
+
         send_message(
             chat_id,
             (
@@ -2307,6 +2576,7 @@ def start_attack_report(
                 ]
             },
         )
+
         return
 
     send_message(
@@ -2315,7 +2585,9 @@ def start_attack_report(
             "📥 <b>Отчёт об атаке</b>\n\n"
             "Выберите игрока вашего альянса:"
         ),
-        reply_markup=alliance_players_keyboard(user_id),
+        reply_markup=alliance_players_keyboard(
+            user_id
+        ),
     )
 
 
@@ -2326,6 +2598,7 @@ def attack_player_selected(
 ):
 
     villages = load_alliance_villages()
+
     player_villages = [
         village
         for village in villages
@@ -2333,28 +2606,57 @@ def attack_player_selected(
     ]
 
     if not player_villages:
+
         send_message(
             chat_id,
-            "❌ У этого игрока не найдены деревни в последнем map.sql.",
-            reply_markup=alliance_players_keyboard(user_id),
+            (
+                "❌ У этого игрока не найдены "
+                "деревни в последнем map.sql."
+            ),
+            reply_markup=alliance_players_keyboard(
+                user_id
+            ),
         )
+
         return
 
-    player_name = player_villages[0]["player_name"]
-    session = get_session(chat_id, user_id)
-    session["own_player_uid"] = player_uid
-    session["own_player_name"] = player_name
+    player_name = player_villages[
+        0
+    ][
+        "player_name"
+    ]
+
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    session[
+        "own_player_uid"
+    ] = player_uid
+
+    session[
+        "own_player_name"
+    ] = player_name
+
     session["step"] = "village"
 
-    remember_player(user_id, player_uid)
+    remember_player(
+        user_id,
+        player_uid,
+    )
 
     send_message(
         chat_id,
         (
-            f"👤 Игрок: <b>{html.escape(player_name)}</b>\n\n"
+            f"👤 Игрок: "
+            f"<b>{html.escape(player_name)}</b>\n\n"
             "Выберите деревню:"
         ),
-        reply_markup=alliance_villages_keyboard(user_id, player_uid),
+        reply_markup=alliance_villages_keyboard(
+            user_id,
+            player_uid,
+        ),
     )
 
 
@@ -2365,40 +2667,99 @@ def attack_village_selected(
 ):
 
     villages = load_alliance_villages()
+
     village = next(
-        (item for item in villages if item["vid"] == village_vid),
+        (
+            item
+            for item in villages
+            if item["vid"] == village_vid
+        ),
         None,
     )
 
     if not village:
+
         send_message(
             chat_id,
             "❌ Деревня не найдена в последнем map.sql.",
-            reply_markup=alliance_players_keyboard(user_id),
+            reply_markup=alliance_players_keyboard(
+                user_id
+            ),
         )
+
         return
 
-    session = get_session(chat_id, user_id)
-    session["own_player_uid"] = village["uid"]
-    session["own_player_name"] = village["player_name"]
-    session["own_village_id"] = village["vid"]
-    session["own_village_name"] = village["village_name"]
-    session["own_coords"] = (village["x"], village["y"])
+    session = get_session(
+        chat_id,
+        user_id,
+    )
 
-    remember_player(user_id, village["uid"])
-    remember_village(user_id, village["vid"])
+    session[
+        "own_player_uid"
+    ] = village["uid"]
 
-    attack_choose_offer(chat_id, user_id)
+    session[
+        "own_player_name"
+    ] = village["player_name"]
+
+    session[
+        "own_village_id"
+    ] = village["vid"]
+
+    session[
+        "own_village_name"
+    ] = village["village_name"]
+
+    session[
+        "own_coords"
+    ] = (
+        village["x"],
+        village["y"],
+    )
+
+    remember_player(
+        user_id,
+        village["uid"],
+    )
+
+    remember_village(
+        user_id,
+        village["vid"],
+    )
+
+    attack_choose_offer(
+        chat_id,
+        user_id,
+    )
 
 
-def attack_manual_coords_start(chat_id, user_id):
+def attack_manual_coords_start(
+    chat_id,
+    user_id,
+):
 
-    session = get_session(chat_id, user_id)
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
     session["step"] = "own_coords"
-    session["own_player_uid"] = None
-    session["own_player_name"] = None
-    session["own_village_id"] = None
-    session["own_village_name"] = None
+
+    session[
+        "own_player_uid"
+    ] = None
+
+    session[
+        "own_player_name"
+    ] = None
+
+    session[
+        "own_village_id"
+    ] = None
+
+    session[
+        "own_village_name"
+    ] = None
 
     send_message(
         chat_id,
@@ -2412,15 +2773,24 @@ def attack_manual_coords_start(chat_id, user_id):
     )
 
 
-def attack_choose_offer(chat_id, user_id):
+def attack_choose_offer(
+    chat_id,
+    user_id,
+):
 
-    session = get_session(chat_id, user_id)
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
     session["step"] = "offer"
 
     send_message(
         chat_id,
         "Выберите вражеский оффер:",
-        reply_markup=offers_keyboard("attack_offer"),
+        reply_markup=offers_keyboard(
+            "attack_offer"
+        ),
     )
 
 
@@ -2430,23 +2800,47 @@ def attack_offer_selected(
     offer_id,
 ):
 
-    offer = get_offer(offer_id)
+    offer = get_offer(
+        offer_id
+    )
 
     if not offer:
-        send_message(chat_id, "Оффер не найден.")
+
+        send_message(
+            chat_id,
+            "Оффер не найден.",
+        )
+
         return
 
-    session = get_session(chat_id, user_id)
-    session["offer_id"] = offer_id
-    session["step"] = "waves"
+    session = get_session(
+        chat_id,
+        user_id,
+    )
 
-    owner = get_offer_owner(offer)
-    owner_text = html.escape(owner) if owner else "Владелец не найден"
+    session[
+        "offer_id"
+    ] = offer_id
+
+    session[
+        "step"
+    ] = "waves"
+
+    owner = get_offer_owner(
+        offer
+    )
+
+    owner_text = (
+        html.escape(owner)
+        if owner
+        else "Владелец не найден"
+    )
 
     send_message(
         chat_id,
         (
-            f"Выбран оффер <b>{owner_text} "
+            f"Выбран оффер "
+            f"<b>{owner_text} "
             f"({offer['x']}|{offer['y']})</b>.\n\n"
             "Введите количество волн."
         ),
@@ -2454,29 +2848,55 @@ def attack_offer_selected(
     )
 
 
-def attack_arrival_prompt(chat_id, user_id):
+def attack_arrival_prompt(
+    chat_id,
+    user_id,
+):
 
-    preferences, key, user_preferences = get_user_preferences(user_id)
-    last_arrival = user_preferences.get("last_arrival_datetime")
-    session = get_session(chat_id, user_id)
-    session["step"] = "arrival_datetime"
+    preferences, key, user_preferences = get_user_preferences(
+        user_id
+    )
+
+    last_arrival = user_preferences.get(
+        "last_arrival_datetime"
+    )
+
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    session[
+        "step"
+    ] = "arrival_datetime"
 
     if last_arrival:
-        parsed = parse_arrival_datetime(last_arrival)
+
+        parsed = parse_arrival_datetime(
+            last_arrival
+        )
 
         if parsed:
+
             keyboard = {
                 "inline_keyboard": [
                     [
                         {
-                            "text": f"🕒 Использовать {last_arrival}",
-                            "callback_data": "attack_arrival_default",
+                            "text": (
+                                f"🕒 Использовать "
+                                f"{last_arrival}"
+                            ),
+                            "callback_data": (
+                                "attack_arrival_default"
+                            ),
                         }
                     ],
                     [
                         {
                             "text": "✏️ Ввести другое время",
-                            "callback_data": "attack_arrival_manual",
+                            "callback_data": (
+                                "attack_arrival_manual"
+                            ),
                         }
                     ],
                     [
@@ -2492,11 +2912,14 @@ def attack_arrival_prompt(chat_id, user_id):
                 chat_id,
                 (
                     "🕒 <b>Когда прибывают войска?</b>\n\n"
-                    f"Последнее значение: <code>{html.escape(last_arrival)}</code>\n\n"
-                    "Можно использовать его или ввести другое."
+                    f"Последнее значение: "
+                    f"<code>{html.escape(last_arrival)}</code>\n\n"
+                    "Можно использовать его или "
+                    "ввести другое."
                 ),
                 reply_markup=keyboard,
             )
+
             return
 
     send_message(
@@ -2511,26 +2934,60 @@ def attack_arrival_prompt(chat_id, user_id):
     )
 
 
-def attack_arrival_default(chat_id, user_id):
+def attack_arrival_default(
+    chat_id,
+    user_id,
+):
 
-    session = get_session(chat_id, user_id)
-    preferences, key, user_preferences = get_user_preferences(user_id)
-    value = user_preferences.get("last_arrival_datetime")
-    arrival = parse_arrival_datetime(value) if value else None
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    preferences, key, user_preferences = get_user_preferences(
+        user_id
+    )
+
+    value = user_preferences.get(
+        "last_arrival_datetime"
+    )
+
+    arrival = (
+        parse_arrival_datetime(value)
+        if value
+        else None
+    )
 
     if not arrival:
-        attack_arrival_prompt(chat_id, user_id)
+
+        attack_arrival_prompt(
+            chat_id,
+            user_id,
+        )
+
         return
 
-    session["arrival_datetime"] = arrival
-    session["arrival_datetime_text"] = format_arrival_datetime(arrival)
-    session["step"] = "detected_time"
+    session[
+        "arrival_datetime"
+    ] = arrival
+
+    session[
+        "arrival_datetime_text"
+    ] = format_arrival_datetime(
+        arrival
+    )
+
+    session[
+        "step"
+    ] = "detected_time"
 
     send_message(
         chat_id,
         (
-            f"🕒 Прибытие: <b>{session['arrival_datetime_text']}</b>\n\n"
-            "Введите серверное время, когда вы заметили входящую атаку.\n\n"
+            f"🕒 Прибытие: "
+            f"<b>{session['arrival_datetime_text']}</b>\n\n"
+            "Введите серверное время, когда "
+            "вы заметили входящую атаку.\n\n"
             "Например:\n"
             "<code>08:37:12</code>"
         ),
@@ -2538,10 +2995,19 @@ def attack_arrival_default(chat_id, user_id):
     )
 
 
-def attack_arrival_manual(chat_id, user_id):
+def attack_arrival_manual(
+    chat_id,
+    user_id,
+):
 
-    session = get_session(chat_id, user_id)
-    session["step"] = "arrival_datetime"
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    session[
+        "step"
+    ] = "arrival_datetime"
 
     send_message(
         chat_id,
@@ -2554,63 +3020,148 @@ def attack_arrival_manual(chat_id, user_id):
     )
 
 
-def finish_attack_report(chat_id, user_id):
+def finish_attack_report(
+    chat_id,
+    user_id,
+):
 
-    session = get_session(chat_id, user_id)
-    attack = create_attack(session)
-    offer = get_offer(attack["offer_id"])
-
-    possible = attack["possible_arena_levels"]
-    possible_text = format_range(possible) if possible else "нет допустимых уровней"
-    individual_levels = (
-        ", ".join(str(level) for level in possible)
-        if possible else "нет"
+    session = get_session(
+        chat_id,
+        user_id,
     )
 
-    current_arena = attack["arena_at_report"]
+    attack = create_attack(
+        session
+    )
+
+    offer = get_offer(
+        attack["offer_id"]
+    )
+
+    possible = attack[
+        "possible_arena_levels"
+    ]
+
+    possible_text = (
+        format_range(possible)
+        if possible
+        else "нет допустимых уровней"
+    )
+
+    individual_levels = (
+        ", ".join(
+            str(level)
+            for level in possible
+        )
+        if possible
+        else "нет"
+    )
+
+    current_arena = attack[
+        "arena_at_report"
+    ]
+
     current_arena_text = (
         "неизвестна"
         if current_arena == 0
         else str(current_arena)
     )
 
-    owner = get_offer_owner(offer)
-    owner_text = html.escape(owner) if owner else "Владелец не найден"
+    owner = get_offer_owner(
+        offer
+    )
+
+    owner_text = (
+        html.escape(owner)
+        if owner
+        else "Владелец не найден"
+    )
 
     village_text = (
         f"{html.escape(attack.get('own_village_name') or 'Ручной ввод')} "
         f"({attack['own_coords']['x']}|{attack['own_coords']['y']})"
     )
 
-    report_date = attack.get("report_date") or "—"
+    report_date = (
+        attack.get("report_date")
+        or "—"
+    )
 
-    operation_status = attack.get("operation_status", "active")
-    status_text = "активна" if operation_status == "active" else "закрыта"
+    operation_status = attack.get(
+        "operation_status",
+        "active",
+    )
+
+    status_text = (
+        "активна"
+        if operation_status == "active"
+        else "закрыта"
+    )
 
     text = (
         "✅ <b>Отчёт об атаке сохранён</b>\n\n"
-        f"<b>ID:</b> <code>{attack['id']}</code>\n"
-        f"<b>Дата отчёта:</b> {report_date}\n"
-        f"<b>Ваша деревня:</b> {village_text}\n"
-        f"<b>Оффер:</b> {owner_text} ({offer['x']}|{offer['y']})\n"
-        f"<b>Расстояние:</b> {attack['distance']:.2f}\n"
-        f"<b>Волн:</b> {attack['waves']}\n"
-        f"<b>Прибытие:</b> <b>{attack['arrival_datetime_text']}</b>\n"
-        f"<b>Операция:</b> <code>{attack['operation_id']}</code>\n"
-        f"<b>Статус операции:</b> {status_text}\n"
-        f"<b>Обнаружено:</b> {attack['detected_server_time']}\n"
-        f"<b>До прибытия:</b> {attack['remaining_time']}\n"
-        f"<b>Офлайн:</b> {attack['offline_minutes']} мин.\n\n"
-        f"<b>Арена в базе:</b> {current_arena_text}\n"
-        f"<b>Возможная Арена:</b> {possible_text}\n"
-        f"<b>Возможные уровни:</b> {individual_levels}\n\n"
-        "Диапазон используется для исключения невозможных уровней. "
-        "Он не означает, что один из уровней определён точно."
+
+        f"<b>ID:</b> "
+        f"<code>{attack['id']}</code>\n"
+
+        f"<b>Дата отчёта:</b> "
+        f"{report_date}\n"
+
+        f"<b>Ваша деревня:</b> "
+        f"{village_text}\n"
+
+        f"<b>Оффер:</b> "
+        f"{owner_text} "
+        f"({offer['x']}|{offer['y']})\n"
+
+        f"<b>Расстояние:</b> "
+        f"{attack['distance']:.2f}\n"
+
+        f"<b>Волн:</b> "
+        f"{attack['waves']}\n"
+
+        f"<b>Прибытие:</b> "
+        f"<b>{attack['arrival_datetime_text']}</b>\n"
+
+        f"<b>Операция:</b> "
+        f"<code>{attack['operation_id']}</code>\n"
+
+        f"<b>Статус операции:</b> "
+        f"{status_text}\n"
+
+        f"<b>Обнаружено:</b> "
+        f"{attack['detected_server_time']}\n"
+
+        f"<b>До прибытия:</b> "
+        f"{attack['remaining_time']}\n"
+
+        f"<b>Офлайн:</b> "
+        f"{attack['offline_minutes']} мин.\n\n"
+
+        f"<b>Арена в базе:</b> "
+        f"{current_arena_text}\n"
+
+        f"<b>Возможная Арена:</b> "
+        f"{possible_text}\n"
+
+        f"<b>Возможные уровни:</b> "
+        f"{individual_levels}\n\n"
+
+        "Диапазон используется для исключения "
+        "невозможных уровней. Он не означает, "
+        "что один из уровней определён точно."
     )
 
-    clear_session(chat_id, user_id)
-    send_message(chat_id, text, reply_markup=main_menu())
+    clear_session(
+        chat_id,
+        user_id,
+    )
 
+    send_message(
+        chat_id,
+        text,
+        reply_markup=main_menu(),
+    )
 
 
 # ============================================================
@@ -2632,7 +3183,9 @@ def start_manual_arena(
         user_id,
     )
 
-    session["flow"] = "manual_arena"
+    session[
+        "flow"
+    ] = "manual_arena"
 
     send_message(
         chat_id,
@@ -2670,9 +3223,13 @@ def manual_offer_selected(
         user_id,
     )
 
-    session["offer_id"] = offer_id
+    session[
+        "offer_id"
+    ] = offer_id
 
-    session["step"] = "arena_value"
+    session[
+        "step"
+    ] = "arena_value"
 
     current = offer.get(
         "arena",
@@ -2850,7 +3407,9 @@ def start_scout_report(
         user_id,
     )
 
-    session["flow"] = "scout"
+    session[
+        "flow"
+    ] = "scout"
 
     send_message(
         chat_id,
@@ -2888,9 +3447,13 @@ def scout_offer_selected(
         user_id,
     )
 
-    session["offer_id"] = offer_id
+    session[
+        "offer_id"
+    ] = offer_id
 
-    session["step"] = "attack_id"
+    session[
+        "step"
+    ] = "attack_id"
 
     owner = get_offer_owner(
         offer
@@ -2957,10 +3520,13 @@ def scout_attack_selected(
         user_id,
     )
 
-    if attack.get(
-        "offer_id"
-    ) != session.get(
-        "offer_id"
+    if (
+        attack.get(
+            "offer_id"
+        )
+        != session.get(
+            "offer_id"
+        )
     ):
 
         send_message(
@@ -2974,9 +3540,13 @@ def scout_attack_selected(
 
         return
 
-    session["attack_id"] = attack_id
+    session[
+        "attack_id"
+    ] = attack_id
 
-    session["step"] = "tested_arena"
+    session[
+        "step"
+    ] = "tested_arena"
 
     possible = attack.get(
         "possible_arena_levels",
@@ -3052,9 +3622,13 @@ def scout_arena_selected(
 
         return
 
-    session["tested_arena"] = arena
+    session[
+        "tested_arena"
+    ] = arena
 
-    session["step"] = "observed_change"
+    session[
+        "step"
+    ] = "observed_change"
 
     send_message(
         chat_id,
@@ -3092,9 +3666,13 @@ def scout_observation_entered(
         user_id,
     )
 
-    session["observed_change"] = text
+    session[
+        "observed_change"
+    ] = text
 
-    session["step"] = "verdict"
+    session[
+        "step"
+    ] = "verdict"
 
     keyboard = {
         "inline_keyboard": [
@@ -3123,6 +3701,7 @@ def scout_observation_entered(
                     "callback_data": "menu",
                 }
             ],
+
         ]
     }
 
@@ -3153,15 +3732,25 @@ def finish_scout(
     )
 
     evidence = add_scout_evidence(
-        offer_id=session["offer_id"],
-        attack_id=session["attack_id"],
-        tested_arena=session["tested_arena"],
-        observed_change=session["observed_change"],
+        offer_id=session[
+            "offer_id"
+        ],
+        attack_id=session[
+            "attack_id"
+        ],
+        tested_arena=session[
+            "tested_arena"
+        ],
+        observed_change=session[
+            "observed_change"
+        ],
         verdict=verdict,
     )
 
     offer = get_offer(
-        session["offer_id"]
+        session[
+            "offer_id"
+        ]
     )
 
     clear_session(
@@ -3322,6 +3911,43 @@ def show_offers_status(
 
 
 # ============================================================
+# ПРОВЕРКА КОНТЕКСТА TELEGRAM
+# ============================================================
+
+def validate_chat_context(
+    chat,
+    thread_id,
+):
+
+    chat_type = chat.get(
+        "type"
+    )
+
+    # Личная переписка.
+    # У личного чата message_thread_id отсутствует,
+    # поэтому thread_id должен быть None.
+    if chat_type == "private":
+
+        return True
+
+    # Для групп и супергрупп разрешаем только
+    # конкретную тему 76303.
+    if chat_type in (
+        "group",
+        "supergroup",
+    ):
+
+        return (
+            thread_id
+            == TELEGRAM_THREAD_ID
+        )
+
+    # На всякий случай запрещаем любые
+    # неизвестные типы чатов.
+    return False
+
+
+# ============================================================
 # CALLBACK
 # ============================================================
 
@@ -3330,138 +3956,357 @@ def process_callback(
 ):
 
     callback_id = callback["id"]
-    data = callback.get("data", "")
-    message = callback.get("message")
+
+    data = callback.get(
+        "data",
+        "",
+    )
+
+    message = callback.get(
+        "message"
+    )
 
     if not message:
-        answer_callback(callback_id)
+
+        answer_callback(
+            callback_id
+        )
+
         return
 
-    chat = message.get("chat", {})
-    chat_id = chat.get("id")
-    thread_id = message.get("message_thread_id")
-    user = callback.get("from", {})
-    user_id = user.get("id")
+    chat = message.get(
+        "chat",
+        {}
+    )
+
+    chat_id = chat.get(
+        "id"
+    )
+
+    thread_id = message.get(
+        "message_thread_id"
+    )
+
+    user = callback.get(
+        "from",
+        {}
+    )
+
+    user_id = user.get(
+        "id"
+    )
 
     print(
         "CALLBACK:",
-        json.dumps(callback, ensure_ascii=False, indent=2),
+        json.dumps(
+            callback,
+            ensure_ascii=False,
+            indent=2,
+        ),
         flush=True,
     )
 
-    if thread_id != TELEGRAM_THREAD_ID:
+    # --------------------------------------------------------
+    # НОВОЕ:
+    # Личная переписка разрешена.
+    # Группа разрешена только в теме 76303.
+    # --------------------------------------------------------
+
+    if not validate_chat_context(
+        chat,
+        thread_id,
+    ):
+
         answer_callback(
             callback_id,
-            "Бот работает в ветке 76303.",
+            "Бот работает только в личном чате или в ветке 76303.",
         )
+
         return
 
-    answer_callback(callback_id)
+    # Запоминаем контекст именно этого чата.
+    #
+    # private -> None
+    # forum 76303 -> 76303
+    set_chat_thread_context(
+        chat_id,
+        thread_id,
+    )
+
+    answer_callback(
+        callback_id
+    )
 
     if data == "menu":
-        clear_session(chat_id, user_id)
+
+        clear_session(
+            chat_id,
+            user_id,
+        )
+
         edit_message(
             chat_id,
             message["message_id"],
             "<b>Меню анализа входящих атак</b>",
             main_menu(),
         )
+
         return
 
     if data == "attack_report":
-        start_attack_report(chat_id, user_id)
+
+        start_attack_report(
+            chat_id,
+            user_id,
+        )
+
         return
 
     if data == "attack_manual_coords":
-        attack_manual_coords_start(chat_id, user_id)
+
+        attack_manual_coords_start(
+            chat_id,
+            user_id,
+        )
+
         return
 
     if data == "attack_back_players":
-        session = get_session(chat_id, user_id)
-        session["step"] = "player"
+
+        session = get_session(
+            chat_id,
+            user_id,
+        )
+
+        session[
+            "step"
+        ] = "player"
+
         send_message(
             chat_id,
             "Выберите игрока вашего альянса:",
-            reply_markup=alliance_players_keyboard(user_id),
+            reply_markup=alliance_players_keyboard(
+                user_id
+            ),
         )
+
         return
 
-    if data.startswith("attack_player:"):
-        player_uid = parse_integer(data.split(":", 1)[1])
+    if data.startswith(
+        "attack_player:"
+    ):
+
+        player_uid = parse_integer(
+            data.split(
+                ":",
+                1,
+            )[1]
+        )
+
         if player_uid is None:
-            send_message(chat_id, "❌ Некорректный ID игрока.")
+
+            send_message(
+                chat_id,
+                "❌ Некорректный ID игрока.",
+            )
+
             return
-        attack_player_selected(chat_id, user_id, player_uid)
+
+        attack_player_selected(
+            chat_id,
+            user_id,
+            player_uid,
+        )
+
         return
 
-    if data.startswith("attack_village:"):
-        village_vid = parse_integer(data.split(":", 1)[1])
+    if data.startswith(
+        "attack_village:"
+    ):
+
+        village_vid = parse_integer(
+            data.split(
+                ":",
+                1,
+            )[1]
+        )
+
         if village_vid is None:
-            send_message(chat_id, "❌ Некорректный ID деревни.")
+
+            send_message(
+                chat_id,
+                "❌ Некорректный ID деревни.",
+            )
+
             return
-        attack_village_selected(chat_id, user_id, village_vid)
+
+        attack_village_selected(
+            chat_id,
+            user_id,
+            village_vid,
+        )
+
         return
 
     if data == "attack_arrival_default":
-        attack_arrival_default(chat_id, user_id)
+
+        attack_arrival_default(
+            chat_id,
+            user_id,
+        )
+
         return
 
     if data == "attack_arrival_manual":
-        attack_arrival_manual(chat_id, user_id)
+
+        attack_arrival_manual(
+            chat_id,
+            user_id,
+        )
+
         return
 
-    if data.startswith("attack_offer:"):
-        offer_id = data.split(":", 1)[1]
-        attack_offer_selected(chat_id, user_id, offer_id)
+    if data.startswith(
+        "attack_offer:"
+    ):
+
+        offer_id = data.split(
+            ":",
+            1,
+        )[1]
+
+        attack_offer_selected(
+            chat_id,
+            user_id,
+            offer_id,
+        )
+
         return
 
     if data == "set_arena":
-        start_manual_arena(chat_id, user_id)
+
+        start_manual_arena(
+            chat_id,
+            user_id,
+        )
+
         return
 
-    if data.startswith("manual_offer:"):
-        offer_id = data.split(":", 1)[1]
-        manual_offer_selected(chat_id, user_id, offer_id)
+    if data.startswith(
+        "manual_offer:"
+    ):
+
+        offer_id = data.split(
+            ":",
+            1,
+        )[1]
+
+        manual_offer_selected(
+            chat_id,
+            user_id,
+            offer_id,
+        )
+
         return
 
     if data == "scout_report":
-        start_scout_report(chat_id, user_id)
+
+        start_scout_report(
+            chat_id,
+            user_id,
+        )
+
         return
 
-    if data.startswith("scout_offer:"):
-        offer_id = data.split(":", 1)[1]
-        scout_offer_selected(chat_id, user_id, offer_id)
+    if data.startswith(
+        "scout_offer:"
+    ):
+
+        offer_id = data.split(
+            ":",
+            1,
+        )[1]
+
+        scout_offer_selected(
+            chat_id,
+            user_id,
+            offer_id,
+        )
+
         return
 
-    if data.startswith("scout_verdict:"):
-        verdict = data.split(":", 1)[1]
-        finish_scout(chat_id, user_id, verdict)
+    if data.startswith(
+        "scout_verdict:"
+    ):
+
+        verdict = data.split(
+            ":",
+            1,
+        )[1]
+
+        finish_scout(
+            chat_id,
+            user_id,
+            verdict,
+        )
+
         return
 
     if data == "offers_status":
-        show_offers_status(chat_id)
-        return
 
+        show_offers_status(
+            chat_id
+        )
+
+        return
 
 
 # ============================================================
 # СООБЩЕНИЯ
 # ============================================================
 
-def process_message(message):
+def process_message(
+    message
+):
 
     print(
         "PROCESS MESSAGE:",
-        json.dumps(message, ensure_ascii=False, indent=2),
+        json.dumps(
+            message,
+            ensure_ascii=False,
+            indent=2,
+        ),
         flush=True,
     )
 
-    chat = message.get("chat", {})
-    chat_id = chat.get("id")
-    thread_id = message.get("message_thread_id")
-    user = message.get("from", {})
-    user_id = user.get("id")
-    text = (message.get("text") or "").strip()
+    chat = message.get(
+        "chat",
+        {}
+    )
+
+    chat_id = chat.get(
+        "id"
+    )
+
+    thread_id = message.get(
+        "message_thread_id"
+    )
+
+    user = message.get(
+        "from",
+        {}
+    )
+
+    user_id = user.get(
+        "id"
+    )
+
+    text = (
+        message.get(
+            "text"
+        )
+        or ""
+    ).strip()
 
     print(
         "MESSAGE INFO:",
@@ -3472,51 +4317,112 @@ def process_message(message):
         flush=True,
     )
 
-    if thread_id != TELEGRAM_THREAD_ID:
+    # --------------------------------------------------------
+    # НОВОЕ:
+    # private chat разрешён.
+    # group/supergroup -> только thread 76303.
+    # --------------------------------------------------------
+
+    if not validate_chat_context(
+        chat,
+        thread_id,
+    ):
+
+        print(
+            "Сообщение отклонено: "
+            "неразрешённый контекст чата.",
+            flush=True,
+        )
+
         return
 
-    if text.startswith("/start"):
-        clear_session(chat_id, user_id)
+    # Запоминаем, куда потом отправлять ответы.
+    #
+    # В личке:
+    #     None
+    #
+    # В теме:
+    #     76303
+    set_chat_thread_context(
+        chat_id,
+        thread_id,
+    )
+
+    if text.startswith(
+        "/start"
+    ):
+
+        clear_session(
+            chat_id,
+            user_id,
+        )
+
         send_message(
             chat_id,
             (
                 "<b>Анализ входящих атак</b>\n\n"
                 f"Сервер: <b>{SERVER_NAME}</b>\n"
-                f"Вражеский альянс: <b>{ENEMY_ALLIANCE_NAME}</b>\n\n"
+                f"Вражеский альянс: "
+                f"<b>{ENEMY_ALLIANCE_NAME}</b>\n\n"
                 "Выберите действие:"
             ),
             reply_markup=main_menu(),
         )
+
         return
 
-    if text.startswith("/menu"):
-        clear_session(chat_id, user_id)
+    if text.startswith(
+        "/menu"
+    ):
+
+        clear_session(
+            chat_id,
+            user_id,
+        )
+
         send_message(
             chat_id,
             "<b>Меню анализа входящих атак</b>",
             reply_markup=main_menu(),
         )
+
         return
 
-    session = get_session(chat_id, user_id)
+    session = get_session(
+        chat_id,
+        user_id,
+    )
 
     if not session:
+
         return
 
-    flow = session.get("flow")
-    step = session.get("step")
+    flow = session.get(
+        "flow"
+    )
+
+    step = session.get(
+        "step"
+    )
 
     print(
-        f"PROCESSING TEXT: flow={flow}, step={step}, text={text!r}",
+        f"PROCESSING TEXT: "
+        f"flow={flow}, "
+        f"step={step}, "
+        f"text={text!r}",
         flush=True,
     )
 
     if flow == "attack":
 
         if step == "own_coords":
-            coords = parse_coordinates(text)
+
+            coords = parse_coordinates(
+                text
+            )
 
             if not coords:
+
                 send_message(
                     chat_id,
                     (
@@ -3526,31 +4432,58 @@ def process_message(message):
                     ),
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            session["own_coords"] = coords
-            attack_choose_offer(chat_id, user_id)
+            session[
+                "own_coords"
+            ] = coords
+
+            attack_choose_offer(
+                chat_id,
+                user_id,
+            )
+
             return
 
         if step == "waves":
-            waves = parse_integer(text)
 
-            if waves is None or waves <= 0:
+            waves = parse_integer(
+                text
+            )
+
+            if (
+                waves is None
+                or waves <= 0
+            ):
+
                 send_message(
                     chat_id,
                     "Введите положительное целое число волн.",
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            session["waves"] = waves
-            attack_arrival_prompt(chat_id, user_id)
+            session[
+                "waves"
+            ] = waves
+
+            attack_arrival_prompt(
+                chat_id,
+                user_id,
+            )
+
             return
 
         if step == "arrival_datetime":
-            arrival = parse_arrival_datetime(text)
+
+            arrival = parse_arrival_datetime(
+                text
+            )
 
             if not arrival:
+
                 send_message(
                     chat_id,
                     (
@@ -3560,30 +4493,53 @@ def process_message(message):
                     ),
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            session["arrival_datetime"] = arrival
-            session["arrival_datetime_text"] = format_arrival_datetime(arrival)
-            remember_arrival_datetime(user_id, session["arrival_datetime_text"])
+            session[
+                "arrival_datetime"
+            ] = arrival
 
-            session["step"] = "detected_time"
+            session[
+                "arrival_datetime_text"
+            ] = format_arrival_datetime(
+                arrival
+            )
+
+            remember_arrival_datetime(
+                user_id,
+                session[
+                    "arrival_datetime_text"
+                ],
+            )
+
+            session[
+                "step"
+            ] = "detected_time"
 
             send_message(
                 chat_id,
                 (
-                    f"🕒 Прибытие: <b>{session['arrival_datetime_text']}</b>\n\n"
-                    "Введите серверное время, когда вы заметили входящую атаку.\n\n"
+                    f"🕒 Прибытие: "
+                    f"<b>{session['arrival_datetime_text']}</b>\n\n"
+                    "Введите серверное время, когда "
+                    "вы заметили входящую атаку.\n\n"
                     "Например:\n"
                     "<code>08:37:12</code>"
                 ),
                 reply_markup=input_keyboard(),
             )
+
             return
 
         if step == "detected_time":
-            seconds = parse_time(text)
+
+            seconds = parse_time(
+                text
+            )
 
             if seconds is None:
+
                 send_message(
                     chat_id,
                     (
@@ -3593,28 +4549,43 @@ def process_message(message):
                     ),
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            session["detected_time_text"] = text
-            session["detected_time_seconds"] = seconds
-            session["step"] = "remaining"
+            session[
+                "detected_time_text"
+            ] = text
+
+            session[
+                "detected_time_seconds"
+            ] = seconds
+
+            session[
+                "step"
+            ] = "remaining"
 
             send_message(
                 chat_id,
                 (
-                    "Теперь введите, сколько времени оставалось до прибытия атаки.\n\n"
+                    "Теперь введите, сколько времени "
+                    "оставалось до прибытия атаки.\n\n"
                     "Это НЕ время суток. Это длительность.\n\n"
                     "Например:\n"
                     "<code>18:36:55</code>"
                 ),
                 reply_markup=input_keyboard(),
             )
+
             return
 
         if step == "remaining":
-            seconds = parse_time(text)
+
+            seconds = parse_time(
+                text
+            )
 
             if seconds is None:
+
                 send_message(
                     chat_id,
                     (
@@ -3624,97 +4595,186 @@ def process_message(message):
                     ),
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            # Только здесь фиксируем дату отчёта: по message.date
-            # сообщения, в котором пользователь передал remaining time.
-            telegram_timestamp = message.get("date")
+            # Только здесь фиксируем дату отчёта:
+            # по message.date сообщения, в котором
+            # пользователь передал remaining time.
+            telegram_timestamp = message.get(
+                "date"
+            )
 
             if telegram_timestamp is not None:
+
                 report_datetime = datetime.fromtimestamp(
-                    int(telegram_timestamp),
+                    int(
+                        telegram_timestamp
+                    ),
                     SERVER_TIMEZONE,
                 )
-                session["report_date"] = report_datetime.strftime("%d.%m.%Y")
-                session["report_message_datetime"] = report_datetime.isoformat(
+
+                session[
+                    "report_date"
+                ] = report_datetime.strftime(
+                    "%d.%m.%Y"
+                )
+
+                session[
+                    "report_message_datetime"
+                ] = report_datetime.isoformat(
                     timespec="seconds"
                 )
-            else:
-                session["report_date"] = None
-                session["report_message_datetime"] = None
 
-            session["remaining_text"] = text
-            session["remaining_seconds"] = seconds
-            session["step"] = "offline"
+            else:
+
+                session[
+                    "report_date"
+                ] = None
+
+                session[
+                    "report_message_datetime"
+                ] = None
+
+            session[
+                "remaining_text"
+            ] = text
+
+            session[
+                "remaining_seconds"
+            ] = seconds
+
+            session[
+                "step"
+            ] = "offline"
 
             send_message(
                 chat_id,
                 (
-                    "Сколько минут вы находились офлайн до обнаружения атаки?\n\n"
+                    "Сколько минут вы находились "
+                    "офлайн до обнаружения атаки?\n\n"
                     "Например:\n"
                     "<code>27</code>"
                 ),
                 reply_markup=input_keyboard(),
             )
+
             return
 
         if step == "offline":
-            minutes = parse_integer(text)
 
-            if minutes is None or minutes < 0:
+            minutes = parse_integer(
+                text
+            )
+
+            if (
+                minutes is None
+                or minutes < 0
+            ):
+
                 send_message(
                     chat_id,
                     (
-                        "Введите количество минут целым числом.\n\n"
+                        "Введите количество минут "
+                        "целым числом.\n\n"
                         "Например:\n"
                         "<code>27</code>"
                     ),
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            session["offline_minutes"] = minutes
-            finish_attack_report(chat_id, user_id)
+            session[
+                "offline_minutes"
+            ] = minutes
+
+            finish_attack_report(
+                chat_id,
+                user_id,
+            )
+
             return
 
     if flow == "manual_arena":
-        if step == "arena_value":
-            arena = parse_integer(text)
 
-            if arena is None or arena < 0 or arena > 20:
+        if step == "arena_value":
+
+            arena = parse_integer(
+                text
+            )
+
+            if (
+                arena is None
+                or arena < 0
+                or arena > 20
+            ):
+
                 send_message(
                     chat_id,
                     "Уровень Арены должен быть от 0 до 20.",
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            save_manual_arena(chat_id, user_id, arena)
+            save_manual_arena(
+                chat_id,
+                user_id,
+                arena,
+            )
+
             return
 
     if flow == "scout":
+
         if step == "attack_id":
-            scout_attack_selected(chat_id, user_id, text)
+
+            scout_attack_selected(
+                chat_id,
+                user_id,
+                text,
+            )
+
             return
 
         if step == "tested_arena":
-            arena = parse_integer(text)
 
-            if arena is None or arena < 0 or arena > 20:
+            arena = parse_integer(
+                text
+            )
+
+            if (
+                arena is None
+                or arena < 0
+                or arena > 20
+            ):
+
                 send_message(
                     chat_id,
                     "Уровень Арены должен быть от 0 до 20.",
                     reply_markup=input_keyboard(),
                 )
+
                 return
 
-            scout_arena_selected(chat_id, user_id, arena)
+            scout_arena_selected(
+                chat_id,
+                user_id,
+                arena,
+            )
+
             return
 
         if step == "observed_change":
-            scout_observation_entered(chat_id, user_id, text)
-            return
 
+            scout_observation_entered(
+                chat_id,
+                user_id,
+                text,
+            )
+
+            return
 
 
 # ============================================================
@@ -3729,7 +4789,9 @@ def process_update(
 
         print(
             "UPDATE TYPE:",
-            list(update.keys()),
+            list(
+                update.keys()
+            ),
             flush=True,
         )
 
@@ -3808,6 +4870,16 @@ def run():
         flush=True,
     )
 
+    print(
+        "Личные чаты: разрешены",
+        flush=True,
+    )
+
+    print(
+        f"Группы: только тема {TELEGRAM_THREAD_ID}",
+        flush=True,
+    )
+
     offset = None
 
     while True:
@@ -3864,7 +4936,9 @@ def run():
                 )
 
                 offset = (
-                    update["update_id"]
+                    update[
+                        "update_id"
+                    ]
                     + 1
                 )
 
