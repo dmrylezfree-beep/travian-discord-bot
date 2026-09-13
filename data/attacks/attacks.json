@@ -147,5 +147,47 @@
     "arena_at_report": 17,
     "arena_at_report_source": "scout_auto",
     "status": "new"
+  },
+  {
+    "id": "attack_5",
+    "created_at": "2026-09-13T10:18:00Z",
+    "report_date": "13.09.2026",
+    "report_message_datetime": "2026-09-13T10:26:40",
+    "server_name": "Азия 7 TEST",
+    "server_url": "https://ts7.x1.asia.travian.com",
+    "own_player_uid": 448,
+    "own_player_name": "Gandalf",
+    "own_village_id": 24970,
+    "own_village_name": "ExTR4",
+    "own_coords": {
+      "x": 103,
+      "y": 171
+    },
+    "offer_id": "offer_5",
+    "offer_coords": {
+      "x": 15,
+      "y": 33
+    },
+    "offer_owner": "TAMHUNG",
+    "waves": 2,
+    "arrival_datetime": "2026-09-14T02:00:00",
+    "arrival_datetime_text": "14.09.2026 02:00:00",
+    "detected_server_datetime": "2026-09-13T10:26:40",
+    "detected_server_datetime_text": "13.09.2026 10:26:40",
+    "operation_id": "operation_1",
+    "operation_arrival_datetime": "2026-09-14T02:00:00",
+    "operation_status": "active",
+    "travel_time": "15:33:20",
+    "travel_seconds": 56000.0,
+    "distance": 163.6704,
+    "base_speed": 3.0,
+    "possible_arena_levels": [],
+    "possible_arena_text": "нет допустимых уровней",
+    "estimated_arena_level": 20,
+    "estimated_arena_difference_seconds": 2480.9,
+    "estimated_arena_theoretical_time": "16:14:41",
+    "arena_at_report": 19,
+    "arena_at_report_source": "manual",
+    "status": "new"
   }
 ]
