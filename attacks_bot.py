@@ -95,6 +95,9 @@ ATTACKS_FILE = DATA_DIR / "attacks.json"
 SCOUTS_FILE = DATA_DIR / "scouts.json"
 PREFERENCES_FILE = DATA_DIR / "preferences.json"
 
+# Общие настройки для всех игроков.
+SHARED_PREFERENCES_KEY = "_shared"
+
 SNAPSHOTS_DIR = Path("data/snapshots")
 
 
@@ -270,6 +273,73 @@ def get_user_preferences(user_id):
     return preferences, key, preferences[key]
 
 
+def get_shared_preferences():
+
+    preferences = load_preferences()
+
+    shared = preferences.get(
+        SHARED_PREFERENCES_KEY
+    )
+
+    if not isinstance(shared, dict):
+
+        shared = {}
+
+        preferences[
+            SHARED_PREFERENCES_KEY
+        ] = shared
+
+    return preferences, shared
+
+
+def get_shared_last_arrival_datetime():
+
+    preferences, shared = get_shared_preferences()
+
+    value = shared.get(
+        "last_arrival_datetime"
+    )
+
+    if not value:
+
+        return None
+
+    return value
+
+
+def remember_shared_arrival_datetime(
+    arrival_datetime_text
+):
+
+    preferences, shared = get_shared_preferences()
+
+    shared[
+        "last_arrival_datetime"
+    ] = arrival_datetime_text
+
+    shared[
+        "last_arrival_updated_at"
+    ] = (
+        datetime.utcnow()
+        .isoformat(
+            timespec="seconds"
+        )
+        + "Z"
+    )
+
+    save_preferences(
+        preferences
+    )
+
+    print(
+        "Сохранено общее время входящей атаки: "
+        f"{arrival_datetime_text}",
+        flush=True,
+    )
+
+    persist_attacks_data_to_github()
+
+
 def remember_recent_value(values, value, limit=20):
 
     value = str(value)
@@ -315,13 +385,17 @@ def remember_village(user_id, village_vid):
 
 def remember_arrival_datetime(user_id, arrival_datetime_text):
 
-    preferences, key, user_preferences = get_user_preferences(user_id)
+    """
+    Совместимость со старым кодом.
 
-    user_preferences["last_arrival_datetime"] = arrival_datetime_text
+    Теперь время входящей атаки хранится не отдельно
+    у каждого пользователя, а в общем разделе
+    preferences.json.
+    """
 
-    save_preferences(preferences)
-
-    persist_attacks_data_to_github()
+    remember_shared_arrival_datetime(
+        arrival_datetime_text
+    )
 
 
 def load_latest_map_rows():
@@ -1501,7 +1575,6 @@ def parse_duration(text):
 
         return None
 
-    # Простое число = количество минут.
     if re.fullmatch(
         r"\d+",
         text,
@@ -1535,14 +1608,12 @@ def parse_duration(text):
 
     if third_text is None:
 
-        # Формат H:MM
         hours = first
         minutes = second
         seconds = 0
 
     else:
 
-        # Формат HH:MM:SS
         hours = first
         minutes = second
         seconds = int(
@@ -1779,12 +1850,6 @@ def possible_arena_levels_by_time_range(
     попадает ли теоретическое время движения
     в допустимый диапазон с учётом технической
     погрешности.
-
-    min_travel_seconds:
-        минимально возможное время в пути.
-
-    max_travel_seconds:
-        максимально возможное время в пути.
     """
 
     lower = min(
@@ -2923,9 +2988,6 @@ def main_menu():
 # ============================================================
 # ОТЧЁТ ОБ АТАКЕ
 # ============================================================
-# После выбора оффера количество волн выбирается кнопкой:
-# 1, 2, 4 или "Свой вариант".
-
 
 def start_attack_report(
     chat_id,
@@ -3178,7 +3240,7 @@ def attack_choose_offer(
 
     send_message(
         chat_id,
-        "Выберите вражеский оффер:",
+        "Выберите вражеского оффера:",
         reply_markup=offers_keyboard(
             "attack_offer"
         ),
@@ -3333,18 +3395,22 @@ def attack_offer_selected(
     )
 
 
+# ============================================================
+# ОБЩЕЕ ВРЕМЯ ВХОДЯЩЕЙ АТАКИ
+# ============================================================
+
 def attack_arrival_prompt(
     chat_id,
     user_id,
 ):
 
-    preferences, key, user_preferences = get_user_preferences(
-        user_id
-    )
+    """
+    Показывает последнее введённое время входящей
+    атаки, общее для всех игроков.
 
-    last_arrival = user_preferences.get(
-        "last_arrival_datetime"
-    )
+    В отличие от старой версии значение больше
+    не привязано к user_id.
+    """
 
     session = get_session(
         chat_id,
@@ -3352,6 +3418,10 @@ def attack_arrival_prompt(
     )
 
     session["step"] = "arrival_datetime"
+
+    last_arrival = (
+        get_shared_last_arrival_datetime()
+    )
 
     if last_arrival:
 
@@ -3366,8 +3436,7 @@ def attack_arrival_prompt(
                     [
                         {
                             "text": (
-                                f"🕒 Использовать "
-                                f"{last_arrival}"
+                                f"🕒 {last_arrival}"
                             ),
                             "callback_data": (
                                 "attack_arrival_default"
@@ -3377,7 +3446,7 @@ def attack_arrival_prompt(
                     [
                         {
                             "text": (
-                                "✏️ Ввести другую дату"
+                                "✏️ Ввести другое время"
                             ),
                             "callback_data": (
                                 "attack_arrival_manual"
@@ -3397,10 +3466,13 @@ def attack_arrival_prompt(
                 chat_id,
                 (
                     "🕒 <b>Когда прибывают войска?</b>\n\n"
-                    f"Последнее значение: "
+                    "Последнее введённое время "
+                    "входящей атаки:\n"
                     f"<code>{html.escape(last_arrival)}</code>\n\n"
-                    "Можно использовать его или "
-                    "ввести другую дату и время.\n\n"
+                    "Если это та же операция — просто "
+                    "нажмите на время.\n\n"
+                    "Если время другое — выберите "
+                    "«Ввести другое время».\n\n"
                     "Указывайте именно серверное "
                     "время Travian."
                 ),
@@ -3413,9 +3485,13 @@ def attack_arrival_prompt(
         chat_id,
         (
             "🕒 <b>Когда прибывают войска?</b>\n\n"
+            "Для этой операции пока нет сохранённого "
+            "общего времени.\n\n"
             "Введите серверную дату и время "
             "прибытия атаки.\n\n"
-            "Указывайте именно время сервера Travian, "
+            "После ввода это время станет доступно "
+            "всем следующим игрокам как готовый вариант.\n\n"
+            "Указывайте именно серверное время Travian, "
             "а не ваше локальное время.\n\n"
             "Формат:\n"
             "<code>14.09.2026 02:05:25</code>"
@@ -3434,13 +3510,7 @@ def attack_arrival_default(
         user_id,
     )
 
-    preferences, key, user_preferences = get_user_preferences(
-        user_id
-    )
-
-    value = user_preferences.get(
-        "last_arrival_datetime"
-    )
+    value = get_shared_last_arrival_datetime()
 
     arrival = (
         parse_arrival_datetime(value)
@@ -3498,9 +3568,13 @@ def attack_arrival_manual(
     send_message(
         chat_id,
         (
+            "✏️ <b>Новое время входящей атаки</b>\n\n"
             "Введите серверную дату и время "
             "прибытия атаки.\n\n"
-            "Указывайте именно время сервера Travian.\n\n"
+            "После ввода это значение станет "
+            "последним общим временем для всех игроков.\n\n"
+            "Указывайте именно серверное время "
+            "Travian.\n\n"
             "Формат:\n"
             "<code>14.09.2026 02:05:25</code>"
         ),
@@ -3771,7 +3845,7 @@ def start_manual_arena(
         chat_id,
         (
             "🏟 <b>Установка Арены</b>\n\n"
-            "Выберите вражеский оффер:"
+            "Выберите вражеского оффера:"
         ),
         reply_markup=offers_keyboard(
             "manual_offer"
@@ -4994,11 +5068,13 @@ def process_message(
                 )
             )
 
-            remember_arrival_datetime(
-                user_id,
+            # ВАЖНО:
+            # Теперь это значение сохраняется
+            # как общее для всех игроков.
+            remember_shared_arrival_datetime(
                 session[
                     "arrival_datetime_text"
-                ],
+                ]
             )
 
             session["step"] = (
@@ -5202,10 +5278,6 @@ def process_message(
                 detected_datetime
             )
 
-            # Если игрок был офлайн настолько долго,
-            # что предполагаемое время отправки уже
-            # получается после времени прибытия, это
-            # физически невозможно.
             if (
                 possible_send_to_datetime
                 >= arrival_datetime
@@ -5253,9 +5325,6 @@ def process_message(
 
                 return
 
-            # Для совместимости оставляем в session
-            # точечное время в пути от момента
-            # обнаружения до прибытия.
             travel_seconds = min_travel_seconds
 
             session[
@@ -5318,9 +5387,6 @@ def process_message(
                 max_travel_seconds
             )
 
-            # Дата отчёта теперь берётся
-            # непосредственно из введённой
-            # пользователем серверной даты.
             session[
                 "report_date"
             ] = detected_datetime.strftime(
