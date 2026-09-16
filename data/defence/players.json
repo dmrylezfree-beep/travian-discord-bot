@@ -3,11 +3,19 @@
     "telegram_id": 317595036,
     "username": "dmrylez",
     "first_name": "Дмитрий",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "30 40",
+        "arena": 15,
+        "troops": {},
+        "hero": {
+          "present": false,
+          "standard_bonus": 0,
+          "boots_bonus": 0
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "30 40"
-    }
+    "state": null
   }
 }
