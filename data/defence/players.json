@@ -12,7 +12,7 @@
           "druidrider": 3000
         },
         "hero": {
-          "present": false,
+          "present": true,
           "standard_bonus": 0,
           "boots_bonus": 0
         }
