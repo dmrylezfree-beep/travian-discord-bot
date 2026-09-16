@@ -17,18 +17,9 @@ REQUESTS_FILE = DATA_DIR / "requests.json"
 API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
 RACES = {
-    "gaul": {
-        "name": "Галл",
-        "units": ["phalanx", "druidrider", "haeduan"],
-    },
-    "teuton": {
-        "name": "Германец",
-        "units": ["spearman", "paladin"],
-    },
-    "roman": {
-        "name": "Римлянин",
-        "units": ["legionnaire", "praetorian", "equites_caesaris"],
-    },
+    "gaul": {"name": "Галл", "units": ["phalanx", "druidrider", "haeduan"]},
+    "teuton": {"name": "Германец", "units": ["spearman", "paladin"]},
+    "roman": {"name": "Римлянин", "units": ["legionnaire", "praetorian", "equites_caesaris"]},
 }
 
 
@@ -84,12 +75,7 @@ def tg(method, **kwargs):
 
 
 def send(chat_id, text, reply_markup=None, thread_id=THREAD_ID, force_reply=False):
-    args = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "message_thread_id": thread_id,
-    }
+    args = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "message_thread_id": thread_id}
     if force_reply:
         args["reply_markup"] = json.dumps({"force_reply": True, "selective": False}, ensure_ascii=False)
     elif reply_markup:
@@ -104,9 +90,13 @@ def edit(chat_id, message_id, text, reply_markup=None):
     return tg("editMessageText", **args)
 
 
-def answer_callback(callback_id):
+def answer_callback(callback_id, text=None):
     try:
-        tg("answerCallbackQuery", callback_query_id=callback_id)
+        kwargs = {"callback_query_id": callback_id}
+        if text:
+            kwargs["text"] = text
+            kwargs["show_alert"] = False
+        tg("answerCallbackQuery", **kwargs)
     except Exception:
         pass
 
@@ -123,6 +113,7 @@ def main_menu():
     return kb([
         [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
         [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
+        [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
     ])
 
 
@@ -154,13 +145,11 @@ def get_player(user):
 
 
 def race_name(player):
-    race = player.get("race")
-    return RACES.get(race, {}).get("name", "не выбрана")
+    return RACES.get(player.get("race"), {}).get("name", "не выбрана")
 
 
 def allowed_units(player):
-    race = player.get("race")
-    return RACES.get(race, {}).get("units", [])
+    return RACES.get(player.get("race"), {}).get("units", [])
 
 
 def race_keyboard():
@@ -211,9 +200,8 @@ def villages_kb(player, prefix="village"):
 
 def unit_text(v, player):
     units = settings().get("units", {})
-    allowed = allowed_units(player)
     lines = [f"<b>🏘 Деревня {v.get('coordinates')}</b>", f"Арена: {v.get('arena', 0)}", "", "<b>Войска:</b>"]
-    for key in allowed:
+    for key in allowed_units(player):
         unit = units.get(key)
         if not unit:
             continue
@@ -242,12 +230,10 @@ def unit_keyboard(index, player):
 
 def hero_text(v):
     h = v.get("hero", {})
-    return (
-        f"<b>🦸 Герой — {v.get('coordinates')}</b>\n\n"
-        f"Герой в этой деревне: <b>{'да' if h.get('present') else 'нет'}</b>\n"
-        f"🚩 Штандарт: <b>+{int(h.get('standard_bonus',0)*100)}%</b>\n"
-        f"🥾 Сапоги: <b>+{int(h.get('boots_bonus',0)*100)}%</b>"
-    )
+    return (f"<b>🦸 Герой — {v.get('coordinates')}</b>\n\n"
+            f"Герой в этой деревне: <b>{'да' if h.get('present') else 'нет'}</b>\n"
+            f"🚩 Штандарт: <b>+{int(h.get('standard_bonus',0)*100)}%</b>\n"
+            f"🥾 Сапоги: <b>+{int(h.get('boots_bonus',0)*100)}%</b>")
 
 
 def hero_keyboard(idx):
@@ -288,7 +274,6 @@ def process_text(message):
     data, player = get_player(user)
     state = player.get("state")
     chat_id = message["chat"]["id"]
-
     if text.startswith("/start") or text.startswith("/def"):
         player["state"] = None
         save_players(data)
@@ -296,7 +281,6 @@ def process_text(message):
         return
     if not state:
         return
-
     if state == "add_village_coords":
         coords = parse_coords(text)
         if coords is None:
@@ -306,7 +290,6 @@ def process_text(message):
         save_players(data)
         send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
         return
-
     typ = state.get("type") if isinstance(state, dict) else None
     if typ == "add_village_arena":
         arena = to_int(text)
@@ -366,7 +349,6 @@ def process_text(message):
 
 
 def callback_query(q):
-    answer_callback(q["id"])
     message = q.get("message", {})
     if message.get("message_thread_id") != THREAD_ID:
         return
@@ -374,9 +356,12 @@ def callback_query(q):
     data, player = get_player(user)
     chat_id, msg_id = message["chat"]["id"], message["message_id"]
     action = q.get("data", "")
+    answer_callback(q["id"])
 
     if action == "menu":
         edit(chat_id, msg_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите раздел:", main_menu())
+    elif action == "my_id":
+        answer_callback(q["id"], f"Ваш Telegram ID: {user.get('id')}")
     elif action == "settings":
         edit(chat_id, msg_id, settings_text(player), settings_kb())
     elif action == "race_menu":
