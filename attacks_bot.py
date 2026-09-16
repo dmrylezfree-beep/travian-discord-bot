@@ -595,57 +595,51 @@ def load_reported_villages():
     """Возвращает только координаты, которые хотя бы раз были в отчёте."""
 
     attacks = load_attacks()
-    current_villages = load_alliance_villages()
 
-    by_vid = {
-        str(village["vid"]): village
-        for village in current_villages
-    }
-    by_coords = {
-        (village["x"], village["y"]): village
-        for village in current_villages
-    }
+    # Важно: здесь НЕ загружаем map.sql.
+    # Нажатие «Отчёт об атаке» должно работать даже если map.sql
+    # сейчас отсутствует или его обработка занимает много времени.
+    # Имя игрока берём непосредственно из уже сохранённого отчёта.
+    if not isinstance(attacks, list):
+        return []
 
     result = {}
     order = []
 
     for attack in attacks:
+        if not isinstance(attack, dict):
+            continue
+
         coords = attack.get("own_coords") or {}
-        x = safe_int(coords.get("x"))
-        y = safe_int(coords.get("y"))
+
+        # Поддерживаем как новый формат {"x": ..., "y": ...},
+        # так и старые отчёты, где координаты могли сохраниться списком/кортежем.
+        if isinstance(coords, dict):
+            x = safe_int(coords.get("x"))
+            y = safe_int(coords.get("y"))
+        elif isinstance(coords, (list, tuple)) and len(coords) >= 2:
+            x = safe_int(coords[0])
+            y = safe_int(coords[1])
+        else:
+            x = None
+            y = None
+
         if x is None or y is None:
             continue
 
-        # Координаты являются уникальным идентификатором пункта списка.
-        # Это также объединяет старые отчёты с ручным вводом и отчёты,
-        # где у деревни был сохранён vid.
         key = f"coords:{x}:{y}"
-        current = by_coords.get((x, y))
 
         item = {
             "key": key,
             "x": x,
             "y": y,
             "player_name": (
-                current.get("player_name")
-                if current
-                else attack.get("own_player_name")
-            ) or "Игрок не найден",
-            "player_uid": (
-                current.get("uid")
-                if current
-                else attack.get("own_player_uid")
+                attack.get("own_player_name")
+                or "Игрок не найден"
             ),
-            "village_id": (
-                current.get("vid")
-                if current
-                else attack.get("own_village_id")
-            ),
-            "village_name": (
-                current.get("village_name")
-                if current
-                else attack.get("own_village_name")
-            ),
+            "player_uid": attack.get("own_player_uid"),
+            "village_id": attack.get("own_village_id"),
+            "village_name": attack.get("own_village_name"),
             "last_report": attack.get("created_at") or "",
         }
 
