@@ -53,9 +53,9 @@
     "offer_id": "offer_6",
     "x": 55,
     "y": 46,
-    "arena": 0,
+    "arena": 15,
     "arena_source": "manual",
-    "arena_updated_at": "2026-09-16T16:13:37Z",
+    "arena_updated_at": "2026-09-16T16:29:32Z",
     "arena_status": "confirmed",
     "arena_reason": "Установлено вручную через Telegram.",
     "manually_added": true
