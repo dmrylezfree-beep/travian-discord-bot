@@ -122,14 +122,22 @@ def ensure_data():
         exist_ok=True,
     )
 
-    if not OFFERS_FILE.exists():
+    offers = load_json(
+        OFFERS_FILE,
+        {},
+    )
 
+    if not isinstance(offers, dict):
         offers = {}
 
-        for offer in ENEMY_OFFERS:
+    changed = False
 
-            offers[offer["id"]] = {
-                "offer_id": offer["id"],
+    for offer in ENEMY_OFFERS:
+        offer_id = offer["id"]
+
+        if offer_id not in offers or not isinstance(offers[offer_id], dict):
+            offers[offer_id] = {
+                "offer_id": offer_id,
                 "x": offer["x"],
                 "y": offer["y"],
                 "arena": 0,
@@ -138,7 +146,31 @@ def ensure_data():
                 "arena_status": "unknown",
                 "arena_reason": None,
             }
+            changed = True
+            continue
 
+        state = offers[offer_id]
+        for key, value in (
+            ("offer_id", offer_id),
+            ("x", offer["x"]),
+            ("y", offer["y"]),
+        ):
+            if state.get(key) != value:
+                state[key] = value
+                changed = True
+
+        for key, default in (
+            ("arena", 0),
+            ("arena_source", None),
+            ("arena_updated_at", None),
+            ("arena_status", "unknown"),
+            ("arena_reason", None),
+        ):
+            if key not in state:
+                state[key] = default
+                changed = True
+
+    if changed or not OFFERS_FILE.exists():
         save_json(
             OFFERS_FILE,
             offers,
@@ -164,6 +196,7 @@ def ensure_data():
             PREFERENCES_FILE,
             {},
         )
+
 
 
 def load_json(
@@ -223,6 +256,41 @@ def load_offers():
         OFFERS_FILE,
         {},
     )
+
+
+def get_all_offers():
+    """Возвращает все офферы из offers.json, включая добавленные вручную."""
+
+    offers = load_offers()
+    result = []
+    seen = set()
+
+    for offer in ENEMY_OFFERS:
+        offer_id = offer["id"]
+        state = offers.get(offer_id, {})
+        item = dict(offer)
+        if isinstance(state, dict):
+            if state.get("x") is not None:
+                item["x"] = state["x"]
+            if state.get("y") is not None:
+                item["y"] = state["y"]
+        result.append(item)
+        seen.add(offer_id)
+
+    for offer_id, state in offers.items():
+        if offer_id in seen or not isinstance(state, dict):
+            continue
+        x = safe_int(state.get("x"))
+        y = safe_int(state.get("y"))
+        if x is None or y is None:
+            continue
+        result.append({
+            "id": offer_id,
+            "x": x,
+            "y": y,
+        })
+
+    return result
 
 
 def load_attacks():
@@ -521,6 +589,118 @@ def load_alliance_villages():
     )
 
     return villages
+
+
+def load_reported_villages():
+    """Возвращает только координаты, которые хотя бы раз были в отчёте."""
+
+    attacks = load_attacks()
+    current_villages = load_alliance_villages()
+
+    by_vid = {
+        str(village["vid"]): village
+        for village in current_villages
+    }
+    by_coords = {
+        (village["x"], village["y"]): village
+        for village in current_villages
+    }
+
+    result = {}
+    order = []
+
+    for attack in attacks:
+        coords = attack.get("own_coords") or {}
+        x = safe_int(coords.get("x"))
+        y = safe_int(coords.get("y"))
+        if x is None or y is None:
+            continue
+
+        # Координаты являются уникальным идентификатором пункта списка.
+        # Это также объединяет старые отчёты с ручным вводом и отчёты,
+        # где у деревни был сохранён vid.
+        key = f"coords:{x}:{y}"
+        current = by_coords.get((x, y))
+
+        item = {
+            "key": key,
+            "x": x,
+            "y": y,
+            "player_name": (
+                current.get("player_name")
+                if current
+                else attack.get("own_player_name")
+            ) or "Игрок не найден",
+            "player_uid": (
+                current.get("uid")
+                if current
+                else attack.get("own_player_uid")
+            ),
+            "village_id": (
+                current.get("vid")
+                if current
+                else attack.get("own_village_id")
+            ),
+            "village_name": (
+                current.get("village_name")
+                if current
+                else attack.get("own_village_name")
+            ),
+            "last_report": attack.get("created_at") or "",
+        }
+
+        if key not in result:
+            order.append(key)
+        result[key] = item
+
+    return [result[key] for key in reversed(order)]
+
+
+def reported_villages_keyboard():
+    villages = load_reported_villages()
+    keyboard = []
+
+    for village in villages:
+        player_name = html.escape(
+            str(village.get("player_name") or "Игрок не найден")
+        )
+        keyboard.append([
+            {
+                "text": (
+                    f"🏠 {village['x']} {village['y']} — "
+                    f"{player_name}"
+                ),
+                "callback_data": (
+                    f"attack_reported:{village['x']}:{village['y']}"
+                ),
+            }
+        ])
+
+    if not villages:
+        keyboard.append([
+            {
+                "text": "ℹ️ Пока нет сохранённых деревень",
+                "callback_data": "attack_manual_coords",
+            }
+        ])
+
+    keyboard.append([
+        {
+            "text": "✏️ Ввести координаты вручную",
+            "callback_data": "attack_manual_coords",
+        }
+    ])
+
+    keyboard.append([
+        {
+            "text": "❌ Отмена",
+            "callback_data": "menu",
+        }
+    ])
+
+    return {
+        "inline_keyboard": keyboard
+    }
 
 
 def alliance_players_keyboard(user_id):
@@ -1227,13 +1407,12 @@ def extract_insert_rows(
 def load_offer_owners():
 
     rows = load_latest_map_rows()
-
     target_coordinates = {
         (
             offer["x"],
             offer["y"],
         )
-        for offer in ENEMY_OFFERS
+        for offer in get_all_offers()
     }
 
     owners = {}
@@ -1285,6 +1464,7 @@ def load_offer_owners():
         )
 
     return owners
+
 
 
 offer_owners = {}
@@ -1404,7 +1584,8 @@ def input_keyboard():
 
     return {
         "force_reply": True,
-        "selective": True,
+        "selective": False,
+        "input_field_placeholder": "Введите ответ…",
     }
 
 
@@ -1427,7 +1608,7 @@ def cancel_keyboard():
 # ============================================================
 
 COORDINATE_RE = re.compile(
-    r"^\s*(-?\d+)\s*\|\s*(-?\d+)\s*$"
+    r"^\s*(-?\d+)\s+(-?\d+)\s*$"
 )
 
 DATETIME_RE = re.compile(
@@ -2082,10 +2263,11 @@ def offers_keyboard(
 ):
 
     offers = load_offers()
+    all_offers = get_all_offers()
 
     keyboard = []
 
-    for offer in ENEMY_OFFERS:
+    for offer in all_offers:
 
         state = offers.get(
             offer["id"],
@@ -2126,13 +2308,23 @@ def offers_keyboard(
                 {
                     "text": (
                         f"{owner_text} — "
-                        f"({offer['x']}|{offer['y']}) — "
+                        f"({offer['x']} {offer['y']}) — "
                         f"A{arena_text}"
                     ),
                     "callback_data": (
                         f"{prefix}:"
                         f"{offer['id']}"
                     ),
+                }
+            ]
+        )
+
+    if prefix == "attack_offer":
+        keyboard.append(
+            [
+                {
+                    "text": "✏️ Ввести координаты оффера",
+                    "callback_data": "attack_manual_offer",
                 }
             ]
         )
@@ -2149,6 +2341,7 @@ def offers_keyboard(
     return {
         "inline_keyboard": keyboard
     }
+
 
 
 # ============================================================
@@ -2974,12 +3167,6 @@ def main_menu():
                 }
             ],
 
-            [
-                {
-                    "text": "📊 Состояние офферов",
-                    "callback_data": "offers_status",
-                }
-            ],
 
         ]
     }
@@ -3005,8 +3192,7 @@ def start_attack_report(
     )
 
     session["flow"] = "attack"
-
-    session["step"] = "player"
+    session["step"] = "reported_village"
 
     if OUR_ALLIANCE_ID == 0:
 
@@ -3016,21 +3202,15 @@ def start_attack_report(
                 "📥 <b>Отчёт об атаке</b>\n\n"
                 "⚠️ В настройках бота не указан "
                 "<code>OUR_ALLIANCE_ID</code>.\n\n"
-                "Пока можно использовать ручной ввод "
-                "координат. Для автоматического списка "
-                "игроков укажите ID вашего альянса "
-                "в настройках."
+                "Введите координаты вашей деревни вручную.\n"
+                "Формат: <code>46 -62</code>"
             ),
             reply_markup={
                 "inline_keyboard": [
                     [
                         {
-                            "text": (
-                                "✏️ Ввести координаты вручную"
-                            ),
-                            "callback_data": (
-                                "attack_manual_coords"
-                            ),
+                            "text": "✏️ Ввести координаты вручную",
+                            "callback_data": "attack_manual_coords",
                         }
                     ],
                     [
@@ -3049,12 +3229,13 @@ def start_attack_report(
         chat_id,
         (
             "📥 <b>Отчёт об атаке</b>\n\n"
-            "Выберите игрока вашего альянса:"
+            "Выберите деревню из списка.\n"
+            "Здесь отображаются только деревни, которые "
+            "хотя бы один раз были внесены в отчёт об атаке."
         ),
-        reply_markup=alliance_players_keyboard(
-            user_id
-        ),
+        reply_markup=reported_villages_keyboard(),
     )
+
 
 
 def attack_player_selected(
@@ -3194,6 +3375,164 @@ def attack_village_selected(
     )
 
 
+def attack_reported_village_selected(
+    chat_id,
+    user_id,
+    x,
+    y,
+):
+
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    villages = load_alliance_villages()
+    village = next(
+        (
+            item
+            for item in villages
+            if item["x"] == x and item["y"] == y
+        ),
+        None,
+    )
+
+    session["own_player_uid"] = (
+        village["uid"] if village else None
+    )
+    session["own_player_name"] = (
+        village["player_name"] if village else None
+    )
+    session["own_village_id"] = (
+        village["vid"] if village else None
+    )
+    session["own_village_name"] = (
+        village["village_name"] if village else None
+    )
+    session["own_coords"] = (x, y)
+
+    attack_choose_offer(
+        chat_id,
+        user_id,
+    )
+
+
+def attack_manual_offer_start(
+    chat_id,
+    user_id,
+):
+
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+
+    session["step"] = "offer_manual_coords"
+
+    send_message(
+        chat_id,
+        (
+            "✏️ <b>Новый вражеский оффер</b>\n\n"
+            "Введите координаты деревни-оффера.\n\n"
+            "Координаты вводятся через пробел:\n"
+            "<code>46 -62</code>\n\n"
+            "После добавления оффер будет сохранён в базе.\n"
+            "Арена по умолчанию: <b>0</b> (неизвестна)."
+        ),
+        reply_markup=input_keyboard(),
+    )
+
+
+def add_or_get_manual_offer(
+    x,
+    y,
+):
+
+    offers = load_offers()
+
+    for offer_id, offer in offers.items():
+        if not isinstance(offer, dict):
+            continue
+        if (
+            safe_int(offer.get("x")) == x
+            and safe_int(offer.get("y")) == y
+        ):
+            return offer_id, False
+
+    offer_id = next_id(
+        list(offers.values()),
+        "offer",
+    )
+
+    offers[offer_id] = {
+        "offer_id": offer_id,
+        "x": x,
+        "y": y,
+        "arena": 0,
+        "arena_source": None,
+        "arena_updated_at": None,
+        "arena_status": "unknown",
+        "arena_reason": None,
+        "manually_added": True,
+    }
+
+    save_json(
+        OFFERS_FILE,
+        offers,
+    )
+
+    print(
+        f"Добавлен новый оффер: {offer_id} ({x} {y}), Арена 0.",
+        flush=True,
+    )
+
+    persist_attacks_data_to_github()
+
+    return offer_id, True
+
+
+def attack_manual_offer_selected(
+    chat_id,
+    user_id,
+    coords,
+):
+
+    x, y = coords
+    offer_id, created = add_or_get_manual_offer(x, y)
+
+    session = get_session(
+        chat_id,
+        user_id,
+    )
+    session["offer_id"] = offer_id
+    session["step"] = "waves"
+
+    offer = get_offer(offer_id)
+    owner = get_offer_owner(offer) if offer else None
+    owner_text = (
+        html.escape(owner)
+        if owner
+        else "Владелец не найден"
+    )
+
+    action_text = (
+        "добавлен в базу"
+        if created
+        else "уже есть в базе"
+    )
+
+    send_message(
+        chat_id,
+        (
+            f"✅ Оффер <b>({x} {y})</b> {action_text}.\n"
+            f"Владелец: <b>{owner_text}</b>\n"
+            f"Арена в базе: <b>{offer.get('arena', 0)}</b>\n\n"
+            "Сколько входящих волн?"
+        ),
+        reply_markup=attack_waves_keyboard(),
+    )
+
+
 def attack_manual_coords_start(
     chat_id,
     user_id,
@@ -3220,7 +3559,7 @@ def attack_manual_coords_start(
             "✏️ <b>Ручной ввод</b>\n\n"
             "Введите координаты вашей деревни.\n\n"
             "Например:\n"
-            "<code>46|-62</code>"
+            "<code>46 -62</code>"
         ),
         reply_markup=input_keyboard(),
     )
@@ -4634,6 +4973,45 @@ def process_callback(
 
         return
 
+    if data.startswith("attack_reported:"):
+        parts = data.split(":")
+        if len(parts) != 3:
+            send_message(
+                chat_id,
+                "❌ Некорректные координаты.",
+            )
+            return
+
+        x = parse_integer(parts[1])
+        y = parse_integer(parts[2])
+
+        if (
+            x is None
+            or y is None
+            or not (-200 <= x <= 200)
+            or not (-200 <= y <= 200)
+        ):
+            send_message(
+                chat_id,
+                "❌ Некорректные координаты.",
+            )
+            return
+
+        attack_reported_village_selected(
+            chat_id,
+            user_id,
+            x,
+            y,
+        )
+        return
+
+    if data == "attack_manual_offer":
+        attack_manual_offer_start(
+            chat_id,
+            user_id,
+        )
+        return
+
     if data == "attack_back_players":
 
         session = get_session(
@@ -4830,13 +5208,6 @@ def process_callback(
 
         return
 
-    if data == "offers_status":
-
-        show_offers_status(
-            chat_id
-        )
-
-        return
 
 
 # ============================================================
@@ -4981,7 +5352,7 @@ def process_message(
                     (
                         "❌ Неверный формат.\n\n"
                         "Введите координаты, например:\n"
-                        "<code>46|-62</code>"
+                        "<code>46 -62</code>"
                     ),
                     reply_markup=input_keyboard(),
                 )
@@ -4990,11 +5361,52 @@ def process_message(
 
             session["own_coords"] = coords
 
+            # Если ручные координаты соответствуют нашей деревне в map.sql,
+            # автоматически определяем игрока и village_id для истории.
+            matched_village = next(
+                (
+                    village
+                    for village in load_alliance_villages()
+                    if (village["x"], village["y"]) == coords
+                ),
+                None,
+            )
+
+            if matched_village:
+                session["own_player_uid"] = matched_village["uid"]
+                session["own_player_name"] = matched_village["player_name"]
+                session["own_village_id"] = matched_village["vid"]
+                session["own_village_name"] = matched_village["village_name"]
+
             attack_choose_offer(
                 chat_id,
                 user_id,
             )
 
+            return
+
+        if step == "offer_manual_coords":
+            coords = parse_coordinates(
+                text
+            )
+
+            if not coords:
+                send_message(
+                    chat_id,
+                    (
+                        "❌ Неверный формат координат.\n\n"
+                        "Введите два числа через пробел:\n"
+                        "<code>46 -62</code>"
+                    ),
+                    reply_markup=input_keyboard(),
+                )
+                return
+
+            attack_manual_offer_selected(
+                chat_id,
+                user_id,
+                coords,
+            )
             return
 
         if step in (
