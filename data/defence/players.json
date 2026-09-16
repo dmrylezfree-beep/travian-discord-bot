@@ -19,7 +19,11 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "unit_amount",
+      "index": 0,
+      "unit": "phalanx"
+    },
     "race": "gaul"
   }
 }
