@@ -13,7 +13,7 @@
         },
         "hero": {
           "present": true,
-          "standard_bonus": 0,
+          "standard_bonus": 0.15,
           "boots_bonus": 0
         }
       }
