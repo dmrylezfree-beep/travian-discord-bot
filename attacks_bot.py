@@ -509,10 +509,37 @@ def load_latest_map_rows():
 
 def safe_int(value, default=None):
 
-    value = unquote_sql_value(value)
+    # Значение может приходить как из SQL (строкой), так и из JSON
+    # (уже готовым int). unquote_sql_value() ожидает строку и поэтому
+    # на int выдаёт AttributeError: 'int' object has no attribute 'strip'.
+    if isinstance(value, bool):
+
+        return int(value)
+
+    if isinstance(value, int):
+
+        return value
+
+    if isinstance(value, float):
+
+        try:
+
+            return int(value)
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return default
+
+    if value is None:
+
+        return default
 
     try:
 
+        value = unquote_sql_value(str(value))
         return int(value)
 
     except (
