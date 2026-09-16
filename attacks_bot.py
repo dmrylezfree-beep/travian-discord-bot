@@ -595,51 +595,57 @@ def load_reported_villages():
     """Возвращает только координаты, которые хотя бы раз были в отчёте."""
 
     attacks = load_attacks()
+    current_villages = load_alliance_villages()
 
-    # Важно: здесь НЕ загружаем map.sql.
-    # Нажатие «Отчёт об атаке» должно работать даже если map.sql
-    # сейчас отсутствует или его обработка занимает много времени.
-    # Имя игрока берём непосредственно из уже сохранённого отчёта.
-    if not isinstance(attacks, list):
-        return []
+    by_vid = {
+        str(village["vid"]): village
+        for village in current_villages
+    }
+    by_coords = {
+        (village["x"], village["y"]): village
+        for village in current_villages
+    }
 
     result = {}
     order = []
 
     for attack in attacks:
-        if not isinstance(attack, dict):
-            continue
-
         coords = attack.get("own_coords") or {}
-
-        # Поддерживаем как новый формат {"x": ..., "y": ...},
-        # так и старые отчёты, где координаты могли сохраниться списком/кортежем.
-        if isinstance(coords, dict):
-            x = safe_int(coords.get("x"))
-            y = safe_int(coords.get("y"))
-        elif isinstance(coords, (list, tuple)) and len(coords) >= 2:
-            x = safe_int(coords[0])
-            y = safe_int(coords[1])
-        else:
-            x = None
-            y = None
-
+        x = safe_int(coords.get("x"))
+        y = safe_int(coords.get("y"))
         if x is None or y is None:
             continue
 
+        # Координаты являются уникальным идентификатором пункта списка.
+        # Это также объединяет старые отчёты с ручным вводом и отчёты,
+        # где у деревни был сохранён vid.
         key = f"coords:{x}:{y}"
+        current = by_coords.get((x, y))
 
         item = {
             "key": key,
             "x": x,
             "y": y,
             "player_name": (
-                attack.get("own_player_name")
-                or "Игрок не найден"
+                current.get("player_name")
+                if current
+                else attack.get("own_player_name")
+            ) or "Игрок не найден",
+            "player_uid": (
+                current.get("uid")
+                if current
+                else attack.get("own_player_uid")
             ),
-            "player_uid": attack.get("own_player_uid"),
-            "village_id": attack.get("own_village_id"),
-            "village_name": attack.get("own_village_name"),
+            "village_id": (
+                current.get("vid")
+                if current
+                else attack.get("own_village_id")
+            ),
+            "village_name": (
+                current.get("village_name")
+                if current
+                else attack.get("own_village_name")
+            ),
             "last_report": attack.get("created_at") or "",
         }
 
@@ -3194,10 +3200,8 @@ def start_attack_report(
             chat_id,
             (
                 "📥 <b>Отчёт об атаке</b>\n\n"
-
                 "⚠️ В настройках бота не указан "
                 "<code>OUR_ALLIANCE_ID</code>.\n\n"
-
                 "Введите координаты вашей деревни вручную.\n"
                 "Формат: <code>46 -62</code>"
             ),
@@ -3227,10 +3231,9 @@ def start_attack_report(
             "📥 <b>Отчёт об атаке</b>\n\n"
             "Выберите игрока вашего альянса:"
         ),
-        reply_markup=alliance_players_keyboard(
-            user_id
-        ),
+        reply_markup=alliance_players_keyboard(user_id),
     )
+
 
 
 def attack_player_selected(
@@ -3454,10 +3457,31 @@ def add_or_get_manual_offer(
         ):
             return offer_id, False
 
-    offer_id = next_id(
-        list(offers.values()),
-        "offer",
-    )
+    # В offers.json идентификатор хранится одновременно в ключе
+    # словаря и в поле offer_id. Универсальная next_id() смотрит
+    # только на поле id, поэтому для офферов она могла снова
+    # вернуть offer_1 и перезаписать существующий оффер.
+    highest = 0
+
+    for existing_id, state in offers.items():
+        candidates = [
+            existing_id,
+            state.get("id") if isinstance(state, dict) else None,
+            state.get("offer_id") if isinstance(state, dict) else None,
+        ]
+
+        for candidate in candidates:
+            match = re.match(
+                r"^offer_(\d+)$",
+                str(candidate or ""),
+            )
+            if match:
+                highest = max(
+                    highest,
+                    int(match.group(1)),
+                )
+
+    offer_id = f"offer_{highest + 1}"
 
     offers[offer_id] = {
         "offer_id": offer_id,
@@ -3500,7 +3524,6 @@ def attack_manual_offer_selected(
         user_id,
     )
     session["offer_id"] = offer_id
-    session["step"] = "waves"
 
     offer = get_offer(offer_id)
     owner = get_offer_owner(offer) if offer else None
@@ -3516,15 +3539,24 @@ def attack_manual_offer_selected(
         else "уже есть в базе"
     )
 
+    # После создания нового оффера сначала обязательно задаём
+    # его Арену. Используем уже существующий flow manual_arena,
+    # чтобы применить ту же проверку 0..20 и то же сохранение
+    # в GitHub, что и при обычной установке Арены.
+    session["flow"] = "manual_arena"
+    session["step"] = "arena_value"
+
+    current_arena = offer.get("arena", 0) if offer else 0
+
     send_message(
         chat_id,
         (
-            f"✅ Оффер <b>({x} {y})</b> {action_text}.\n"
+            f"✅ Оффер <b>({x}|{y})</b> {action_text}.\n"
             f"Владелец: <b>{owner_text}</b>\n"
-            f"Арена в базе: <b>{offer.get('arena', 0)}</b>\n\n"
-            "Сколько входящих волн?"
+            f"Текущая Арена: <b>{current_arena}</b>\n\n"
+            "Теперь введите уровень Арены от 0 до 20."
         ),
-        reply_markup=attack_waves_keyboard(),
+        reply_markup=input_keyboard(),
     )
 
 
