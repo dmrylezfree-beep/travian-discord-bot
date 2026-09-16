@@ -76,7 +76,7 @@ def send(chat_id, text, reply_markup=None, thread_id=THREAD_ID, force_reply=Fals
         "message_thread_id": thread_id,
     }
     if force_reply:
-        args["reply_markup"] = json.dumps({"force_reply": True, "selective": True}, ensure_ascii=False)
+        args["reply_markup"] = json.dumps({"force_reply": True, "selective": False}, ensure_ascii=False)
     elif reply_markup:
         args["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
     return tg("sendMessage", **args)
