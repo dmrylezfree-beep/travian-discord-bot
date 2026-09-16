@@ -48,5 +48,16 @@
     "arena_updated_at": "2026-09-13T09:36:43Z",
     "arena_status": "confirmed",
     "arena_reason": "Установлено вручную через Telegram."
+  },
+  "offer_6": {
+    "offer_id": "offer_6",
+    "x": 55,
+    "y": 46,
+    "arena": 0,
+    "arena_source": null,
+    "arena_updated_at": null,
+    "arena_status": "unknown",
+    "arena_reason": null,
+    "manually_added": true
   }
 }
