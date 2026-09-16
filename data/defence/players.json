@@ -19,7 +19,10 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "arena",
+      "index": 0
+    },
     "race": null
   }
 }
