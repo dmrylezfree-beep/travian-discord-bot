@@ -23,11 +23,11 @@
     "offer_id": "offer_3",
     "x": -8,
     "y": 69,
-    "arena": 0,
-    "arena_source": null,
-    "arena_updated_at": null,
-    "arena_status": "unknown",
-    "arena_reason": null
+    "arena": 13,
+    "arena_source": "manual",
+    "arena_updated_at": "2026-09-16T15:27:34Z",
+    "arena_status": "confirmed",
+    "arena_reason": "Установлено вручную через Telegram."
   },
   "offer_4": {
     "offer_id": "offer_4",
