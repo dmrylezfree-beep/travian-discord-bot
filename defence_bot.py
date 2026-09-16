@@ -361,7 +361,7 @@ def callback_query(q):
     if action == "menu":
         edit(chat_id, msg_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите раздел:", main_menu())
     elif action == "my_id":
-        answer_callback(q["id"], f"Ваш Telegram ID: {user.get('id')}")
+        send(chat_id, f"🆔 Ваш Telegram ID: <code>{user.get('id')}</code>")
     elif action == "settings":
         edit(chat_id, msg_id, settings_text(player), settings_kb())
     elif action == "race_menu":
