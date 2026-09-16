@@ -3186,7 +3186,7 @@ def start_attack_report(
     )
 
     session["flow"] = "attack"
-    session["step"] = "reported_village"
+    session["step"] = "player"
 
     if OUR_ALLIANCE_ID == 0:
 
@@ -3194,8 +3194,10 @@ def start_attack_report(
             chat_id,
             (
                 "📥 <b>Отчёт об атаке</b>\n\n"
+
                 "⚠️ В настройках бота не указан "
                 "<code>OUR_ALLIANCE_ID</code>.\n\n"
+
                 "Введите координаты вашей деревни вручную.\n"
                 "Формат: <code>46 -62</code>"
             ),
@@ -3223,13 +3225,12 @@ def start_attack_report(
         chat_id,
         (
             "📥 <b>Отчёт об атаке</b>\n\n"
-            "Выберите деревню из списка.\n"
-            "Здесь отображаются только деревни, которые "
-            "хотя бы один раз были внесены в отчёт об атаке."
+            "Выберите игрока вашего альянса:"
         ),
-        reply_markup=reported_villages_keyboard(),
+        reply_markup=alliance_players_keyboard(
+            user_id
+        ),
     )
-
 
 
 def attack_player_selected(
