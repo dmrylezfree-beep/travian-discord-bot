@@ -8,7 +8,8 @@
         "coordinates": "30 40",
         "arena": 15,
         "troops": {
-          "phalanx": 10000
+          "phalanx": 10000,
+          "druidrider": 3000
         },
         "hero": {
           "present": false,
@@ -18,10 +19,6 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "unit_amount",
-      "index": 0,
-      "unit": "druidrider"
-    }
+    "state": null
   }
 }
