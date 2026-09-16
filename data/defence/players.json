@@ -5,6 +5,9 @@
     "first_name": "Дмитрий",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords"
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "30 40"
+    }
   }
 }
