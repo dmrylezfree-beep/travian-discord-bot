@@ -3505,7 +3505,10 @@ def add_or_get_manual_offer(
         flush=True,
     )
 
-    persist_attacks_data_to_github()
+    # Не выполняем Git push здесь. GitHub-операции могут занять
+    # заметное время и блокируют polling Telegram. Сначала возвращаем
+    # управление в Telegram и показываем пользователю результат,
+    # а сохранение в GitHub выполняем после отправки сообщения.
 
     return offer_id, True
 
@@ -3558,6 +3561,11 @@ def attack_manual_offer_selected(
         ),
         reply_markup=input_keyboard(),
     )
+
+    # Только после ответа пользователю синхронизируем изменённые
+    # данные с GitHub. Локальный offers.json уже сохранён выше.
+    if created:
+        persist_attacks_data_to_github()
 
 
 def attack_manual_coords_start(
