@@ -16,6 +16,21 @@ PLAYERS_FILE = DATA_DIR / "players.json"
 REQUESTS_FILE = DATA_DIR / "requests.json"
 API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
+RACES = {
+    "gaul": {
+        "name": "Галл",
+        "units": ["phalanx", "druidrider", "haeduan"],
+    },
+    "teuton": {
+        "name": "Германец",
+        "units": ["spearman", "paladin"],
+    },
+    "roman": {
+        "name": "Римлянин",
+        "units": ["legionnaire", "praetorian", "equites_caesaris"],
+    },
+}
+
 
 def load_json(path, default):
     try:
@@ -116,6 +131,7 @@ def player_default(user):
         "telegram_id": user["id"],
         "username": user.get("username", ""),
         "first_name": user.get("first_name", ""),
+        "race": None,
         "villages": [],
         "substitutes": [],
         "state": None,
@@ -129,13 +145,36 @@ def get_player(user):
         data[key] = player_default(user)
     data[key]["username"] = user.get("username", data[key].get("username", ""))
     data[key]["first_name"] = user.get("first_name", data[key].get("first_name", ""))
+    data[key].setdefault("race", None)
+    data[key].setdefault("villages", [])
+    data[key].setdefault("substitutes", [])
+    data[key].setdefault("state", None)
     save_json(PLAYERS_FILE, data)
     return data, data[key]
 
 
+def race_name(player):
+    race = player.get("race")
+    return RACES.get(race, {}).get("name", "не выбрана")
+
+
+def allowed_units(player):
+    race = player.get("race")
+    return RACES.get(race, {}).get("units", [])
+
+
+def race_keyboard():
+    return kb([
+        [{"text": "🇫🇷 Галл", "callback_data": "race:gaul"}],
+        [{"text": "🇩🇪 Германец", "callback_data": "race:teuton"}],
+        [{"text": "🇮🇹 Римлянин", "callback_data": "race:roman"}],
+        [{"text": "⬅️ Назад", "callback_data": "settings"}],
+    ])
+
+
 def settings_text(player):
     units = settings().get("units", {})
-    lines = ["<b>🛡 Мои настройки дефа</b>", ""]
+    lines = ["<b>🛡 Мои настройки дефа</b>", "", f"🧬 Раса: <b>{race_name(player)}</b>"]
     villages = player.get("villages", [])
     if not villages:
         lines.append("Деревни пока не добавлены.")
@@ -154,6 +193,7 @@ def settings_text(player):
 
 def settings_kb():
     return kb([
+        [{"text": "🧬 Выбрать расу", "callback_data": "race_menu"}],
         [{"text": "➕ Добавить деревню", "callback_data": "add_village"}],
         [{"text": "✏️ Изменить деревню", "callback_data": "edit_village"}],
         [{"text": "🗑 Удалить деревню", "callback_data": "delete_village"}],
@@ -169,10 +209,14 @@ def villages_kb(player, prefix="village"):
     return kb(rows)
 
 
-def unit_text(v):
+def unit_text(v, player):
     units = settings().get("units", {})
+    allowed = allowed_units(player)
     lines = [f"<b>🏘 Деревня {v.get('coordinates')}</b>", f"Арена: {v.get('arena', 0)}", "", "<b>Войска:</b>"]
-    for key, unit in units.items():
+    for key in allowed:
+        unit = units.get(key)
+        if not unit:
+            continue
         amount = int(v.get("troops", {}).get(key, 0) or 0)
         if amount:
             lines.append(f"{unit['name']}: <b>{amount}</b> — {unit['speed']} полей/ч")
@@ -181,10 +225,13 @@ def unit_text(v):
     return "\n".join(lines)
 
 
-def unit_keyboard(index):
+def unit_keyboard(index, player):
     rows = []
-    for key, unit in settings().get("units", {}).items():
-        rows.append([{"text": unit["name"], "callback_data": f"unit:{index}:{key}"}])
+    units = settings().get("units", {})
+    for key in allowed_units(player):
+        unit = units.get(key)
+        if unit:
+            rows.append([{"text": unit["name"], "callback_data": f"unit:{index}:{key}"}])
     rows += [
         [{"text": "✏️ Координаты", "callback_data": f"coords:{index}"}, {"text": "✏️ Арена", "callback_data": f"arena:{index}"}],
         [{"text": "🦸 Герой и предметы", "callback_data": f"hero:{index}"}],
@@ -270,7 +317,7 @@ def process_text(message):
         idx = len(player["villages"]) - 1
         player["state"] = None
         save_players(data)
-        send(chat_id, unit_text(player["villages"][idx]), unit_keyboard(idx))
+        send(chat_id, unit_text(player["villages"][idx], player), unit_keyboard(idx, player))
     elif typ == "unit_amount":
         amount = to_int(text)
         if amount is None or amount < 0:
@@ -279,10 +326,15 @@ def process_text(message):
         idx, unit = state["index"], state["unit"]
         if idx >= len(player["villages"]):
             return
+        if unit not in allowed_units(player):
+            player["state"] = None
+            save_players(data)
+            send(chat_id, "Этот юнит не доступен для выбранной расы.", unit_keyboard(idx, player))
+            return
         player["villages"][idx].setdefault("troops", {})[unit] = amount
         player["state"] = None
         save_players(data)
-        send(chat_id, unit_text(player["villages"][idx]), unit_keyboard(idx))
+        send(chat_id, unit_text(player["villages"][idx], player), unit_keyboard(idx, player))
     elif typ == "subs":
         ids = [x.strip() for x in text.split(",") if x.strip()]
         if len(ids) > 2 or any(to_int(x) is None or to_int(x) <= 0 for x in ids):
@@ -310,7 +362,7 @@ def process_text(message):
             player["villages"][idx]["arena"] = value
         player["state"] = None
         save_players(data)
-        send(chat_id, unit_text(player["villages"][idx]), unit_keyboard(idx))
+        send(chat_id, unit_text(player["villages"][idx], player), unit_keyboard(idx, player))
 
 
 def callback_query(q):
@@ -327,9 +379,26 @@ def callback_query(q):
         edit(chat_id, msg_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите раздел:", main_menu())
     elif action == "settings":
         edit(chat_id, msg_id, settings_text(player), settings_kb())
+    elif action == "race_menu":
+        edit(chat_id, msg_id, "<b>🧬 Выбор расы</b>\n\nВыберите вашу расу. После смены расы список доступных юнитов во всех ваших деревнях будет автоматически отфильтрован.", race_keyboard())
+    elif action.startswith("race:"):
+        race = action.split(":", 1)[1]
+        if race not in RACES:
+            return
+        player["race"] = race
+        allowed = set(allowed_units(player))
+        for village in player.get("villages", []):
+            troops = village.setdefault("troops", {})
+            village["troops"] = {key: value for key, value in troops.items() if key in allowed}
+        player["state"] = None
+        save_players(data)
+        edit(chat_id, msg_id, settings_text(player), settings_kb())
     elif action == "villages":
         edit(chat_id, msg_id, "<b>🏘 Мои деревни</b>\n\nВыберите деревню:", villages_kb(player))
     elif action == "add_village":
+        if not player.get("race"):
+            edit(chat_id, msg_id, "<b>🧬 Сначала выберите расу</b>\n\nОт выбранной расы зависит список доступных оборонительных войск для всех деревень.", race_keyboard())
+            return
         player["state"] = "add_village_coords"
         save_players(data)
         send(chat_id, "Введите координаты новой деревни через пробел, например <code>45 -62</code>:", force_reply=True)
@@ -348,11 +417,14 @@ def callback_query(q):
     elif action.startswith("village:"):
         idx = int(action.split(":", 1)[1])
         if 0 <= idx < len(player.get("villages", [])):
-            edit(chat_id, msg_id, unit_text(player["villages"][idx]), unit_keyboard(idx))
+            edit(chat_id, msg_id, unit_text(player["villages"][idx], player), unit_keyboard(idx, player))
     elif action.startswith("unit:"):
         _, idx, unit = action.split(":", 2)
         idx = int(idx)
         if idx < len(player["villages"]):
+            if unit not in allowed_units(player) or unit not in settings().get("units", {}):
+                edit(chat_id, msg_id, unit_text(player["villages"][idx], player), unit_keyboard(idx, player))
+                return
             player["state"] = {"type": "unit_amount", "index": idx, "unit": unit}
             save_players(data)
             name = settings()["units"][unit]["name"]
@@ -360,14 +432,16 @@ def callback_query(q):
             send(chat_id, f"Введите количество <b>{name}</b>. Сейчас: <b>{current}</b>", force_reply=True)
     elif action.startswith("coords:"):
         idx = int(action.split(":", 1)[1])
-        player["state"] = {"type": "coords", "index": idx}
-        save_players(data)
-        send(chat_id, "Введите новые координаты через пробел, например <code>45 -62</code>:", force_reply=True)
+        if idx < len(player["villages"]):
+            player["state"] = {"type": "coords", "index": idx}
+            save_players(data)
+            send(chat_id, "Введите новые координаты через пробел, например <code>45 -62</code>:", force_reply=True)
     elif action.startswith("arena:"):
         idx = int(action.split(":", 1)[1])
-        player["state"] = {"type": "arena", "index": idx}
-        save_players(data)
-        send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
+        if idx < len(player["villages"]):
+            player["state"] = {"type": "arena", "index": idx}
+            save_players(data)
+            send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
     elif action.startswith("hero:"):
         idx = int(action.split(":", 1)[1])
         if idx < len(player["villages"]):
