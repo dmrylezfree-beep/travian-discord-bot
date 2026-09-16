@@ -1,0 +1,38 @@
+{
+  "thread_id": 38636,
+  "map_size": 401,
+  "world_speed_multiplier": 1.0,
+  "arena": {
+    "starts_after_fields": 20,
+    "bonus_per_level": 0.20
+  },
+  "hero_items": {
+    "standard_options": [0.15, 0.20, 0.25],
+    "boots_options": [0.25, 0.50, 0.75]
+  },
+  "units": {
+    "legionnaire": {"name": "Легионер", "tribe": "Римляне", "speed": 7, "def_inf": 40, "def_cav": 55},
+    "praetorian": {"name": "Преторианец", "tribe": "Римляне", "speed": 6, "def_inf": 65, "def_cav": 35},
+    "imperian": {"name": "Империанец", "tribe": "Римляне", "speed": 7, "def_inf": 40, "def_cav": 25},
+    "equites_legati": {"name": "Конный разведчик", "tribe": "Римляне", "speed": 16, "def_inf": 20, "def_cav": 10},
+    "equites_imperatoris": {"name": "Конница императора", "tribe": "Римляне", "speed": 15, "def_inf": 65, "def_cav": 50},
+    "equites_caesaris": {"name": "Конница Цезаря", "tribe": "Римляне", "speed": 10, "def_inf": 80, "def_cav": 105},
+    "ram": {"name": "Таран", "tribe": "Все", "speed": 4, "def_inf": 30, "def_cav": 75},
+    "catapult": {"name": "Катапульта", "tribe": "Все", "speed": 3, "def_inf": 60, "def_cav": 10},
+    "senator": {"name": "Сенатор", "tribe": "Римляне", "speed": 4, "def_inf": 40, "def_cav": 30},
+    "settler": {"name": "Поселенец", "tribe": "Все", "speed": 5, "def_inf": 80, "def_cav": 80},
+    "phalanx": {"name": "Фаланга", "tribe": "Галлы", "speed": 7, "def_inf": 40, "def_cav": 50},
+    "swordsman": {"name": "Мечник", "tribe": "Галлы", "speed": 7, "def_inf": 35, "def_cav": 20},
+    "pathfinder": {"name": "Следопыт", "tribe": "Галлы", "speed": 17, "def_inf": 20, "def_cav": 10},
+    "theutates_thunder": {"name": "Гром", "tribe": "Галлы", "speed": 19, "def_inf": 25, "def_cav": 40},
+    "druidrider": {"name": "Друид", "tribe": "Галлы", "speed": 16, "def_inf": 115, "def_cav": 55},
+    "haeduan": {"name": "Гедуан", "tribe": "Галлы", "speed": 13, "def_inf": 65, "def_cav": 165},
+    "clubswinger": {"name": "Дубинщик", "tribe": "Германцы", "speed": 7, "def_inf": 20, "def_cav": 5},
+    "spearman": {"name": "Копейщик", "tribe": "Германцы", "speed": 7, "def_inf": 35, "def_cav": 60},
+    "axeman": {"name": "Топорщик", "tribe": "Германцы", "speed": 6, "def_inf": 40, "def_cav": 20},
+    "scout": {"name": "Разведчик", "tribe": "Германцы", "speed": 9, "def_inf": 10, "def_cav": 5},
+    "paladin": {"name": "Паладин", "tribe": "Германцы", "speed": 10, "def_inf": 100, "def_cav": 40},
+    "teutonic_knight": {"name": "Тевтонский рыцарь", "tribe": "Германцы", "speed": 9, "def_inf": 60, "def_cav": 80},
+    "chief": {"name": "Предводитель", "tribe": "Германцы", "speed": 4, "def_inf": 50, "def_cav": 50}
+  }
+}
