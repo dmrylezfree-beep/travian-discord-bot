@@ -19,10 +19,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "arena",
-      "index": 0
-    },
-    "race": null
+    "state": null,
+    "race": "gaul"
   }
 }
