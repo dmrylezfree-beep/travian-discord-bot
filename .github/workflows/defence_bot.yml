@@ -1,0 +1,32 @@
+name: Defence Bot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install requests
+        run: pip install requests
+
+      - name: Run defence bot
+        env:
+          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
+        run: python defence_bot.py
