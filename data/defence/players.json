@@ -19,9 +19,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "subs"
-    },
+    "state": null,
     "race": "gaul"
   }
 }
