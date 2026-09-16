@@ -68,9 +68,16 @@ def tg(method, **kwargs):
     return result.get("result")
 
 
-def send(chat_id, text, reply_markup=None, thread_id=THREAD_ID):
-    args = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "message_thread_id": thread_id}
-    if reply_markup:
+def send(chat_id, text, reply_markup=None, thread_id=THREAD_ID, force_reply=False):
+    args = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "message_thread_id": thread_id,
+    }
+    if force_reply:
+        args["reply_markup"] = json.dumps({"force_reply": True, "selective": True}, ensure_ascii=False)
+    elif reply_markup:
         args["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
     return tg("sendMessage", **args)
 
@@ -105,7 +112,14 @@ def main_menu():
 
 
 def player_default(user):
-    return {"telegram_id": user["id"], "username": user.get("username", ""), "first_name": user.get("first_name", ""), "villages": [], "substitutes": [], "state": None}
+    return {
+        "telegram_id": user["id"],
+        "username": user.get("username", ""),
+        "first_name": user.get("first_name", ""),
+        "villages": [],
+        "substitutes": [],
+        "state": None,
+    }
 
 
 def get_player(user):
@@ -181,10 +195,12 @@ def unit_keyboard(index):
 
 def hero_text(v):
     h = v.get("hero", {})
-    return (f"<b>🦸 Герой — {v.get('coordinates')}</b>\n\n"
-            f"Герой в этой деревне: <b>{'да' if h.get('present') else 'нет'}</b>\n"
-            f"🚩 Штандарт: <b>+{int(h.get('standard_bonus',0)*100)}%</b>\n"
-            f"🥾 Сапоги: <b>+{int(h.get('boots_bonus',0)*100)}%</b>")
+    return (
+        f"<b>🦸 Герой — {v.get('coordinates')}</b>\n\n"
+        f"Герой в этой деревне: <b>{'да' if h.get('present') else 'нет'}</b>\n"
+        f"🚩 Штандарт: <b>+{int(h.get('standard_bonus',0)*100)}%</b>\n"
+        f"🥾 Сапоги: <b>+{int(h.get('boots_bonus',0)*100)}%</b>"
+    )
 
 
 def hero_keyboard(idx):
@@ -197,12 +213,17 @@ def hero_keyboard(idx):
     ])
 
 
-def valid_coords(value):
+def parse_coords(value):
     try:
-        x, y = value.split("|", 1)
-        return -200 <= int(x) <= 200 and -200 <= int(y) <= 200
+        parts = value.split()
+        if len(parts) != 2:
+            return None
+        x, y = int(parts[0]), int(parts[1])
+        if -200 <= x <= 200 and -200 <= y <= 200:
+            return f"{x} {y}"
     except (ValueError, TypeError):
-        return False
+        pass
+    return None
 
 
 def to_int(value):
@@ -230,19 +251,20 @@ def process_text(message):
         return
 
     if state == "add_village_coords":
-        if not valid_coords(text):
-            send(chat_id, "Неверный формат. Например: <code>45|-62</code>")
+        coords = parse_coords(text)
+        if coords is None:
+            send(chat_id, "Неверный формат. Введите координаты через пробел, например: <code>45 -62</code>", force_reply=True)
             return
-        player["state"] = {"type": "add_village_arena", "coordinates": text}
+        player["state"] = {"type": "add_village_arena", "coordinates": coords}
         save_players(data)
-        send(chat_id, "Введите уровень Арены (0–20):")
+        send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
         return
 
     typ = state.get("type") if isinstance(state, dict) else None
     if typ == "add_village_arena":
         arena = to_int(text)
         if arena is None or not 0 <= arena <= 20:
-            send(chat_id, "Введите целое число от 0 до 20.")
+            send(chat_id, "Введите целое число от 0 до 20.", force_reply=True)
             return
         player["villages"].append({"coordinates": state["coordinates"], "arena": arena, "troops": {}, "hero": {"present": False, "standard_bonus": 0, "boots_bonus": 0}})
         idx = len(player["villages"]) - 1
@@ -252,7 +274,7 @@ def process_text(message):
     elif typ == "unit_amount":
         amount = to_int(text)
         if amount is None or amount < 0:
-            send(chat_id, "Введите целое число 0 или больше.")
+            send(chat_id, "Введите целое число 0 или больше.", force_reply=True)
             return
         idx, unit = state["index"], state["unit"]
         if idx >= len(player["villages"]):
@@ -264,7 +286,7 @@ def process_text(message):
     elif typ == "subs":
         ids = [x.strip() for x in text.split(",") if x.strip()]
         if len(ids) > 2 or any(to_int(x) is None or to_int(x) <= 0 for x in ids):
-            send(chat_id, "Введите до двух Telegram ID через запятую. Например: <code>111111111,222222222</code>")
+            send(chat_id, "Введите до двух Telegram ID через запятую. Например: <code>111111111,222222222</code>", force_reply=True)
             return
         player["substitutes"] = [int(x) for x in ids]
         player["state"] = None
@@ -275,14 +297,15 @@ def process_text(message):
         if idx >= len(player["villages"]):
             return
         if typ == "coords":
-            if not valid_coords(text):
-                send(chat_id, "Неверный формат. Например: <code>45|-62</code>")
+            coords = parse_coords(text)
+            if coords is None:
+                send(chat_id, "Неверный формат. Введите координаты через пробел, например: <code>45 -62</code>", force_reply=True)
                 return
-            player["villages"][idx]["coordinates"] = text
+            player["villages"][idx]["coordinates"] = coords
         else:
             value = to_int(text)
             if value is None or not 0 <= value <= 20:
-                send(chat_id, "Введите целое число от 0 до 20.")
+                send(chat_id, "Введите целое число от 0 до 20.", force_reply=True)
                 return
             player["villages"][idx]["arena"] = value
         player["state"] = None
@@ -309,7 +332,7 @@ def callback_query(q):
     elif action == "add_village":
         player["state"] = "add_village_coords"
         save_players(data)
-        send(chat_id, "Введите координаты новой деревни, например <code>45|-62</code>:")
+        send(chat_id, "Введите координаты новой деревни через пробел, например <code>45 -62</code>:", force_reply=True)
     elif action == "edit_village":
         edit(chat_id, msg_id, "Выберите деревню:", villages_kb(player))
     elif action == "delete_village":
@@ -334,17 +357,17 @@ def callback_query(q):
             save_players(data)
             name = settings()["units"][unit]["name"]
             current = player["villages"][idx].get("troops", {}).get(unit, 0)
-            send(chat_id, f"Введите количество <b>{name}</b>. Сейчас: <b>{current}</b>")
+            send(chat_id, f"Введите количество <b>{name}</b>. Сейчас: <b>{current}</b>", force_reply=True)
     elif action.startswith("coords:"):
         idx = int(action.split(":", 1)[1])
         player["state"] = {"type": "coords", "index": idx}
         save_players(data)
-        send(chat_id, "Введите новые координаты, например <code>45|-62</code>:")
+        send(chat_id, "Введите новые координаты через пробел, например <code>45 -62</code>:", force_reply=True)
     elif action.startswith("arena:"):
         idx = int(action.split(":", 1)[1])
         player["state"] = {"type": "arena", "index": idx}
         save_players(data)
-        send(chat_id, "Введите уровень Арены (0–20):")
+        send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
     elif action.startswith("hero:"):
         idx = int(action.split(":", 1)[1])
         if idx < len(player["villages"]):
@@ -369,7 +392,7 @@ def callback_query(q):
     elif action == "subs":
         player["state"] = {"type": "subs"}
         save_players(data)
-        send(chat_id, "Введите Telegram ID до двух заместителей через запятую.\nПример: <code>111111111,222222222</code>")
+        send(chat_id, "Введите Telegram ID до двух заместителей через запятую.\nПример: <code>111111111,222222222</code>", force_reply=True)
 
 
 def run():
