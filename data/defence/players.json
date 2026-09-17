@@ -21,5 +21,16 @@
     "substitutes": [],
     "state": null,
     "race": "gaul"
+  },
+  "8940235277": {
+    "telegram_id": 8940235277,
+    "username": "SokolDefBot",
+    "first_name": "Sokol Def Bot",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": {
+      "type": "request_target_coords"
+    }
   }
 }
