@@ -82,17 +82,43 @@ jobs:
           THREAD_ID: ${{ inputs.thread_id || '38636' }}
           USER_ID: ${{ inputs.user_id }}
           USERNAME: ${{ inputs.username }}
+          FIRST_NAME: ${{ inputs.first_name }}
           MESSAGE_TEXT: ${{ inputs.message_text }}
+          CALLBACK_ID: ${{ inputs.callback_id }}
           CALLBACK_DATA: ${{ inputs.callback_data }}
         run: |
-          echo "ACTION=$ACTION"
-          echo "CHAT_ID=$CHAT_ID"
-          echo "MESSAGE_ID=$MESSAGE_ID"
-          echo "THREAD_ID=$THREAD_ID"
-          echo "USER_ID=$USER_ID"
-          echo "USERNAME=$USERNAME"
-          echo "MESSAGE_TEXT=$MESSAGE_TEXT"
-          echo "CALLBACK_DATA=$CALLBACK_DATA"
+          {
+            echo "ACTION=$ACTION"
+            echo "CHAT_ID=$CHAT_ID"
+            echo "MESSAGE_ID=$MESSAGE_ID"
+            echo "THREAD_ID=$THREAD_ID"
+            echo "USER_ID=$USER_ID"
+            echo "USERNAME=$USERNAME"
+            echo "FIRST_NAME=$FIRST_NAME"
+            echo "MESSAGE_TEXT=$MESSAGE_TEXT"
+            echo "CALLBACK_ID=$CALLBACK_ID"
+            echo "CALLBACK_DATA=$CALLBACK_DATA"
+            echo "EVENT_NAME=${{ github.event_name }}"
+            echo "RUN_ID=${{ github.run_id }}"
+            echo "RUN_NUMBER=${{ github.run_number }}"
+            echo "SHA=${{ github.sha }}"
+          } | tee defence-debug.txt
+
+          {
+            echo '### Defence Bot input diagnostics'
+            echo
+            echo '```text'
+            cat defence-debug.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: defence-debug-${{ github.run_id }}
+          path: defence-debug.txt
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Run defence bot
         env:
