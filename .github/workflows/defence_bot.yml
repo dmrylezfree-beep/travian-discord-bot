@@ -2,9 +2,57 @@ name: Defence Bot
 
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Action"
+        required: false
+        default: "message"
+      chat_id:
+        description: "Telegram chat ID"
+        required: false
+        default: ""
+      message_id:
+        description: "Telegram message ID"
+        required: false
+        default: ""
+      thread_id:
+        description: "Telegram thread ID"
+        required: false
+        default: "38636"
+      user_id:
+        description: "Telegram user ID"
+        required: false
+        default: ""
+      username:
+        description: "Telegram username"
+        required: false
+        default: ""
+      first_name:
+        description: "Telegram first name"
+        required: false
+        default: ""
+      message_text:
+        description: "Telegram message text"
+        required: false
+        default: ""
+      callback_id:
+        description: "Telegram callback query ID"
+        required: false
+        default: ""
+      callback_data:
+        description: "Telegram callback data"
+        required: false
+        default: ""
+
+  schedule:
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: defence-bot
+  cancel-in-progress: false
 
 jobs:
   run-bot:
@@ -23,10 +71,20 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Install requests
+      - name: Install dependencies
         run: pip install requests
 
       - name: Run defence bot
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
+          ACTION: ${{ inputs.action || 'refresh_center' }}
+          CHAT_ID: ${{ inputs.chat_id }}
+          MESSAGE_ID: ${{ inputs.message_id }}
+          THREAD_ID: ${{ inputs.thread_id || '38636' }}
+          USER_ID: ${{ inputs.user_id }}
+          USERNAME: ${{ inputs.username }}
+          FIRST_NAME: ${{ inputs.first_name }}
+          MESSAGE_TEXT: ${{ inputs.message_text }}
+          CALLBACK_ID: ${{ inputs.callback_id }}
+          CALLBACK_DATA: ${{ inputs.callback_data }}
         run: python defence_requests.py
