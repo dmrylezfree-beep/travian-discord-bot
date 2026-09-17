@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "Action"
+        description: "Legacy action input"
         required: false
         default: "message"
       chat_id:
-        description: "Telegram chat ID"
+        description: "Legacy chat ID"
         required: false
         default: ""
       message_id:
-        description: "Telegram message ID"
+        description: "Legacy message ID"
         required: false
         default: ""
       thread_id:
@@ -20,32 +20,32 @@ on:
         required: false
         default: "38636"
       user_id:
-        description: "Telegram user ID"
+        description: "Legacy user ID"
         required: false
         default: ""
       username:
-        description: "Telegram username"
+        description: "Legacy username"
         required: false
         default: ""
       first_name:
-        description: "Telegram first name"
+        description: "Legacy first name"
         required: false
         default: ""
       message_text:
-        description: "Telegram message text"
+        description: "Legacy message text"
         required: false
         default: ""
       callback_id:
-        description: "Telegram callback query ID"
+        description: "Legacy callback ID"
         required: false
         default: ""
       callback_data:
-        description: "Telegram callback data"
+        description: "Legacy callback data"
         required: false
         default: ""
 
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/10 * * * *"
 
 permissions:
   contents: write
@@ -74,116 +74,30 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Debug inputs
-        env:
-          ACTION: ${{ inputs.action || 'refresh_center' }}
-          CHAT_ID: ${{ inputs.chat_id }}
-          MESSAGE_ID: ${{ inputs.message_id }}
-          THREAD_ID: ${{ inputs.thread_id || '38636' }}
-          USER_ID: ${{ inputs.user_id }}
-          USERNAME: ${{ inputs.username }}
-          FIRST_NAME: ${{ inputs.first_name }}
-          MESSAGE_TEXT: ${{ inputs.message_text }}
-          CALLBACK_ID: ${{ inputs.callback_id }}
-          CALLBACK_DATA: ${{ inputs.callback_data }}
-        run: |
-          {
-            echo "ACTION=$ACTION"
-            echo "CHAT_ID=$CHAT_ID"
-            echo "MESSAGE_ID=$MESSAGE_ID"
-            echo "THREAD_ID=$THREAD_ID"
-            echo "USER_ID=$USER_ID"
-            echo "USERNAME=$USERNAME"
-            echo "FIRST_NAME=$FIRST_NAME"
-            echo "MESSAGE_TEXT=$MESSAGE_TEXT"
-            echo "CALLBACK_ID=$CALLBACK_ID"
-            echo "CALLBACK_DATA=$CALLBACK_DATA"
-            echo "EVENT_NAME=${{ github.event_name }}"
-            echo "RUN_ID=${{ github.run_id }}"
-            echo "RUN_NUMBER=${{ github.run_number }}"
-            echo "SHA=${{ github.sha }}"
-          } | tee defence-debug.txt
-
-          {
-            echo '### Defence Bot input diagnostics'
-            echo
-            echo '```text'
-            cat defence-debug.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: defence-debug-${{ github.run_id }}
-          path: defence-debug.txt
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Prepare defence request state
-        if: ${{ inputs.action == 'message' && inputs.message_text != '' && inputs.message_text != '/start' && inputs.message_text != '/def' }}
-        env:
-          USER_ID: ${{ inputs.user_id }}
-          MESSAGE_TEXT: ${{ inputs.message_text }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          user_id = os.environ.get("USER_ID", "").strip()
-          text = os.environ.get("MESSAGE_TEXT", "").strip()
-          if not user_id or not text:
-              raise SystemExit(0)
-
-          parts = text.split()
-          try:
-              x, y = int(parts[0]), int(parts[1])
-              valid_coords = len(parts) == 2 and -200 <= x <= 200 and -200 <= y <= 200
-          except (ValueError, IndexError):
-              valid_coords = False
-
-          if not valid_coords:
-              raise SystemExit(0)
-
-          path = Path("data/defence/players.json")
-          try:
-              data = json.loads(path.read_text(encoding="utf-8"))
-          except (FileNotFoundError, json.JSONDecodeError):
-              data = {}
-
-          player = data.setdefault(str(user_id), {
-              "telegram_id": int(user_id),
-              "username": "",
-              "first_name": "",
-              "race": None,
-              "villages": [],
-              "substitutes": [],
-              "state": None,
-          })
-
-          # If the previous button callback was not persisted between workflow runs,
-          # restore the first step automatically from the coordinate message.
-          if not isinstance(player.get("state"), dict):
-              player["state"] = {"type": "request_target_coords"}
-              path.parent.mkdir(parents=True, exist_ok=True)
-              path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-              print("Restored request_target_coords state for user", user_id, flush=True)
-          else:
-              print("Existing defence state:", player["state"], flush=True)
-          PY
-
-      - name: Run defence bot
+      - name: Disable Telegram webhook
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
-          ACTION: ${{ inputs.action || 'refresh_center' }}
-          CHAT_ID: ${{ inputs.chat_id }}
-          MESSAGE_ID: ${{ inputs.message_id }}
-          THREAD_ID: ${{ inputs.thread_id || '38636' }}
-          USER_ID: ${{ inputs.user_id }}
-          USERNAME: ${{ inputs.username }}
-          FIRST_NAME: ${{ inputs.first_name }}
-          MESSAGE_TEXT: ${{ inputs.message_text }}
-          CALLBACK_ID: ${{ inputs.callback_id }}
-          CALLBACK_DATA: ${{ inputs.callback_data }}
-        run: python defence_requests.py
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
+          response = requests.post(
+              f"https://api.telegram.org/bot{token}/deleteWebhook",
+              data={"drop_pending_updates": "false"},
+              timeout=40,
+          )
+          response.raise_for_status()
+          result = response.json()
+          print(result, flush=True)
+          if not result.get("ok"):
+              raise SystemExit(1)
+          PY
+
+      - name: Run defence bot continuously
+        env:
+          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
+          DEFENCE_RUN_SECONDS: "510"
+          DEFENCE_TG_POLL_TIMEOUT: "20"
+        run: python defence_poll.py
