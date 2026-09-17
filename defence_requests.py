@@ -2,12 +2,14 @@ import html
 import os
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import defence_bot as bot
 from travian_bot import parse_map_data, SERVER_URL
 
 SNAPSHOT_DIR = Path("data/snapshots")
 STATE_FILE = bot.DATA_DIR / "state.json"
+SERVER_TZ = ZoneInfo("Europe/London")
 _snapshot_cache_path = None
 _snapshot_cache = None
 
@@ -136,7 +138,7 @@ def start_request(chat_id, player, data):
 
 
 def active_requests_text(requests):
-    now = datetime.now()
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
     active = []
     changed = False
 
@@ -313,6 +315,10 @@ def callback_query(q):
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
+    if action == "settings":
+        bot.send(chat_id, bot.settings_text(player), bot.settings_kb())
+        return
+
     if action == "request_def":
         start_request(chat_id, player, data)
         return
@@ -344,7 +350,7 @@ def callback_query(q):
             "attack_time_display": state["attack_time_display"],
             "required_def": state["required_def"],
             "status": "active",
-            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         }
         save_request(req)
         player["state"] = None
