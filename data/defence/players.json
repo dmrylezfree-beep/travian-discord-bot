@@ -19,16 +19,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "request_confirm",
-      "target_coords": "48 50",
-      "target_x": 48,
-      "target_y": 50,
-      "target_player": "popeye2",
-      "attack_time": "2026-09-17 23:30:45",
-      "attack_time_display": "17.09.2026 23:30:45",
-      "required_def": 30000
-    },
+    "state": null,
     "race": "gaul"
   }
 }
