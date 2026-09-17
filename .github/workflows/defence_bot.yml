@@ -50,9 +50,11 @@ on:
 permissions:
   contents: write
 
+# Only one bot session may exist at a time.
+# New scheduled/manual runs are NOT allowed to pile up behind it.
 concurrency:
   group: defence-bot
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   run-bot:
