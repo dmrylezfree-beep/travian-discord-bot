@@ -74,6 +74,26 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Debug inputs
+        env:
+          ACTION: ${{ inputs.action || 'refresh_center' }}
+          CHAT_ID: ${{ inputs.chat_id }}
+          MESSAGE_ID: ${{ inputs.message_id }}
+          THREAD_ID: ${{ inputs.thread_id || '38636' }}
+          USER_ID: ${{ inputs.user_id }}
+          USERNAME: ${{ inputs.username }}
+          MESSAGE_TEXT: ${{ inputs.message_text }}
+          CALLBACK_DATA: ${{ inputs.callback_data }}
+        run: |
+          echo "ACTION=$ACTION"
+          echo "CHAT_ID=$CHAT_ID"
+          echo "MESSAGE_ID=$MESSAGE_ID"
+          echo "THREAD_ID=$THREAD_ID"
+          echo "USER_ID=$USER_ID"
+          echo "USERNAME=$USERNAME"
+          echo "MESSAGE_TEXT=$MESSAGE_TEXT"
+          echo "CALLBACK_DATA=$CALLBACK_DATA"
+
       - name: Run defence bot
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
