@@ -19,15 +19,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "request_attack_time",
-      "target_coords": "23 2",
-      "target_x": 23,
-      "target_y": 2,
-      "target_player": "pilcikcz",
-      "attack_date": "2026-09-17",
-      "attack_date_display": "17.09.2026"
-    },
+    "state": null,
     "race": "gaul"
   },
   "8940235277": {
