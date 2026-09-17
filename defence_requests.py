@@ -1,6 +1,6 @@
 import html
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -74,6 +74,13 @@ def parse_attack_time(text):
         return None
 
 
+def parse_attack_clock(text):
+    try:
+        return datetime.strptime(text, "%H:%M:%S").time()
+    except ValueError:
+        return None
+
+
 def village_link(x, y):
     url = f"{SERVER_URL}/karte.php?x={x}&y={y}"
     return f'<a href="{html.escape(url, quote=True)}">{x} {y}</a>'
@@ -93,6 +100,17 @@ def request_text(req):
 def confirm_keyboard():
     return bot.kb([
         [{"text": "✅ Создать заявку", "callback_data": "request_confirm"}],
+        [{"text": "❌ Отмена", "callback_data": "request_cancel"}],
+    ])
+
+
+def date_keyboard():
+    now = datetime.now(SERVER_TZ)
+    today = now.strftime("%d.%m")
+    tomorrow = (now + timedelta(days=1)).strftime("%d.%m")
+    return bot.kb([
+        [{"text": f"📅 Сегодня — {today}", "callback_data": "request_date_today"}],
+        [{"text": f"📅 Завтра — {tomorrow}", "callback_data": "request_date_tomorrow"}],
         [{"text": "❌ Отмена", "callback_data": "request_cancel"}],
     ])
 
@@ -180,6 +198,20 @@ def active_requests_text(requests):
     return "\n".join(lines), changed
 
 
+def unpin_center(chat_id, message_id):
+    if not chat_id or not message_id:
+        return
+    try:
+        bot.tg(
+            "unpinChatMessage",
+            chat_id=chat_id,
+            message_id=message_id,
+        )
+        print(f"Previous centre unpinned: {message_id}", flush=True)
+    except Exception as exc:
+        print(f"Previous centre unpin failed for {message_id}: {exc}", flush=True)
+
+
 def refresh_center(chat_id=None, create_if_missing=False):
     state = load_state()
     center_chat_id = state.get("center_chat_id") or chat_id
@@ -202,6 +234,9 @@ def refresh_center(chat_id=None, create_if_missing=False):
             return True
         except Exception as exc:
             print(f"Centre edit failed, will recreate: {exc}", flush=True)
+            # If the old centre cannot be edited, it must be unpinned before
+            # creating a replacement, otherwise /def can accumulate pins.
+            unpin_center(center_chat_id, center_message_id)
 
     if not create_if_missing:
         return False
@@ -257,7 +292,7 @@ def process_text(message):
             return
         player_name = str(village.get("player") or "Неизвестно")
         player["state"] = {
-            "type": "request_attack_time",
+            "type": "request_attack_date",
             "target_coords": coords,
             "target_x": int(village["x"]),
             "target_y": int(village["y"]),
@@ -266,15 +301,16 @@ def process_text(message):
         bot.save_players(data)
         bot.send(
             chat_id,
-            f"📍 Деревня: {village_link(village['x'], village['y'])}\n👤 Игрок: <b>{html.escape(player_name)}</b>\n\nВведите время атаки по времени сервера Travian.\nФормат: <code>17.09.2026 21:30:45</code>",
-            force_reply=True,
+            f"📍 Деревня: {village_link(village['x'], village['y'])}\n👤 Игрок: <b>{html.escape(player_name)}</b>\n\n📅 Выберите дату атаки:",
+            date_keyboard(),
         )
         return
 
     if typ == "request_attack_time":
+        # Backward compatibility for an unfinished old request.
         attack_time = parse_attack_time(text)
         if attack_time is None:
-            bot.send(chat_id, "Неверный формат даты и времени. Используйте: <code>17.09.2026 21:30:45</code>", force_reply=True)
+            bot.send(chat_id, "Неверный формат. Используйте: <code>17.09.2026 21:30:45</code>", force_reply=True)
             return
         player["state"]["attack_time"] = attack_time.strftime("%Y-%m-%d %H:%M:%S")
         player["state"]["attack_time_display"] = attack_time.strftime("%d.%m.%Y %H:%M:%S")
@@ -327,6 +363,29 @@ def callback_query(q):
         player["state"] = None
         bot.save_players(data)
         bot.edit(chat_id, msg_id, "<b>🛡 ЗАПРОС НА ДЕФ</b>\n\nЗаявка отменена.", request_menu())
+        return
+
+    if action in ("request_date_today", "request_date_tomorrow"):
+        now = datetime.now(SERVER_TZ)
+        selected = now if action == "request_date_today" else now + timedelta(days=1)
+        selected_date = selected.date()
+        player["state"]["attack_date"] = selected_date.strftime("%Y-%m-%d")
+        player["state"]["attack_date_display"] = selected_date.strftime("%d.%m.%Y")
+        player["state"]["type"] = "request_attack_time"
+        bot.save_players(data)
+        try:
+            bot.edit(
+                chat_id,
+                msg_id,
+                f"📅 Дата атаки: <b>{selected_date.strftime('%d.%m.%Y')}</b>",
+            )
+        except Exception:
+            pass
+        bot.send(
+            chat_id,
+            f"📅 Дата атаки: <b>{selected_date.strftime('%d.%m.%Y')}</b>\n\n⏰ Введите время атаки по времени сервера Travian.\nФормат: <code>22:30:45</code>",
+            force_reply=True,
+        )
         return
 
     if action == "request_confirm":
