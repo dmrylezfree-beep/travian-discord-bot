@@ -1,5 +1,4 @@
 import html
-import re
 from datetime import datetime
 from pathlib import Path
 
@@ -9,6 +8,9 @@ from travian_bot import parse_map_data
 SNAPSHOT_DIR = Path("data/snapshots")
 _snapshot_cache_path = None
 _snapshot_cache = None
+
+_original_process_text = bot.process_text
+_original_callback_query = bot.callback_query
 
 
 def request_menu():
@@ -141,7 +143,7 @@ def process_text(message):
         return
 
     if not isinstance(state, dict):
-        return bot.process_text(message)
+        return _original_process_text(message)
 
     typ = state.get("type")
     if typ == "request_target_coords":
@@ -199,8 +201,7 @@ def process_text(message):
         bot.send(chat_id, request_summary(player), confirm_keyboard())
         return
 
-    # All existing settings states continue to be handled by the original bot.
-    return bot.process_text(message)
+    return _original_process_text(message)
 
 
 def callback_query(q):
@@ -256,7 +257,7 @@ def callback_query(q):
         bot.edit(chat_id, msg_id, request_text(req), request_menu())
         return
 
-    return bot.callback_query(q)
+    return _original_callback_query(q)
 
 
 bot.main_menu = request_menu
