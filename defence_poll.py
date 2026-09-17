@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime
 
 import defence_bot as bot
 import defence_requests as defence
@@ -35,6 +36,53 @@ def update_chat_id(update):
     return message.get("chat", {}).get("id")
 
 
+def normalize_date_time_message(message):
+    """Combine the date selected by the user with the entered time.
+
+    defence_requests.py still contains the old full-date parser for
+    request_attack_time. The new UI deliberately asks for the date first
+    and then only HH:MM:SS, so normalize the message before dispatching it.
+    """
+    text = (message.get("text") or "").strip()
+    if not text:
+        return message
+
+    user = message.get("from", {})
+    if not user:
+        return message
+
+    try:
+        _data, player = bot.get_player(user)
+    except Exception:
+        return message
+
+    state = player.get("state") or {}
+    if state.get("type") != "request_attack_time":
+        return message
+
+    try:
+        attack_date = datetime.strptime(
+            state["attack_date"], "%Y-%m-%d"
+        ).date()
+    except (KeyError, TypeError, ValueError):
+        return message
+
+    try:
+        attack_clock = datetime.strptime(text, "%H:%M:%S").time()
+    except ValueError:
+        return message
+
+    normalized = dict(message)
+    normalized["text"] = datetime.combine(attack_date, attack_clock).strftime(
+        "%d.%m.%Y %H:%M:%S"
+    )
+    print(
+        f"Normalized defence attack time: {text} -> {normalized['text']}",
+        flush=True,
+    )
+    return normalized
+
+
 def process_update(update):
     if "callback_query" in update:
         defence.handle_update(callback=update["callback_query"])
@@ -42,6 +90,7 @@ def process_update(update):
 
     message = update.get("message")
     if message is not None:
+        message = normalize_date_time_message(message)
         defence.handle_update(message=message)
         return True
 
