@@ -111,9 +111,8 @@ def kb(rows):
 
 def main_menu():
     return kb([
+        [{"text": "➕ Запросить деф", "callback_data": "request_def"}],
         [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
-        [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
-        [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
     ])
 
 
@@ -183,6 +182,8 @@ def settings_text(player):
 def settings_kb():
     return kb([
         [{"text": "🧬 Выбрать расу", "callback_data": "race_menu"}],
+        [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
+        [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
         [{"text": "➕ Добавить деревню", "callback_data": "add_village"}],
         [{"text": "✏️ Изменить деревню", "callback_data": "edit_village"}],
         [{"text": "🗑 Удалить деревню", "callback_data": "delete_village"}],
@@ -219,7 +220,7 @@ def unit_keyboard(index, player):
     for key in allowed_units(player):
         unit = units.get(key)
         if unit:
-            rows.append([{"text": unit["name"], "callback_data": f"unit:{index}:{key}"}])
+            rows.append([{ "text": unit["name"], "callback_data": f"unit:{index}:{key}" }])
     rows += [
         [{"text": "✏️ Координаты", "callback_data": f"coords:{index}"}, {"text": "✏️ Арена", "callback_data": f"arena:{index}"}],
         [{"text": "🦸 Герой и предметы", "callback_data": f"hero:{index}"}],
