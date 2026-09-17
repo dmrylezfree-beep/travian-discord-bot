@@ -29,4 +29,4 @@ jobs:
       - name: Run defence bot
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
-        run: python defence_bot.py
+        run: python defence_requests.py
