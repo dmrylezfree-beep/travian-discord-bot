@@ -20,7 +20,11 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "request_target_coords"
+      "type": "request_attack_time",
+      "target_coords": "48 50",
+      "target_x": 48,
+      "target_y": 50,
+      "target_player": "popeye2"
     },
     "race": "gaul"
   }
