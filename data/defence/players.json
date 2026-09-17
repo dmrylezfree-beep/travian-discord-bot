@@ -26,11 +26,9 @@
     "telegram_id": 8940235277,
     "username": "SokolDefBot",
     "first_name": "Sokol Def Bot",
-    "race": null,
+    "race": "teuton",
     "villages": [],
     "substitutes": [],
-    "state": {
-      "type": "request_target_coords"
-    }
+    "state": null
   }
 }
