@@ -19,7 +19,9 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "request_target_coords"
+    },
     "race": "gaul"
   },
   "8940235277": {
