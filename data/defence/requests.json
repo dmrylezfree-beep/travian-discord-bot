@@ -26,5 +26,19 @@
     "required_def": 20000,
     "status": "active",
     "created_at": "2026-09-17 18:07:06"
+  },
+  {
+    "id": 3,
+    "requester_id": 317595036,
+    "requester_username": "dmrylez",
+    "requester_first_name": "Дмитрий",
+    "target_x": 23,
+    "target_y": 2,
+    "target_player": "pilcikcz",
+    "attack_time": "2026-09-17 22:50:45",
+    "attack_time_display": "17.09.2026 22:50:45",
+    "required_def": 45000,
+    "status": "active",
+    "created_at": "2026-09-17 18:27:59"
   }
 ]
