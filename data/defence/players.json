@@ -30,5 +30,16 @@
     "villages": [],
     "substitutes": [],
     "state": null
+  },
+  "545074834": {
+    "telegram_id": 545074834,
+    "username": "Yaroslav9728",
+    "first_name": "Yaroslav(OneWayTicket)",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": {
+      "type": "request_target_coords"
+    }
   }
 }
