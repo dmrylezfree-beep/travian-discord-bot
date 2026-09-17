@@ -1,11 +1,13 @@
 import html
+import os
 from datetime import datetime
 from pathlib import Path
 
 import defence_bot as bot
-from travian_bot import parse_map_data
+from travian_bot import parse_map_data, SERVER_URL
 
 SNAPSHOT_DIR = Path("data/snapshots")
+STATE_FILE = bot.DATA_DIR / "state.json"
 _snapshot_cache_path = None
 _snapshot_cache = None
 
@@ -13,12 +15,19 @@ _original_process_text = bot.process_text
 _original_callback_query = bot.callback_query
 
 
+def load_state():
+    return bot.load_json(STATE_FILE, {})
+
+
+def save_state(state):
+    bot.save_json(STATE_FILE, state)
+    bot.persist_data()
+
+
 def request_menu():
     return bot.kb([
         [{"text": "➕ Запросить деф", "callback_data": "request_def"}],
         [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
-        [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
-        [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
     ])
 
 
@@ -63,15 +72,18 @@ def parse_attack_time(text):
         return None
 
 
+def village_link(x, y):
+    url = f"{SERVER_URL}/karte.php?x={x}&y={y}"
+    return f'<a href="{html.escape(url, quote=True)}">{x} {y}</a>'
+
+
 def request_text(req):
     return (
         f"<b>🛡 ЗАПРОС НА ДЕФ #{req['id']}</b>\n\n"
-        f"📍 Деревня: <b>{req['target_x']} {req['target_y']}</b>\n"
+        f"📍 Деревня: {village_link(req['target_x'], req['target_y'])}\n"
         f"👤 Игрок: <b>{html.escape(req['target_player'])}</b>\n"
         f"⚔️ Атака: <b>{req['attack_time_display']}</b>\n"
         f"🛡 Требуется: <b>{req['required_def']}</b> очков дефа\n\n"
-        "Пехота = 1\n"
-        "Конница = 2\n\n"
         "Деф должен прибыть <b>ДО</b> указанного времени."
     )
 
@@ -87,7 +99,7 @@ def request_summary(player):
     state = player.get("state", {})
     return (
         "<b>🛡 ЗАПРОС НА ДЕФ</b>\n\n"
-        f"📍 Деревня: <b>{state['target_coords']}</b>\n"
+        f"📍 Деревня: {village_link(state['target_x'], state['target_y'])}\n"
         f"👤 Игрок: <b>{html.escape(state['target_player'])}</b>\n"
         f"⚔️ Атака: <b>{state['attack_time_display']}</b>\n"
         f"🛡 Требуется: <b>{state['required_def']}</b> очков дефа\n\n"
@@ -123,6 +135,90 @@ def start_request(chat_id, player, data):
     )
 
 
+def active_requests_text(requests):
+    now = datetime.now()
+    active = []
+    changed = False
+
+    for req in requests:
+        if req.get("status") != "active":
+            continue
+        try:
+            attack = datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S")
+        except (KeyError, TypeError, ValueError):
+            attack = None
+        if attack is not None and attack <= now:
+            req["status"] = "expired"
+            changed = True
+            continue
+        active.append(req)
+
+    active.sort(key=lambda r: r.get("attack_time", ""))
+
+    lines = ["<b>🛡 ЦЕНТР ДЕФА</b>", "", "<b>📋 АКТИВНЫЕ ЗАЯВКИ</b>", ""]
+    if not active:
+        lines.append("Активных заявок нет.")
+    else:
+        for req in active:
+            try:
+                attack = datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S")
+                urgent = (attack - now).total_seconds() <= 30 * 60
+            except (KeyError, TypeError, ValueError):
+                urgent = False
+            icon = "🔴" if urgent else "🟡"
+            lines.extend([
+                f"{icon} <b>#{req['id']}</b>",
+                f"📍 {village_link(req['target_x'], req['target_y'])} — <b>{html.escape(req['target_player'])}</b>",
+                f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
+                f"🛡 Требуется: <b>{req['required_def']}</b> очков",
+                "",
+            ])
+
+    lines.append("Деф должен прибыть <b>ДО</b> времени атаки.")
+    return "\n".join(lines), changed
+
+
+def refresh_center(chat_id=None, create_if_missing=False):
+    state = load_state()
+    center_chat_id = state.get("center_chat_id") or chat_id
+    center_message_id = state.get("center_message_id")
+    if center_chat_id is None:
+        return False
+
+    requests = bot.load_json(bot.REQUESTS_FILE, [])
+    if not isinstance(requests, list):
+        requests = []
+
+    text, changed = active_requests_text(requests)
+    if changed:
+        bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.persist_data()
+
+    if center_message_id:
+        try:
+            bot.edit(center_chat_id, center_message_id, text, request_menu())
+            return True
+        except Exception as exc:
+            print(f"Centre edit failed, will recreate: {exc}", flush=True)
+
+    if not create_if_missing:
+        return False
+
+    message = bot.send(center_chat_id, text, request_menu())
+    center_message_id = message.get("message_id") if isinstance(message, dict) else None
+    if not center_message_id:
+        return False
+
+    state["center_chat_id"] = int(center_chat_id)
+    state["center_message_id"] = int(center_message_id)
+    save_state(state)
+    try:
+        bot.tg("pinChatMessage", chat_id=center_chat_id, message_id=center_message_id, disable_notification=True)
+    except Exception as exc:
+        print(f"Pin centre failed: {exc}", flush=True)
+    return True
+
+
 def process_text(message):
     user = message.get("from", {})
     text = (message.get("text") or "").strip()
@@ -133,13 +229,12 @@ def process_text(message):
     chat_id = message["chat"]["id"]
     state = player.get("state")
 
-    # /start intentionally disabled. /def is the entry command.
     if text.startswith("/start"):
         return
     if text.startswith("/def"):
         player["state"] = None
         bot.save_players(data)
-        bot.send(chat_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите раздел:", request_menu())
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     if not isinstance(state, dict):
@@ -169,7 +264,7 @@ def process_text(message):
         bot.save_players(data)
         bot.send(
             chat_id,
-            f"📍 Деревня: <b>{coords}</b>\n👤 Игрок: <b>{html.escape(player_name)}</b>\n\nВведите время атаки по времени сервера Travian.\nФормат: <code>17.09.2026 21:30:45</code>",
+            f"📍 Деревня: {village_link(village['x'], village['y'])}\n👤 Игрок: <b>{html.escape(player_name)}</b>\n\nВведите время атаки по времени сервера Travian.\nФормат: <code>17.09.2026 21:30:45</code>",
             force_reply=True,
         )
         return
@@ -212,10 +307,10 @@ def callback_query(q):
     user = q.get("from", {})
     data, player = bot.get_player(user)
     chat_id, msg_id = message["chat"]["id"], message["message_id"]
-    bot.answer_callback(q["id"])
+    bot.answer_callback(q.get("id"))
 
     if action == "menu":
-        bot.edit(chat_id, msg_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите раздел:", request_menu())
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     if action == "request_def":
@@ -225,7 +320,7 @@ def callback_query(q):
     if action == "request_cancel":
         player["state"] = None
         bot.save_players(data)
-        bot.edit(chat_id, msg_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nЗаявка отменена.", request_menu())
+        bot.edit(chat_id, msg_id, "<b>🛡 ЗАПРОС НА ДЕФ</b>\n\nЗаявка отменена.", request_menu())
         return
 
     if action == "request_confirm":
@@ -254,10 +349,55 @@ def callback_query(q):
         save_request(req)
         player["state"] = None
         bot.save_players(data)
-        bot.edit(chat_id, msg_id, request_text(req), request_menu())
+        bot.edit(chat_id, msg_id, "<b>✅ Заявка создана.</b>\n\nОна добавлена в закреплённый Центр дефа.", request_menu())
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     return _original_callback_query(q)
+
+
+def handle_update(message=None, callback=None):
+    if callback is not None:
+        callback_query(callback)
+    elif message is not None:
+        process_text(message)
+
+
+def env_message():
+    text = os.environ.get("MESSAGE_TEXT", "")
+    if not text:
+        return None
+    return {
+        "message_id": int(os.environ.get("MESSAGE_ID", "0") or 0),
+        "chat": {"id": int(os.environ.get("CHAT_ID", "0") or 0)},
+        "from": {
+            "id": int(os.environ.get("USER_ID", "0") or 0),
+            "username": os.environ.get("USERNAME", ""),
+            "first_name": os.environ.get("FIRST_NAME", ""),
+        },
+        "text": text,
+        "message_thread_id": int(os.environ.get("THREAD_ID", str(bot.THREAD_ID)) or bot.THREAD_ID),
+    }
+
+
+def env_callback():
+    data = os.environ.get("CALLBACK_DATA", "")
+    if not data:
+        return None
+    return {
+        "id": os.environ.get("CALLBACK_ID", ""),
+        "data": data,
+        "from": {
+            "id": int(os.environ.get("USER_ID", "0") or 0),
+            "username": os.environ.get("USERNAME", ""),
+            "first_name": os.environ.get("FIRST_NAME", ""),
+        },
+        "message": {
+            "message_id": int(os.environ.get("MESSAGE_ID", "0") or 0),
+            "chat": {"id": int(os.environ.get("CHAT_ID", "0") or 0)},
+            "message_thread_id": int(os.environ.get("THREAD_ID", str(bot.THREAD_ID)) or bot.THREAD_ID),
+        },
+    }
 
 
 bot.main_menu = request_menu
@@ -265,4 +405,16 @@ bot.process_text = process_text
 bot.callback_query = callback_query
 
 if __name__ == "__main__":
-    bot.run()
+    action = os.environ.get("ACTION", "refresh_center")
+    if action == "refresh_center":
+        refresh_center(chat_id=os.environ.get("CHAT_ID") or None, create_if_missing=False)
+    elif action == "callback":
+        callback = env_callback()
+        if callback:
+            handle_update(callback=callback)
+        refresh_center(chat_id=os.environ.get("CHAT_ID") or None, create_if_missing=False)
+    elif action == "message":
+        message = env_message()
+        if message:
+            handle_update(message=message)
+        refresh_center(chat_id=os.environ.get("CHAT_ID") or None, create_if_missing=False)
