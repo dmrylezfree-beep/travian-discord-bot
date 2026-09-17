@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": 1,
+    "requester_id": 317595036,
+    "requester_username": "dmrylez",
+    "requester_first_name": "Дмитрий",
+    "target_x": 48,
+    "target_y": 50,
+    "target_player": "popeye2",
+    "attack_time": "2026-09-17 23:30:45",
+    "attack_time_display": "17.09.2026 23:30:45",
+    "required_def": 30000,
+    "status": "active",
+    "created_at": "2026-09-17 14:55:47"
+  }
+]
