@@ -20,7 +20,11 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "request_target_coords"
+      "type": "request_attack_date",
+      "target_coords": "36 5",
+      "target_x": 36,
+      "target_y": 5,
+      "target_player": "Znicker"
     },
     "race": "gaul",
     "private_chat_id": 317595036,
