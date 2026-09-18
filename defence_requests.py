@@ -325,11 +325,10 @@ def send_def_plan_text(player, req):
 
 def send_def_plan_keyboard(player, req):
     rows = []
-    for item in best_source_options(player, req):
-        hero = " + герой" if item["with_hero"] else ""
+    if best_source_options(player, req):
         rows.append([{
-            "text": f"🛡 {item['village'].get('coordinates', '?')} — {item['name']}{hero}",
-            "callback_data": f"send_choose:{req['id']}:{item['idx']}:{item['unit_key']}:{int(item['with_hero'])}",
+            "text": "🛡 Отправить деф",
+            "callback_data": f"send_amount:{req['id']}",
         }])
     rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
     return bot.kb(rows)
@@ -542,37 +541,59 @@ def process_text(message):
     if typ == "send_def_amount":
         amount = bot.to_int(text)
         req_id = int(state.get("request_id", 0) or 0)
-        idx = int(state.get("index", -1) or -1)
-        unit_key = state.get("unit")
         if amount is None or amount <= 0:
             bot.send(chat_id, "Введите положительное количество очков дефа.", force_reply=True)
             return
 
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
-        if req is None or request_closed(req) or idx < 0 or idx >= len(player.get("villages", [])):
+        if req is None or request_closed(req):
             player["state"] = None
             bot.save_players(data)
-            bot.send(chat_id, "❌ Заявка или деревня больше недоступна.", request_menu())
+            bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
             return
 
-        village = player["villages"][idx]
-        available = int(village.get("troops", {}).get(unit_key, 0) or 0)
-        max_def = available * unit_value(unit_key)
+        options = best_source_options(player, req)
+        total_available = sum(x["max_def"] for x in options)
         remaining = request_remaining(req)
-        if amount > max_def:
-            bot.send(chat_id, f"Из этой деревни максимум <b>{max_def}</b> очков дефа. Введите меньшее число.", force_reply=True)
+        if amount > total_available:
+            bot.send(
+                chat_id,
+                f"❌ Сейчас из ваших подходящих деревень можно отправить максимум <b>{total_available}</b> очков дефа.\n"
+                f"Введите число не больше этого значения.",
+                force_reply=True,
+            )
             return
+
         amount = min(amount, remaining)
+        left = amount
+        plan = []
+        for item in options:
+            if left <= 0:
+                break
+            contribution = min(left, item["max_def"])
+            if contribution <= 0:
+                continue
+            plan.append({
+                "village": item["village"].get("coordinates", ""),
+                "unit": item["unit_key"],
+                "unit_name": item["name"],
+                "def_points": contribution,
+                "arrival": item["arrival"].strftime("%H:%M:%S"),
+                "with_hero": item["with_hero"],
+            })
+            left -= contribution
+
+        if left > 0:
+            bot.send(chat_id, "❌ Не удалось подобрать подходящий план отправки.", request_menu())
+            return
 
         req.setdefault("contributions", []).append({
             "telegram_id": int(user.get("id", 0)),
             "username": user.get("username", ""),
             "first_name": user.get("first_name", ""),
-            "village": village.get("coordinates", ""),
-            "unit": unit_key,
-            "unit_name": bot.settings().get("units", {}).get(unit_key, {}).get("name", unit_key),
             "def_points": amount,
+            "plan": plan,
             "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         })
         req["collected_def"] = int(req.get("collected_def", 0) or 0) + amount
@@ -584,10 +605,28 @@ def process_text(message):
         player["state"] = None
         bot.save_players(data)
 
+        plan_lines = []
+        for item in plan:
+            hero = " + герой" if item["with_hero"] else ""
+            plan_lines.append(
+                f"🏘 {item['village']} — {item['unit_name']}{hero}: <b>{item['def_points']}</b> очков, "
+                f"прибытие {item['arrival']}"
+            )
+
         if req["status"] == "closed":
-            result = f"<b>✅ Заявка #{req_id} закрыта.</b>\n\nВы добавили <b>{amount}</b> очков дефа.\nЗаявка полностью закрыта."
+            result = (
+                f"<b>✅ Заявка #{req_id} закрыта.</b>\n\n"
+                f"Ваш вклад: <b>{amount}</b> очков дефа.\n\n"
+                + "\n".join(plan_lines)
+            )
         else:
-            result = f"<b>✅ Деф добавлен в заявку #{req_id}.</b>\n\nВы добавили: <b>{amount}</b> очков\nОсталось: <b>{request_remaining(req)}</b> очков"
+            result = (
+                f"<b>✅ Вклад в заявку #{req_id} записан.</b>\n\n"
+                f"Ваш вклад: <b>{amount}</b> очков.\n"
+                f"Осталось: <b>{request_remaining(req)}</b> очков.\n\n"
+                + "\n".join(plan_lines)
+            )
+
         bot.send(chat_id, result, request_menu())
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
@@ -712,23 +751,26 @@ def callback_query(q):
         bot.edit(chat_id, msg_id, send_def_plan_text(player, req), send_def_plan_keyboard(player, req))
         return
 
-    if action.startswith("send_choose:"):
-        _, req_id_s, idx_s, unit_key, hero_s = action.split(":", 4)
-        req_id, idx = int(req_id_s), int(idx_s)
-        with_hero = bool(int(hero_s))
+    if action.startswith("send_amount:"):
+        req_id = int(action.split(":", 1)[1])
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or request_closed(req):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
-        item = next((x for x in best_source_options(player, req)
-                     if x["idx"] == idx and x["unit_key"] == unit_key and x["with_hero"] == with_hero), None)
-        if item is None:
-            bot.edit(chat_id, msg_id, "❌ Этот вариант больше не успевает.", request_menu())
+        if not best_source_options(player, req):
+            bot.edit(chat_id, msg_id, "🔴 Подходящих деревень для этой заявки сейчас нет.", request_menu())
             return
-        player["state"] = {"type": "send_def_amount", "request_id": req_id, "index": idx, "unit": unit_key}
+        player["state"] = {"type": "send_def_amount", "request_id": req_id}
         bot.save_players(data)
-        bot.send(chat_id, send_def_amount_text(req, player["villages"][idx], item["name"], item["max_def"], item["arrival"]), force_reply=True)
+        bot.send(
+            chat_id,
+            f"<b>🛡 Отправить деф в заявку #{req_id}</b>\n\n"
+            f"Осталось закрыть: <b>{request_remaining(req)}</b> очков.\n\n"
+            "Введите количество дефа, которое готовы отправить.\n"
+            "Например: <code>10000</code>",
+            force_reply=True,
+        )
         return
 
     if action == "request_cancel":
