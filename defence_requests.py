@@ -53,6 +53,38 @@ def latest_snapshot():
     return path, villages
 
 
+RACE_BY_TRIBE = {1: "roman", 2: "teuton", 3: "gaul"}
+
+def race_from_village(village):
+    try:
+        return RACE_BY_TRIBE.get(int(village.get("tribe_id")))
+    except (TypeError, ValueError):
+        return None
+
+def sync_player_race(player):
+    _, villages = latest_snapshot()
+    if villages is None:
+        return player.get("race")
+    for owned in player.get("villages", []):
+        parts = str(owned.get("coordinates", "")).split()
+        if len(parts) != 2:
+            continue
+        try:
+            x, y = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        for village in villages.values():
+            try:
+                if int(village.get("x")) == x and int(village.get("y")) == y:
+                    race = race_from_village(village)
+                    if race:
+                        player["race"] = race
+                        return race
+            except (TypeError, ValueError):
+                continue
+    return player.get("race")
+
+
 def find_target(coords):
     parts = coords.split()
     x, y = int(parts[0]), int(parts[1])
@@ -523,6 +555,7 @@ def process_text(message):
         return
 
     data, player = bot.get_player(user)
+    sync_player_race(player)
     chat_id = message["chat"]["id"]
     state = player.get("state")
 
@@ -701,6 +734,7 @@ def callback_query(q):
     action = q.get("data", "")
     user = q.get("from", {})
     data, player = bot.get_player(user)
+    sync_player_race(player)
     chat_id, msg_id = message["chat"]["id"], message["message_id"]
     bot.answer_callback(q.get("id"))
 
