@@ -22,7 +22,12 @@
     "state": {
       "type": "send_def",
       "request_id": 4,
-      "selected": {}
+      "selected": {
+        "0": {
+          "troops": {},
+          "with_hero": true
+        }
+      }
     },
     "race": "gaul"
   },
