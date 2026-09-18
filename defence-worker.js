@@ -87,7 +87,7 @@ function isDefCommand(message) {
   if (Number(message.message_thread_id) !== THREAD_ID) return false;
 
   const text = String(message.text || "").trim();
-  return /^\\/def(?:@[^\\s]+)?(?:\\s|$)/i.test(text);
+  return /^\/def(?:@[^\s]+)?(?:\s|$)/i.test(text);
 }
 
 export default {
