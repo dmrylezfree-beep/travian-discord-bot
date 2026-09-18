@@ -435,7 +435,11 @@ def save_request(request):
     return request
 
 def notification_source_options(player, req):
-    """Return one fastest theoretical option per village that can still arrive."""
+    """Return every troop type from every village that can still arrive in time.
+
+    Notification eligibility is based only on arrival time. Troop amount is
+    displayed for information and never filters a defender out.
+    """
     attack = request_datetime(req)
     if attack is None:
         return []
@@ -444,18 +448,21 @@ def notification_source_options(player, req):
     options = []
 
     for idx, village in enumerate(player.get("villages", [])):
-        best = None
         for item in source_village_units(player, village, req):
+            # Show the normal movement time. If the hero is available, also
+            # show the faster hero-assisted time as the useful variant.
             variants = [(False, item["no_hero_seconds"])]
             if item["hero_seconds"] is not None:
                 variants.append((True, item["hero_seconds"]))
 
+            best = None
             for with_hero, seconds in variants:
                 if seconds is None:
                     continue
                 deadline = attack - timedelta(seconds=seconds)
                 if deadline <= now:
                     continue
+
                 candidate = {
                     "idx": idx,
                     "village": village,
@@ -469,14 +476,17 @@ def notification_source_options(player, req):
                     "remaining": (deadline - now).total_seconds(),
                     "with_hero": with_hero,
                 }
+
                 if best is None or candidate["seconds"] < best["seconds"]:
                     best = candidate
 
-        if best is not None:
-            options.append(best)
+            if best is not None:
+                options.append(best)
 
-    return sorted(options, key=lambda x: x["remaining"])
-
+    return sorted(
+        options,
+        key=lambda x: (x["idx"], x["remaining"], x["name"]),
+    )
 
 def notify_eligible_defenders(req):
     """Privately notify every registered player with at least one village that still theoretically arrives in time."""
@@ -508,14 +518,21 @@ def notify_eligible_defenders(req):
             "",
         ]
 
+        current_village = None
         for item in options:
+            coords = item["village"].get("coordinates", "?")
+            if coords != current_village:
+                if current_village is not None:
+                    lines.append("")
+                lines.append(f"🏘 <b>{html.escape(coords)}</b>")
+                current_village = coords
+
             hero = " + герой" if item["with_hero"] else ""
             lines.extend([
-                f"🏘 <b>{html.escape(item['village'].get('coordinates', '?'))}</b> — {item['amount']} {item['name']}{hero}",
-                f"⏳ Осталось на отправку: <b>{format_duration(item['remaining'])}</b>",
-                f"🚨 Отправить не позднее: <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
-                f"🏁 Прибытие: <b>{item['arrival'].strftime('%H:%M:%S')}</b>",
-                "",
+                f"🛡 {item['amount']} {item['name']}{hero}",
+                f"   ⏳ Осталось: <b>{format_duration(item['remaining'])}</b>",
+                f"   🚨 Отправить до: <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
+                f"   🏁 Прибытие: <b>{item['arrival'].strftime('%H:%M:%S')}</b>",
             ])
 
         lines.append("Проверь реальные войска в игре и, если можешь помочь, отправь деф из меню активных заявок в Telegram.")
