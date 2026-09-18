@@ -43,5 +43,14 @@
     "state": {
       "type": "request_target_coords"
     }
+  },
+  "972118673": {
+    "telegram_id": 972118673,
+    "username": "Oleg118790",
+    "first_name": "Олег",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null
   }
 }
