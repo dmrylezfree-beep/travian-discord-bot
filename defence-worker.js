@@ -24,6 +24,51 @@ async function sendTelegram(env, chatId, text) {
   }
 }
 
+function base64EncodeUtf8(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function registerPrivateUser(env, message) {
+  const user = message.from || {};
+  const chat = message.chat || {};
+  if (!user.id || chat.type !== "private") return;
+  const url = "https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/data/defence/players.json?ref=" + GITHUB_REF;
+  const headers = {
+    "Authorization": "Bearer " + env.GITHUB_TOKEN,
+    "Accept": "application/vnd.github+json",
+    "User-Agent": "travian-defence",
+    "Content-Type": "application/json"
+  };
+  const getResponse = await fetch(url, { headers });
+  if (!getResponse.ok) throw new Error("GitHub players.json GET " + getResponse.status + ": " + await getResponse.text());
+  const payload = await getResponse.json();
+  const raw = atob(String(payload.content || "").replace(/\s/g, ""));
+  const players = JSON.parse(raw);
+  const key = String(user.id);
+  const current = players[key] || { telegram_id: Number(user.id), username: "", first_name: "", race: null, villages: [], substitutes: [], state: null };
+  current.telegram_id = Number(user.id);
+  current.username = user.username || current.username || "";
+  current.first_name = user.first_name || current.first_name || "";
+  current.private_chat_id = Number(chat.id);
+  current.private_notifications = true;
+  players[key] = current;
+  const updateResponse = await fetch("https://api.github.com/repos/" + GITHUB_OWNER + "/" + GITHUB_REPO + "/contents/data/defence/players.json", {
+    method: "PUT", headers,
+    body: JSON.stringify({ message: "Register defence bot private notifications", content: base64EncodeUtf8(JSON.stringify(players, null, 2) + "\n"), sha: payload.sha, branch: GITHUB_REF })
+  });
+  if (!updateResponse.ok) throw new Error("GitHub players.json PUT " + updateResponse.status + ": " + await updateResponse.text());
+  const response = await fetch("https://api.telegram.org/bot" + env.TELEGRAM_BOT_TOKEN + "/sendMessage", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ chat_id: chat.id, text: "<b>🔔 Личные уведомления подключены.</b>\n\nТеперь бот будет писать вам в личку, когда появляется новая заявка на деф и хотя бы одна из ваших настроенных деревень теоретически успевает прибыть до атаки.\n\nКоличество доступного дефа не используется как условие для уведомления.", parse_mode: "HTML" })
+  });
+  if (!response.ok) throw new Error("Telegram private registration reply " + response.status + ": " + await response.text());
+}
 async function answerCallback(env, callbackQueryId) {
   const response = await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
@@ -199,12 +244,25 @@ export default {
       return new Response("OK");
     }
 
-    if (getUpdateThreadId(update) !== THREAD_ID) {
+    const message = update.message;
+    const callback = update.callback_query;
+
+    if (
+      message &&
+      message.chat?.type === "private" &&
+      /^\/start(?:@[^\s]+)?(?:\s|$)/i.test(String(message.text || "").trim())
+    ) {
+      try {
+        await registerPrivateUser(env, message);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
+      }
       return new Response("OK");
     }
 
-    const message = update.message;
-    const callback = update.callback_query;
+    if (getUpdateThreadId(update) !== THREAD_ID) {
+      return new Response("OK");
+    }
 
     // /def is the entry point: acknowledge immediately, start polling, and
     // send the initial menu. The workflow will take over the webhook shortly.
