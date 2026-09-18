@@ -137,8 +137,12 @@ def poll():
             try:
                 if process_update(update):
                     processed += 1
-                    chat_id = update_chat_id(update)
-                    defence.refresh_center(chat_id=chat_id, create_if_missing=False)
+                    # Do not refresh the pinned centre after every callback.
+                    # Some callbacks (for example send_def) deliberately edit
+                    # the centre message into a temporary submenu. Refreshing
+                    # it here immediately overwrites that submenu and makes
+                    # the button appear to do nothing. Callbacks that actually
+                    # change the centre already refresh it explicitly.
                     print(
                         f"Processed Telegram update {update.get('update_id')} "
                         f"(processed={processed})",
