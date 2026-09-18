@@ -83,7 +83,7 @@ async function dispatch(env) {
 }
 
 function isDefCommand(message) {
-  if (!message || message.is_topic_message !== true) return false;
+  if (!message) return false;
   if (Number(message.message_thread_id) !== THREAD_ID) return false;
 
   const text = String(message.text || "").trim();
@@ -107,6 +107,11 @@ export default {
 
     if (message && isDefCommand(message)) {
       try {
+        await sendTelegram(
+          env,
+          message.chat.id,
+          "⏳ <b>Команда /def получена.</b> Запускаю Defence Bot..."
+        );
         await dispatch(env);
         await sendStartMenu(env, message);
       } catch (error) {
