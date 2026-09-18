@@ -58,9 +58,11 @@ jobs:
               data={"drop_pending_updates": "false"},
               timeout=40,
           )
-          response.raise_for_status()
+          print("Telegram setWebhook HTTP:", response.status_code, flush=True)
+          print("Telegram setWebhook response:", response.text, flush=True)
+          if not response.ok:
+              raise SystemExit(1)
           result = response.json()
-          print(result, flush=True)
           if not result.get("ok"):
               raise SystemExit(1)
           PY
