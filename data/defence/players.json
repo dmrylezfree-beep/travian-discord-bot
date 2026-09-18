@@ -19,7 +19,11 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "send_def",
+      "request_id": 4,
+      "selected": {}
+    },
     "race": "gaul"
   },
   "8940235277": {
