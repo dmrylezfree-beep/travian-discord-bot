@@ -71,8 +71,25 @@
           }
         ],
         "created_at": "2026-09-18 17:13:00"
+      },
+      {
+        "telegram_id": 317595036,
+        "username": "dmrylez",
+        "first_name": "Дмитрий",
+        "def_points": 2000,
+        "plan": [
+          {
+            "village": "30 40",
+            "unit": "phalanx",
+            "unit_name": "Фаланга",
+            "def_points": 2000,
+            "arrival": "20:31:24",
+            "with_hero": true
+          }
+        ],
+        "created_at": "2026-09-18 17:27:36"
       }
     ],
-    "collected_def": 3000
+    "collected_def": 5000
   }
 ]
