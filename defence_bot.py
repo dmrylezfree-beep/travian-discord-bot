@@ -90,6 +90,10 @@ def edit(chat_id, message_id, text, reply_markup=None):
     return tg("editMessageText", **args)
 
 
+def send_private(chat_id, text):
+    return tg("sendMessage", chat_id=chat_id, text=text, parse_mode="HTML")
+
+
 def answer_callback(callback_id, text=None):
     try:
         kwargs = {"callback_query_id": callback_id}
