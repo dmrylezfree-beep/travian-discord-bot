@@ -20,14 +20,16 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "send_def",
+      "type": "send_def_amount",
       "request_id": 4,
       "selected": {
         "0": {
           "troops": {},
           "with_hero": false
         }
-      }
+      },
+      "index": 0,
+      "unit": "phalanx"
     },
     "race": "gaul"
   },
