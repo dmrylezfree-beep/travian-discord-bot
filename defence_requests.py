@@ -434,6 +434,109 @@ def save_request(request):
     bot.persist_data()
     return request
 
+def notification_source_options(player, req):
+    """Return one fastest theoretical option per village that can still arrive."""
+    attack = request_datetime(req)
+    if attack is None:
+        return []
+
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    options = []
+
+    for idx, village in enumerate(player.get("villages", [])):
+        best = None
+        for item in source_village_units(player, village, req):
+            variants = [(False, item["no_hero_seconds"])]
+            if item["hero_seconds"] is not None:
+                variants.append((True, item["hero_seconds"]))
+
+            for with_hero, seconds in variants:
+                if seconds is None:
+                    continue
+                deadline = attack - timedelta(seconds=seconds)
+                if deadline <= now:
+                    continue
+                candidate = {
+                    "idx": idx,
+                    "village": village,
+                    "unit_key": item["key"],
+                    "name": item["name"],
+                    "amount": item["amount"],
+                    "value": item["value"],
+                    "seconds": seconds,
+                    "arrival": now + timedelta(seconds=seconds),
+                    "deadline": deadline,
+                    "remaining": (deadline - now).total_seconds(),
+                    "with_hero": with_hero,
+                }
+                if best is None or candidate["seconds"] < best["seconds"]:
+                    best = candidate
+
+        if best is not None:
+            options.append(best)
+
+    return sorted(options, key=lambda x: x["remaining"])
+
+
+def notify_eligible_defenders(req):
+    """Privately notify every registered player with at least one village that still theoretically arrives in time."""
+    data = bot.players()
+    if not isinstance(data, dict):
+        return
+
+    sent = 0
+    for player in data.values():
+        if not isinstance(player, dict):
+            continue
+        private_chat_id = player.get("private_chat_id")
+        if not private_chat_id or not player.get("private_notifications", True):
+            continue
+
+        options = notification_source_options(player, req)
+        if not options:
+            continue
+
+        lines = [
+            "<b>🛡 НОВАЯ ЗАЯВКА НА ДЕФ</b>",
+            "",
+            f"🎯 Цель: <b>{req['target_x']}|{req['target_y']}</b>",
+            f"👤 Игрок: <b>{html.escape(req['target_player'])}</b>",
+            f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
+            f"🛡 Требуется: <b>{req['required_def']}</b> очков",
+            "",
+            "<b>Твои деревни, которые теоретически успевают:</b>",
+            "",
+        ]
+
+        for item in options:
+            hero = " + герой" if item["with_hero"] else ""
+            lines.extend([
+                f"🏘 <b>{html.escape(item['village'].get('coordinates', '?'))}</b> — {item['amount']} {item['name']}{hero}",
+                f"⏳ Осталось на отправку: <b>{format_duration(item['remaining'])}</b>",
+                f"🚨 Отправить не позднее: <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
+                f"🏁 Прибытие: <b>{item['arrival'].strftime('%H:%M:%S')}</b>",
+                "",
+            ])
+
+        lines.append("Проверь реальные войска в игре и, если можешь помочь, отправь деф из меню активных заявок в Telegram.")
+
+        try:
+            bot.tg("sendMessage", chat_id=int(private_chat_id), text="\n".join(lines), parse_mode="HTML")
+            sent += 1
+            print(
+                f"Defence notification sent: request=#{req.get('id')} player={player.get('telegram_id')} options={len(options)}",
+                flush=True,
+            )
+        except Exception as exc:
+            print(
+                f"Defence notification failed: request=#{req.get('id')} player={player.get('telegram_id')}: {exc}",
+                flush=True,
+            )
+
+    print(f"Defence notifications complete: request=#{req.get('id')} sent={sent}", flush=True)
+
+
+
 
 def start_request(chat_id, player, data):
     player["state"] = {"type": "request_target_coords"}
@@ -746,6 +849,25 @@ def callback_query(q):
         bot.send(chat_id, bot.settings_text(player), bot.settings_kb())
         return
 
+    if action == "private_notify":
+        if player.get("private_chat_id") and player.get("private_notifications", True):
+            bot.send(
+                chat_id,
+                "<b>🔔 Личные уведомления подключены.</b>\n\n"
+                "Когда появляется новая заявка на деф, бот будет писать вам в личку, "
+                "если хотя бы одна из настроенных деревень теоретически успевает прибыть до атаки.",
+                bot.settings_kb(),
+            )
+        else:
+            bot.send(
+                chat_id,
+                "<b>🔔 Личные уведомления</b>\n\n"
+                "Чтобы подключить уведомления, откройте личный чат с этим ботом и отправьте команду <code>/start</code>.\n\n"
+                "После этого бот сможет писать вам в личку о новых заявках, если ваш деф теоретически успевает прибыть вовремя.",
+                bot.settings_kb(),
+            )
+        return
+
     if action == "request_def":
         start_request(chat_id, player, data)
         return
@@ -860,6 +982,7 @@ def callback_query(q):
             "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         }
         save_request(req)
+        notify_eligible_defenders(req)
         player["state"] = None
         bot.save_players(data)
         bot.edit(chat_id, msg_id, "<b>✅ Заявка создана.</b>\n\nОна добавлена в закреплённый Центр дефа.", request_menu())
