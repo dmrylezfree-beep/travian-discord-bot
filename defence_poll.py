@@ -36,6 +36,34 @@ def update_chat_id(update):
     return message.get("chat", {}).get("id")
 
 
+def process_private_start(update):
+    message = update.get("message") or update.get("edited_message")
+    if not message:
+        return False
+    chat = message.get("chat") or {}
+    text = (message.get("text") or "").strip()
+    if chat.get("type") != "private" or not text.startswith("/start"):
+        return False
+
+    user = message.get("from") or {}
+    if not user.get("id") or not chat.get("id"):
+        return False
+
+    data, player = bot.get_player(user)
+    player["private_chat_id"] = int(chat["id"])
+    player["private_notifications"] = True
+    bot.save_players(data)
+    bot.send_private(
+        chat["id"],
+        "<b>🔔 Личные уведомления подключены.</b>\n\n"
+        "Теперь бот будет писать вам в личку, когда появляется новая заявка на деф "
+        "и хотя бы одна из ваших настроенных деревень теоретически успевает прибыть до атаки.\n\n"
+        "Количество доступного дефа не используется как условие для уведомления.",
+    )
+    print(f"Private defence notifications registered for user {user['id']}", flush=True)
+    return True
+
+
 def normalize_date_time_message(message):
     """Combine the date selected by the user with the entered time.
 
@@ -145,6 +173,9 @@ def poll():
             continue
 
         for update in updates:
+            if process_private_start(update):
+                continue
+
             update_id = update.get("update_id")
             if isinstance(update_id, int):
                 offset = update_id + 1
