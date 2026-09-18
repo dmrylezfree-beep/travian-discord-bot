@@ -29,6 +29,7 @@ def save_state(state):
 def request_menu():
     return bot.kb([
         [{"text": "➕ Запросить деф", "callback_data": "request_def"}],
+        [{"text": "🛡 Отправить деф", "callback_data": "send_def"}],
         [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
     ])
 
@@ -84,6 +85,349 @@ def parse_attack_clock(text):
 def village_link(x, y):
     url = f"{SERVER_URL}/karte.php?x={x}&y={y}"
     return f'<a href="{html.escape(url, quote=True)}">{x} {y}</a>'
+
+
+def map_distance(x1, y1, x2, y2):
+    size = int(bot.settings().get("map_size", 401) or 401)
+    dx = min(abs(int(x2) - int(x1)), size - abs(int(x2) - int(x1)))
+    dy = min(abs(int(y2) - int(y1)), size - abs(int(y2) - int(y1)))
+    return (dx * dx + dy * dy) ** 0.5
+
+
+def format_duration(seconds):
+    total = max(0, int(round(seconds)))
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}ч {minutes:02d}м"
+    if minutes:
+        return f"{minutes}м {secs:02d}с"
+    return f"{secs}с"
+
+
+def travel_seconds(distance, unit_speed, village, with_hero=False):
+    cfg = bot.settings()
+    world_speed = float(cfg.get("world_speed_multiplier", 1.0) or 1.0)
+    arena = int(village.get("arena", 0) or 0)
+    hero = village.get("hero", {}) or {}
+
+    base_speed = float(unit_speed) * world_speed
+
+    # Standard affects the whole route, but only when the hero travels with
+    # the troops. The target of a defence request is assumed to be an ally.
+    standard = float(hero.get("standard_bonus", 0) or 0) if with_hero and hero.get("present") else 0.0
+
+    # Boots and Tournament Square bonuses apply only after the first 20 fields.
+    boots = float(hero.get("boots_bonus", 0) or 0) if with_hero and hero.get("present") else 0.0
+    after20_bonus = (arena * 0.20) + boots
+
+    first_leg = min(distance, 20.0)
+    seconds = first_leg * 3600.0 / (base_speed * (1.0 + standard))
+
+    if distance > 20:
+        second_leg = distance - 20.0
+        seconds += second_leg * 3600.0 / (
+            base_speed * (1.0 + standard) * (1.0 + after20_bonus)
+        )
+    return seconds
+
+
+CAVALRY_UNITS = {
+    "druidrider", "haeduan", "theutates_thunder",
+    "equites_legati", "equites_imperatoris", "equites_caesaris",
+    "paladin", "teutonic_knight",
+}
+
+
+TROOP_SLOTS = {
+    "gaul": {
+        "phalanx": 1, "swordsman": 2, "pathfinder": 3,
+        "theutates_thunder": 4, "druidrider": 5, "haeduan": 6,
+    },
+    "teuton": {
+        "clubswinger": 1, "spearman": 2, "axeman": 3,
+        "scout": 4, "paladin": 5, "teutonic_knight": 6,
+    },
+    "roman": {
+        "legionnaire": 1, "praetorian": 2, "imperian": 3,
+        "equites_legati": 4, "equites_imperatoris": 5, "equites_caesaris": 6,
+    },
+}
+
+
+def unit_value(unit_key):
+    return 2 if unit_key in CAVALRY_UNITS else 1
+
+
+def request_datetime(req):
+    try:
+        return datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S")
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def source_village_units(player, village, req):
+    target_x, target_y = int(req["target_x"]), int(req["target_y"])
+    parts = str(village.get("coordinates", "")).split()
+    if len(parts) != 2:
+        return []
+    try:
+        source_x, source_y = int(parts[0]), int(parts[1])
+    except ValueError:
+        return []
+
+    distance = map_distance(source_x, source_y, target_x, target_y)
+    units = bot.settings().get("units", {})
+    result = []
+    for unit_key in bot.allowed_units(player):
+        amount = int(village.get("troops", {}).get(unit_key, 0) or 0)
+        if amount <= 0:
+            continue
+        unit = units.get(unit_key) or {}
+        speed = float(unit.get("speed", 0) or 0)
+        if speed <= 0:
+            continue
+
+        no_hero_seconds = travel_seconds(distance, speed, village, with_hero=False)
+        hero_available = bool((village.get("hero") or {}).get("present"))
+        hero_seconds = travel_seconds(distance, speed, village, with_hero=True) if hero_available else None
+        result.append({
+            "key": unit_key,
+            "name": unit.get("name", unit_key),
+            "amount": amount,
+            "speed": speed,
+            "distance": distance,
+            "no_hero_seconds": no_hero_seconds,
+            "hero_seconds": hero_seconds,
+            "value": unit_value(unit_key),
+        })
+    return result
+
+
+def source_village_status(player, village, req):
+    attack = request_datetime(req)
+    if attack is None:
+        return "⚪", "нет времени"
+    units = source_village_units(player, village, req)
+    if not units:
+        return "⚪", "нет указанных войск"
+
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    remaining = (attack - now).total_seconds()
+    best = None
+
+    for item in units:
+        for with_hero, seconds in ((False, item["no_hero_seconds"]), (True, item["hero_seconds"])):
+            if seconds is None:
+                continue
+            if best is None or seconds < best["seconds"]:
+                best = {
+                    "seconds": seconds,
+                    "name": item["name"],
+                    "with_hero": with_hero,
+                    "arrival": now + timedelta(seconds=seconds),
+                }
+
+    if best is None:
+        return "⚪", "нет доступных войск"
+
+    if best["seconds"] <= remaining:
+        hero_text = " +герой" if best["with_hero"] else ""
+        return "🟢", f"{best['name']}{hero_text} • {best['arrival'].strftime('%H:%M:%S')}"
+    return "🔴", f"ближайшее: {best['name']} • {format_duration(best['seconds'])}"
+
+
+def send_def_requests_keyboard(requests):
+    rows = []
+    for req in requests:
+        if req.get("status") != "active":
+            continue
+        rows.append([{
+            "text": f"#{req['id']} • {req['target_x']}|{req['target_y']} • {req['attack_time_display']}",
+            "callback_data": f"send_req:{req['id']}",
+        }])
+    rows.append([{"text": "⬅️ Назад", "callback_data": "menu"}])
+    return bot.kb(rows)
+
+
+def send_def_sources_keyboard(player, req):
+    rows = []
+    for idx, village in enumerate(player.get("villages", [])):
+        icon, status = source_village_status(player, village, req)
+        rows.append([{
+            "text": f"{icon} {village.get('coordinates', '?')} — {status}",
+            "callback_data": f"send_village:{req['id']}:{idx}",
+        }])
+    rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
+    return bot.kb(rows)
+
+
+def send_def_village_text(player, req, idx):
+    village = player["villages"][idx]
+    attack = request_datetime(req)
+    target = f"{req['target_x']}|{req['target_y']}"
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    remaining = (attack - now).total_seconds() if attack else 0
+
+    lines = [
+        "<b>🛡 ОТПРАВКА ДЕФА</b>",
+        "",
+        f"📍 Откуда: <b>{html.escape(str(village.get('coordinates', '?')))}</b>",
+        f"📍 Куда: <b>{target}</b>",
+        f"⚔️ Атака: <b>{req.get('attack_time_display', '?')}</b>",
+        f"⏳ Осталось: <b>{format_duration(remaining)}</b>",
+        "",
+        "Выберите войско. Время прибытия считается с учётом Арены и сохранённых бонусов героя.",
+        "🟢 — успевает без героя или с героем.",
+        "🔴 — не успевает.",
+    ]
+    if attack is None or remaining <= 0:
+        lines.append("")
+        lines.append("⚠️ Время атаки уже прошло.")
+        return "\n".join(lines)
+
+    units = source_village_units(player, village, req)
+    settings_units = bot.settings().get("units", {})
+    for item in units:
+        name = item["name"]
+        no_hero_arrival = now + timedelta(seconds=item["no_hero_seconds"])
+        text = f"• {name}: <b>{item['amount']}</b> — без героя {no_hero_arrival.strftime('%H:%M:%S')}"
+        if item["hero_seconds"] is not None:
+            hero_arrival = now + timedelta(seconds=item["hero_seconds"])
+            text += f" | с героем {hero_arrival.strftime('%H:%M:%S')}"
+        lines.append(text)
+    if not units:
+        lines.append("В этой деревне не указаны войска для отправки.")
+
+    return "\n".join(lines)
+
+
+def send_def_village_keyboard(player, req, idx):
+    village = player["villages"][idx]
+    state = player.get("state") or {}
+    send_state = state.get("send_state") or {}
+    selected = send_state.get("selected", {}).get(str(idx), {})
+    hero = bool(selected.get("with_hero", False))
+
+    rows = []
+    units = source_village_units(player, village, req)
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    attack = request_datetime(req)
+    for item in units:
+        # Selecting a unit does not yet send anything. The amount is entered next.
+        seconds = item["hero_seconds"] if hero and item["hero_seconds"] is not None else item["no_hero_seconds"]
+        arrival = now + timedelta(seconds=seconds)
+        ok = attack is not None and arrival <= attack
+        icon = "🟢" if ok else "🔴"
+        rows.append([{
+            "text": f"{icon} {item['name']} ({item['amount']}) → {arrival.strftime('%H:%M:%S')}",
+            "callback_data": f"send_unit:{req['id']}:{idx}:{item['key']}",
+        }])
+
+    if (village.get("hero") or {}).get("present"):
+        rows.append([{
+            "text": f"🦸 С героем: {'ДА' if hero else 'НЕТ'}",
+            "callback_data": f"send_hero:{req['id']}:{idx}",
+        }])
+
+    rows.append([{"text": "⬅️ К деревням", "callback_data": f"send_req:{req['id']}"}])
+    return bot.kb(rows)
+
+
+def send_def_state(player, req_id):
+    state = player.get("state") or {}
+    if state.get("type") != "send_def":
+        return None
+    if int(state.get("request_id", -1)) != int(req_id):
+        return None
+    return state
+
+
+def send_def_summary(player, req):
+    state = send_def_state(player, req["id"]) or {}
+    selected = state.get("selected", {})
+    if not selected:
+        return "Пока ничего не выбрано."
+
+    units = bot.settings().get("units", {})
+    lines = ["<b>Выбранный деф:</b>"]
+    total = 0
+    for idx_str, item in selected.items():
+        idx = int(idx_str)
+        village = player["villages"][idx]
+        troops = item.get("troops", {})
+        parts = []
+        score = 0
+        for key, amount in troops.items():
+            name = units.get(key, {}).get("name", key)
+            parts.append(f"{name}: {amount}")
+            score += int(amount) * unit_value(key)
+        total += score
+        lines.append(f"🏘 {village.get('coordinates', '?')}: " + ", ".join(parts) + f" — <b>{score}</b> очк.")
+    lines.append("")
+    lines.append(f"🛡 Всего: <b>{total}</b> / {req['required_def']} очков")
+    return "\n".join(lines)
+
+
+def send_def_confirm_keyboard(req_id):
+    return bot.kb([
+        [{"text": "🚀 Получить ссылки на отправку", "callback_data": f"send_links:{req_id}"}],
+        [{"text": "⬅️ Выбрать ещё войска", "callback_data": f"send_req:{req_id}"}],
+        [{"text": "❌ Отмена", "callback_data": "request_cancel"}],
+    ])
+
+
+def build_reinforcement_link(req, player, idx):
+    from urllib.parse import urlencode
+
+    village = player["villages"][idx]
+    state = send_def_state(player, req["id"]) or {}
+    item = (state.get("selected", {}) or {}).get(str(idx), {})
+    troops = item.get("troops", {})
+    params = [
+        ("id", "39"), ("tt", "2"),
+        ("x", str(req["target_x"])), ("y", str(req["target_y"])),
+        ("eventType", "2"),
+    ]
+    race = player.get("race")
+    for key, amount in troops.items():
+        slot = TROOP_SLOTS.get(race, {}).get(key)
+        if slot:
+            params.append((f"troop[t{slot}]", str(int(amount))))
+    if item.get("with_hero"):
+        params.append(("troop[t11]", "1"))
+    return f"{SERVER_URL}/build.php?" + urlencode(params)
+
+
+def send_links_text(player, req):
+    state = send_def_state(player, req["id"]) or {}
+    selected = state.get("selected", {})
+    if not selected:
+        return "Сначала выберите хотя бы одну деревню и войска."
+
+    lines = [
+        "<b>🚀 ОТПРАВКА ДЕФА</b>",
+        "",
+        f"📍 Цель: {village_link(req['target_x'], req['target_y'])}",
+        f"⚔️ Прибыть до: <b>{req['attack_time_display']}</b>",
+        "",
+        "Откройте ссылку из нужной деревни. Она откроет Пункт сбора с выбранными войсками и типом «Подкрепление». Перед подтверждением обязательно проверьте состав и время прибытия.",
+    ]
+    return "\n".join(lines)
+
+
+def send_links_keyboard(player, req):
+    state = send_def_state(player, req["id"]) or {}
+    rows = []
+    for idx_str in state.get("selected", {}):
+        idx = int(idx_str)
+        village = player["villages"][idx]
+        rows.append([{
+            "text": f"🚀 {village.get('coordinates', '?')}",
+            "url": build_reinforcement_link(req, player, idx),
+        }])
+    rows.append([{"text": "⬅️ К выбору войск", "callback_data": f"send_req:{req['id']}"}])
+    return bot.kb(rows)
 
 
 def request_text(req):
@@ -278,6 +622,70 @@ def process_text(message):
         return _original_process_text(message)
 
     typ = state.get("type")
+    if typ == "send_def_amount":
+        required = bot.to_int(text)
+        req_id = int(state.get("request_id", 0) or 0)
+        idx = int(state.get("index", -1) or -1)
+        unit_key = state.get("unit")
+        if required is None or required <= 0:
+            bot.send(chat_id, "Введите положительное количество войск.", force_reply=True)
+            return
+
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None or idx < 0 or idx >= len(player.get("villages", [])):
+            player["state"] = None
+            bot.save_players(data)
+            bot.send(chat_id, "❌ Заявка или деревня больше недоступна.", request_menu())
+            return
+
+        village = player["villages"][idx]
+        available = int(village.get("troops", {}).get(unit_key, 0) or 0)
+        if required > available:
+            bot.send(chat_id, f"В этой деревне указано только <b>{available}</b> таких войск.", force_reply=True)
+            return
+
+        send_state = player.setdefault("state", {})
+        selected = send_state.setdefault("selected", {})
+        entry = selected.setdefault(str(idx), {"troops": {}, "with_hero": bool(send_state.get("with_hero", False))})
+        entry["troops"][unit_key] = required
+
+        # Recalculate the whole selected army from this village: mixed troops
+        # travel at the speed of the slowest selected unit.
+        attack = request_datetime(req)
+        if attack is not None:
+            distance = map_distance(*[int(x) for x in str(village.get("coordinates")).split()], req["target_x"], req["target_y"])
+            speeds = []
+            for key, amount in entry["troops"].items():
+                if int(amount or 0) <= 0:
+                    continue
+                unit = bot.settings().get("units", {}).get(key, {})
+                speeds.append(float(unit.get("speed", 0) or 0))
+            if speeds:
+                slowest = min(speeds)
+                seconds = travel_seconds(distance, slowest, village, with_hero=bool(entry.get("with_hero")))
+                arrival = datetime.now(SERVER_TZ).replace(tzinfo=None) + timedelta(seconds=seconds)
+                if arrival > attack:
+                    entry["troops"].pop(unit_key, None)
+                    if not entry["troops"]:
+                        selected.pop(str(idx), None)
+                    bot.save_players(data)
+                    bot.send(
+                        chat_id,
+                        f"❌ С таким составом деф из этой деревни прибывает <b>{arrival.strftime('%H:%M:%S')}</b>, "
+                        f"а нужно до <b>{req['attack_time_display']}</b>. Выберите более быстрый состав.",
+                        force_reply=False,
+                    )
+                    return
+
+        bot.save_players(data)
+        bot.send(chat_id, send_def_village_text(player, req, idx), send_def_village_keyboard(player, req, idx))
+        return
+
+    if not isinstance(state, dict):
+        return _original_process_text(message)
+
+    typ = state.get("type")
     if typ == "request_target_coords":
         coords = bot.parse_coords(text)
         if coords is None:
@@ -357,6 +765,125 @@ def callback_query(q):
 
     if action == "request_def":
         start_request(chat_id, player, data)
+        return
+
+    if action == "send_def":
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        if not isinstance(requests, list):
+            requests = []
+        now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+        active = []
+        changed = False
+        for req in requests:
+            if req.get("status") != "active":
+                continue
+            attack = request_datetime(req)
+            if attack is not None and attack <= now:
+                req["status"] = "expired"
+                changed = True
+            else:
+                active.append(req)
+        if changed:
+            bot.save_json(bot.REQUESTS_FILE, requests)
+            bot.persist_data()
+        if not active:
+            bot.edit(chat_id, msg_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nАктивных заявок нет.", request_menu())
+            return
+        bot.edit(chat_id, msg_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nВыберите заявку:", send_def_requests_keyboard(active))
+        return
+
+    if action.startswith("send_req:"):
+        req_id = int(action.split(":", 1)[1])
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None:
+            bot.edit(chat_id, msg_id, "❌ Эта заявка больше не активна.", request_menu())
+            return
+
+        state = player.get("state") or {}
+        if state.get("type") != "send_def" or int(state.get("request_id", -1)) != req_id:
+            player["state"] = {"type": "send_def", "request_id": req_id, "selected": {}}
+            bot.save_players(data)
+
+        summary = send_def_summary(player, req)
+        text = (
+            f"<b>🛡 ОТПРАВИТЬ ДЕФ → #{req_id}</b>\n\n"
+            f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
+            f"⚔️ Прибыть до: <b>{req['attack_time_display']}</b>\n"
+            f"🛡 Требуется: <b>{req['required_def']}</b> очков\n\n"
+            "Выберите деревню, из которой хотите отправить деф.\n"
+            "🟢 = есть вариант, который успевает. 🔴 = нет.\n\n"
+            + summary
+        )
+        bot.edit(chat_id, msg_id, text, send_def_sources_keyboard(player, req))
+        return
+
+    if action.startswith("send_village:"):
+        _, req_id_s, idx_s = action.split(":")
+        req_id, idx = int(req_id_s), int(idx_s)
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None or idx < 0 or idx >= len(player.get("villages", [])):
+            bot.edit(chat_id, msg_id, "❌ Заявка или деревня недоступна.", request_menu())
+            return
+
+        state = player.get("state") or {}
+        if state.get("type") != "send_def" or int(state.get("request_id", -1)) != req_id:
+            player["state"] = {"type": "send_def", "request_id": req_id, "selected": {}}
+
+        bot.save_players(data)
+        bot.edit(chat_id, msg_id, send_def_village_text(player, req, idx), send_def_village_keyboard(player, req, idx))
+        return
+
+    if action.startswith("send_hero:"):
+        _, req_id_s, idx_s = action.split(":")
+        req_id, idx = int(req_id_s), int(idx_s)
+        state = player.get("state") or {}
+        if state.get("type") != "send_def" or int(state.get("request_id", -1)) != req_id:
+            return
+        selected = state.setdefault("selected", {})
+        entry = selected.setdefault(str(idx), {"troops": {}, "with_hero": False})
+        entry["with_hero"] = not bool(entry.get("with_hero", False))
+        bot.save_players(data)
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req:
+            bot.edit(chat_id, msg_id, send_def_village_text(player, req, idx), send_def_village_keyboard(player, req, idx))
+        return
+
+    if action.startswith("send_unit:"):
+        _, req_id_s, idx_s, unit_key = action.split(":", 3)
+        req_id, idx = int(req_id_s), int(idx_s)
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None or idx < 0 or idx >= len(player.get("villages", [])):
+            bot.edit(chat_id, msg_id, "❌ Заявка или деревня недоступна.", request_menu())
+            return
+        state = player.setdefault("state", {"type": "send_def", "request_id": req_id, "selected": {}})
+        state["type"] = "send_def_amount"
+        state["request_id"] = req_id
+        state["index"] = idx
+        state["unit"] = unit_key
+        bot.save_players(data)
+        village = player["villages"][idx]
+        available = int(village.get("troops", {}).get(unit_key, 0) or 0)
+        unit_name = bot.settings().get("units", {}).get(unit_key, {}).get("name", unit_key)
+        bot.send(
+            chat_id,
+            f"Введите количество <b>{unit_name}</b> из деревни <b>{village.get('coordinates')}</b>.\n"
+            f"Доступно по вашему резерву: <b>{available}</b>.",
+            force_reply=True,
+        )
+        return
+
+    if action.startswith("send_links:"):
+        req_id = int(action.split(":", 1)[1])
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None:
+            bot.edit(chat_id, msg_id, "❌ Заявка больше не активна.", request_menu())
+            return
+        bot.edit(chat_id, msg_id, send_links_text(player, req), send_links_keyboard(player, req))
         return
 
     if action == "request_cancel":
