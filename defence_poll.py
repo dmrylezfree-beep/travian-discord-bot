@@ -103,6 +103,25 @@ def poll():
     # Refresh once when the worker starts, which also expires old requests.
     defence.refresh_center(create_if_missing=False)
 
+    # When the webhook is active, Telegram delivers the triggering update to
+    # Cloudflare and it is no longer available to getUpdates. The Worker passes
+    # that exact update to this workflow, so process it before starting the
+    # normal polling loop.
+    initial_update_json = os.environ.get("DEFENCE_INITIAL_UPDATE_JSON", "").strip()
+    if initial_update_json:
+        try:
+            initial_update = __import__("json").loads(initial_update_json)
+            thread_id = update_thread_id(initial_update)
+            if thread_id == bot.THREAD_ID:
+                if process_update(initial_update):
+                    print(
+                        f"Processed initial Telegram update "
+                        f"{initial_update.get('update_id')}",
+                        flush=True,
+                    )
+        except Exception as exc:
+            print(f"Initial Telegram update failed: {exc}", flush=True)
+
     offset = None
     deadline = time.monotonic() + RUN_SECONDS
     processed = 0
