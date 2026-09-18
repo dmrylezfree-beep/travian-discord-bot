@@ -181,7 +181,6 @@ def settings_text(player):
 
 def settings_kb():
     return kb([
-        [{"text": "🧬 Выбрать расу", "callback_data": "race_menu"}],
         [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
         [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
         [{"text": "➕ Добавить деревню", "callback_data": "add_village"}],
@@ -287,6 +286,20 @@ def process_text(message):
         if coords is None:
             send(chat_id, "Неверный формат. Введите координаты через пробел, например: <code>45 -62</code>", force_reply=True)
             return
+        try:
+            from defence_requests import find_target, race_from_village
+            village, _ = find_target(coords)
+            detected_race = race_from_village(village) if village else None
+        except Exception:
+            detected_race = None
+        if detected_race is None:
+            send(chat_id, "❌ Не удалось определить расу по этой деревне в последнем слепке map.sql. Проверьте координаты.", force_reply=True)
+            return
+        current_race = player.get("race")
+        if current_race and current_race != detected_race:
+            send(chat_id, "❌ Координаты этой деревни принадлежат другой расе. Проверьте координаты.", force_reply=True)
+            return
+        player["race"] = detected_race
         player["state"] = {"type": "add_village_arena", "coordinates": coords}
         save_players(data)
         send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
@@ -382,9 +395,6 @@ def callback_query(q):
     elif action == "villages":
         edit(chat_id, msg_id, "<b>🏘 Мои деревни</b>\n\nВыберите деревню:", villages_kb(player))
     elif action == "add_village":
-        if not player.get("race"):
-            edit(chat_id, msg_id, "<b>🧬 Сначала выберите расу</b>\n\nОт выбранной расы зависит список доступных оборонительных войск для всех деревень.", race_keyboard())
-            return
         player["state"] = "add_village_coords"
         save_players(data)
         send(chat_id, "Введите координаты новой деревни через пробел, например <code>45 -62</code>:", force_reply=True)
