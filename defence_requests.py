@@ -30,6 +30,7 @@ def request_menu():
     return bot.kb([
         [{"text": "➕ Запросить деф", "callback_data": "request_def"}],
         [{"text": "🛡 Отправить деф", "callback_data": "send_def"}],
+        [{"text": "🗑 Удалить заявку", "callback_data": "delete_request_menu"}],
         [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
     ])
 
@@ -912,6 +913,132 @@ def callback_query(q):
             bot.edit(chat_id, msg_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nАктивных заявок нет.", request_menu())
             return
         bot.edit(chat_id, msg_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nВыберите заявку:", send_def_requests_keyboard(active))
+        return
+
+    if action == "delete_request_menu":
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        if not isinstance(requests, list):
+            requests = []
+        now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+        active = []
+        changed = False
+        for req in requests:
+            if req.get("status") != "active":
+                continue
+            attack = request_datetime(req)
+            if attack is not None and attack <= now:
+                req["status"] = "expired"
+                changed = True
+                continue
+            active.append(req)
+        if changed:
+            bot.save_json(bot.REQUESTS_FILE, requests)
+            bot.persist_data()
+
+        if not active:
+            bot.edit(
+                chat_id,
+                msg_id,
+                "<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nАктивных заявок нет.",
+                request_menu(),
+            )
+            return
+
+        rows = []
+        for req in active:
+            rows.append([{
+                "text": f"🗑 Заявка #{req['id']} — {req['target_x']}|{req['target_y']}",
+                "callback_data": f"delete_req:{req['id']}",
+            }])
+        rows.append([{"text": "⬅️ Назад", "callback_data": "menu"}])
+        bot.edit(
+            chat_id,
+            msg_id,
+            "<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nВыберите заявку:",
+            bot.kb(rows),
+        )
+        return
+
+    if action.startswith("delete_req:"):
+        req_id = int(action.split(":", 1)[1])
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next(
+            (r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"),
+            None,
+        )
+        if req is None:
+            bot.edit(chat_id, msg_id, "❌ Эта заявка уже не активна.", request_menu())
+            return
+
+        if int(req.get("requester_id", -1)) != int(user.get("id", -2)):
+            bot.edit(
+                chat_id,
+                msg_id,
+                "❌ Удалить заявку может только её создатель.",
+                request_menu(),
+            )
+            return
+
+        bot.edit(
+            chat_id,
+            msg_id,
+            (
+                f"<b>🗑 УДАЛЕНИЕ ЗАЯВКИ #{req_id}</b>\n\n"
+                f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
+                f"👤 Игрок: <b>{html.escape(req['target_player'])}</b>\n"
+                f"⚔️ Атака: <b>{req['attack_time_display']}</b>\n"
+                f"🛡 Деф: <b>{req.get('collected_def', 0)}</b> / <b>{req['required_def']}</b> очков\n\n"
+                "Заявка больше не нужна? Она будет снята с активных заявок."
+            ),
+            bot.kb([
+                [{"text": "✅ Да, удалить заявку", "callback_data": f"delete_confirm:{req_id}"}],
+                [{"text": "❌ Отмена", "callback_data": f"delete_cancel:{req_id}"}],
+            ]),
+        )
+        return
+
+    if action.startswith("delete_cancel:"):
+        refresh_center(chat_id=chat_id, create_if_missing=True)
+        return
+
+    if action.startswith("delete_confirm:"):
+        req_id = int(action.split(":", 1)[1])
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        if not isinstance(requests, list):
+            requests = []
+        req = next(
+            (r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"),
+            None,
+        )
+        if req is None:
+            bot.edit(chat_id, msg_id, "❌ Эта заявка уже не активна.", request_menu())
+            return
+
+        if int(req.get("requester_id", -1)) != int(user.get("id", -2)):
+            bot.edit(
+                chat_id,
+                msg_id,
+                "❌ Удалить заявку может только её создатель.",
+                request_menu(),
+            )
+            return
+
+        req["status"] = "cancelled"
+        req["cancelled_at"] = datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        req["cancelled_by"] = int(user.get("id", 0))
+        req["cancelled_by_username"] = user.get("username", "")
+        req["cancelled_by_first_name"] = user.get("first_name", "")
+
+        bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.persist_data()
+
+        bot.edit(
+            chat_id,
+            msg_id,
+            f"<b>✅ Заявка #{req_id} удалена.</b>\n\nОна больше не отображается среди активных заявок.",
+            request_menu(),
+        )
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     if action.startswith("send_req:"):
