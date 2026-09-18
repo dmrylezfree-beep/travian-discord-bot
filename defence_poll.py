@@ -139,14 +139,21 @@ def poll():
     if initial_update_json:
         try:
             initial_update = __import__("json").loads(initial_update_json)
-            thread_id = update_thread_id(initial_update)
-            if thread_id == bot.THREAD_ID:
-                if process_update(initial_update):
-                    print(
-                        f"Processed initial Telegram update "
-                        f"{initial_update.get('update_id')}",
-                        flush=True,
-                    )
+            if process_private_start(initial_update):
+                print(
+                    f"Processed initial private Telegram update "
+                    f"{initial_update.get('update_id')}",
+                    flush=True,
+                )
+            else:
+                thread_id = update_thread_id(initial_update)
+                if thread_id == bot.THREAD_ID:
+                    if process_update(initial_update):
+                        print(
+                            f"Processed initial Telegram update "
+                            f"{initial_update.get('update_id')}",
+                            flush=True,
+                        )
         except Exception as exc:
             print(f"Initial Telegram update failed: {exc}", flush=True)
 
