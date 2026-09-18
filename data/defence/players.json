@@ -20,7 +20,9 @@
     ],
     "substitutes": [],
     "state": null,
-    "race": "gaul"
+    "race": "gaul",
+    "private_chat_id": null,
+    "private_notifications": true
   },
   "8940235277": {
     "telegram_id": 8940235277,
