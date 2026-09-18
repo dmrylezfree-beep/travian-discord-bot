@@ -125,6 +125,8 @@ def player_default(user):
         "villages": [],
         "substitutes": [],
         "state": None,
+        "private_chat_id": None,
+        "private_notifications": True,
     }
 
 
@@ -139,6 +141,8 @@ def get_player(user):
     data[key].setdefault("villages", [])
     data[key].setdefault("substitutes", [])
     data[key].setdefault("state", None)
+    data[key].setdefault("private_chat_id", None)
+    data[key].setdefault("private_notifications", True)
     save_json(PLAYERS_FILE, data)
     return data, data[key]
 
@@ -175,7 +179,8 @@ def settings_text(player):
             lines.append(f"  🦸 Герой: да | 🚩 {int(h.get('standard_bonus', 0)*100)}% | 🥾 {int(h.get('boots_bonus', 0)*100)}%")
         else:
             lines.append("  🦸 Герой: нет")
-    lines += ["", f"👥 Заместители: {len(player.get('substitutes', []))}/2"]
+    notification_status = "подключены" if player.get("private_chat_id") and player.get("private_notifications", True) else "не подключены"
+    lines += ["", f"🔔 Личные уведомления: <b>{notification_status}</b>", f"👥 Заместители: {len(player.get('substitutes', []))}/2"]
     return "\n".join(lines)
 
 
@@ -187,6 +192,7 @@ def settings_kb():
         [{"text": "✏️ Изменить деревню", "callback_data": "edit_village"}],
         [{"text": "🗑 Удалить деревню", "callback_data": "delete_village"}],
         [{"text": "👥 Заместители", "callback_data": "subs"}],
+        [{"text": "🔔 Личные уведомления", "callback_data": "private_notify"}],
         [{"text": "⬅️ Назад", "callback_data": "menu"}],
     ])
 
