@@ -24,12 +24,81 @@ async function sendTelegram(env, chatId, text) {
   }
 }
 
+async function loadActiveRequests(env) {
+  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/data/defence/requests.json?ref=${GITHUB_REF}`;
+  const response = await fetch(url, {
+    headers: {
+      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+      "Accept": "application/vnd.github+json",
+      "User-Agent": "travian-defence"
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub requests.json ${response.status}: ${await response.text()}`);
+  }
+
+  const payload = await response.json();
+  const raw = atob(String(payload.content || "").replace(/\s/g, ""));
+  const requests = JSON.parse(raw);
+  if (!Array.isArray(requests)) return [];
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(new Date());
+  const now = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  const nowText = `${now.year}-${now.month}-${now.day} ${now.hour}:${now.minute}:${now.second}`;
+
+  return requests.filter(req =>
+    req && req.status === "active" &&
+    Number(req.required_def || 0) > Number(req.collected_def || 0) &&
+    String(req.attack_time || "") > nowText
+  );
+}
+
 async function sendStartMenu(env, message) {
   const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+  let requests = [];
+  try {
+    requests = await loadActiveRequests(env);
+  } catch (error) {
+    console.error("Failed to load active defence requests:", error);
+  }
+
+  const lines = ["<b>🛡 ЦЕНТР ДЕФА</b>", ""];
+  if (requests.length) {
+    lines.push("<b>Активные заявки:</b>", "");
+    for (const req of requests) {
+      const collected = Number(req.collected_def || 0);
+      const required = Number(req.required_def || 0);
+      lines.push(
+        `🟢 <b>#${req.id}</b> — ${req.target_x}|${req.target_y}`,
+        `⚔️ Атака: <b>${req.attack_time_display || req.attack_time}</b>`,
+        `🛡 Деф: <b>${collected}</b> / <b>${required}</b> очков`,
+        ""
+      );
+    }
+  } else {
+    lines.push("Активных заявок сейчас нет.", "");
+  }
+
+  lines.push(
+    "Деф должен прибыть <b>ДО</b> времени атаки.",
+    "",
+    "Выберите действие:"
+  );
+
   const body = {
     chat_id: message.chat.id,
     message_thread_id: THREAD_ID,
-    text: "<b>🛡 ЦЕНТР ДЕФА</b>\\n\\nЗдесь настраивается ваш теоретический резерв дефа.",
+    text: lines.join("\n"),
     parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
