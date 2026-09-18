@@ -258,6 +258,8 @@ def send_def_sources_keyboard(player, req):
             "text": f"{icon} {village.get('coordinates', '?')} — {status}",
             "callback_data": f"send_village:{req['id']}:{idx}",
         }])
+    if (player.get("state") or {}).get("selected"):
+        rows.append([{"text": "🚀 Завершить выбор", "callback_data": f"send_finish:{req['id']}"}])
     rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
     return bot.kb(rows)
 
@@ -330,6 +332,8 @@ def send_def_village_keyboard(player, req, idx):
             "callback_data": f"send_hero:{req['id']}:{idx}",
         }])
 
+    if selected.get("troops"):
+        rows.append([{"text": "🚀 Завершить выбор", "callback_data": f"send_finish:{req['id']}"}])
     rows.append([{"text": "⬅️ К деревням", "callback_data": f"send_req:{req['id']}"}])
     return bot.kb(rows)
 
@@ -678,6 +682,9 @@ def process_text(message):
                     )
                     return
 
+        player["state"]["type"] = "send_def"
+        player["state"].pop("index", None)
+        player["state"].pop("unit", None)
         bot.save_players(data)
         bot.send(chat_id, send_def_village_text(player, req, idx), send_def_village_keyboard(player, req, idx))
         return
@@ -874,6 +881,20 @@ def callback_query(q):
             f"Доступно по вашему резерву: <b>{available}</b>.",
             force_reply=True,
         )
+        return
+
+    if action.startswith("send_finish:"):
+        req_id = int(action.split(":", 1)[1])
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None:
+            bot.edit(chat_id, msg_id, "❌ Заявка больше не активна.", request_menu())
+            return
+        state = send_def_state(player, req_id)
+        if not state or not state.get("selected"):
+            bot.edit(chat_id, msg_id, "❌ Сначала выберите хотя бы одну деревню и войска.", request_menu())
+            return
+        bot.edit(chat_id, msg_id, send_links_text(player, req), send_links_keyboard(player, req))
         return
 
     if action.startswith("send_links:"):
