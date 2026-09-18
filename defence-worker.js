@@ -24,6 +24,21 @@ async function sendTelegram(env, chatId, text) {
   }
 }
 
+async function answerCallback(env, callbackQueryId) {
+  const response = await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId })
+    }
+  );
+
+  if (!response.ok) {
+    console.error(`Telegram answerCallbackQuery ${response.status}: ${await response.text()}`);
+  }
+}
+
 async function loadActiveRequests(env) {
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/data/defence/requests.json?ref=${GITHUB_REF}`;
   const response = await fetch(url, {
@@ -120,7 +135,7 @@ async function sendStartMenu(env, message) {
   }
 }
 
-async function dispatch(env) {
+async function dispatch(env, update = null) {
   if (!env.GITHUB_TOKEN) {
     throw new Error("Cloudflare: не задан GITHUB_TOKEN");
   }
@@ -141,7 +156,11 @@ async function dispatch(env) {
     },
     body: JSON.stringify({
       ref: GITHUB_REF,
-      inputs: { action: "start" }
+      inputs: {
+        action: update?.callback_query ? "callback" : "message",
+        thread_id: String(THREAD_ID),
+        update_json: update ? JSON.stringify(update) : ""
+      }
     })
   });
 
@@ -149,6 +168,14 @@ async function dispatch(env) {
     const details = await response.text();
     throw new Error(`GitHub API ${response.status}: ${details.slice(0, 1500)}`);
   }
+}
+
+function getUpdateThreadId(update) {
+  const message = update?.message || update?.edited_message;
+  if (message) return Number(message.message_thread_id);
+  const callback = update?.callback_query;
+  if (callback?.message) return Number(callback.message.message_thread_id);
+  return null;
 }
 
 function isDefCommand(message) {
@@ -172,8 +199,15 @@ export default {
       return new Response("OK");
     }
 
-    const message = update.message;
+    if (getUpdateThreadId(update) !== THREAD_ID) {
+      return new Response("OK");
+    }
 
+    const message = update.message;
+    const callback = update.callback_query;
+
+    // /def is the entry point: acknowledge immediately, start polling, and
+    // send the initial menu. The workflow will take over the webhook shortly.
     if (message && isDefCommand(message)) {
       try {
         await sendTelegram(
@@ -181,7 +215,7 @@ export default {
           message.chat.id,
           "⏳ <b>Команда /def получена.</b> Запускаю Defence Bot..."
         );
-        await dispatch(env);
+        await dispatch(env, update);
         await sendStartMenu(env, message);
       } catch (error) {
         const details = error instanceof Error ? error.message : String(error);
@@ -191,13 +225,30 @@ export default {
           await sendTelegram(
             env,
             message.chat.id,
-            `❌ <b>Не удалось запустить Defence Bot</b>\\n\\n<code>${details.slice(0, 2000)}</code>`
+            `❌ <b>Не удалось запустить Defence Bot</b>\n\n<code>${details.slice(0, 2000)}</code>`
           );
         } catch (telegramError) {
           console.error(
             telegramError instanceof Error ? telegramError.message : String(telegramError)
           );
         }
+      }
+      return new Response("OK");
+    }
+
+    // When the 510-second polling window has ended, Telegram is back on this
+    // webhook. Old inline keyboards must still work. Forward the exact update
+    // into a new workflow run; otherwise the update would be consumed by the
+    // webhook and never reach getUpdates.
+    if (callback || message) {
+      if (callback?.id) {
+        await answerCallback(env, callback.id);
+      }
+
+      try {
+        await dispatch(env, update);
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : String(error));
       }
     }
 
