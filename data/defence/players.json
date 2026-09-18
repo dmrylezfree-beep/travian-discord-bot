@@ -19,9 +19,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "request_target_coords"
-    },
+    "state": "add_village_coords",
     "race": "gaul"
   },
   "8940235277": {
