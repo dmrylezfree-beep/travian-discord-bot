@@ -135,7 +135,7 @@ async function sendStartMenu(env, message) {
   }
 }
 
-async function dispatch(env, update = null) {
+async function dispatch(env, update = null, workflow = GITHUB_WORKFLOW) {
   if (!env.GITHUB_TOKEN) {
     throw new Error("Cloudflare: не задан GITHUB_TOKEN");
   }
@@ -144,7 +144,7 @@ async function dispatch(env, update = null) {
   }
 
   const url =
-    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`;
+    `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${workflow}/dispatches`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -208,10 +208,9 @@ export default {
       /^\/start(?:@[^\s]+)?(?:\s|$)/i.test(String(message.text || "").trim())
     ) {
       try {
-        // Private registration is processed by the same Python workflow.
-        // This keeps players.json writes under GitHub Actions, where the
-        // workflow already has contents: write permission.
-        await dispatch(env, update);
+        // Private registration uses a separate short workflow so it never
+        // cancels an active 510-second Defence Bot session.
+        await dispatch(env, update, "defence_register.yml");
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
       }
