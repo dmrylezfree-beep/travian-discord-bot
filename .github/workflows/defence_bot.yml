@@ -44,14 +44,10 @@ on:
         required: false
         default: ""
 
-  schedule:
-    - cron: "*/10 * * * *"
-
 permissions:
   contents: write
 
-# Only one bot session may exist at a time.
-# New scheduled/manual runs are NOT allowed to pile up behind it.
+# Only one short defence session may run at a time.
 concurrency:
   group: defence-bot
   cancel-in-progress: true
@@ -76,7 +72,7 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Disable Telegram webhook
+      - name: Switch Telegram from webhook to polling
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
         run: |
@@ -97,9 +93,32 @@ jobs:
               raise SystemExit(1)
           PY
 
-      - name: Run defence bot continuously
+      - name: Run defence bot
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
           DEFENCE_RUN_SECONDS: "510"
           DEFENCE_TG_POLL_TIMEOUT: "20"
         run: python defence_poll.py
+
+      - name: Restore Telegram webhook
+        if: always()
+        env:
+          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os
+          import requests
+
+          token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
+          webhook_url = "https://travian-defence.dmrylezfree.workers.dev/"
+          response = requests.post(
+              f"https://api.telegram.org/bot{token}/setWebhook",
+              data={"url": webhook_url, "allowed_updates": '["message","callback_query"]'},
+              timeout=40,
+          )
+          response.raise_for_status()
+          result = response.json()
+          print(result, flush=True)
+          if not result.get("ok"):
+              raise SystemExit(1)
+          PY
