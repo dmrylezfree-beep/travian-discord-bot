@@ -180,12 +180,12 @@ def poll():
             continue
 
         for update in updates:
-            if process_private_start(update):
-                continue
-
             update_id = update.get("update_id")
             if isinstance(update_id, int):
                 offset = update_id + 1
+
+            if process_private_start(update):
+                continue
 
             thread_id = update_thread_id(update)
             if thread_id != bot.THREAD_ID:
