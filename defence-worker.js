@@ -105,11 +105,8 @@ export default {
 
     const message = update.message;
 
-    // The webhook is only a launcher. Once /def starts Actions,
-    // the workflow removes this webhook and switches the bot to getUpdates.
     if (message && isDefCommand(message)) {
       try {
-        // Start Actions first. If dispatch fails, the user gets the reason.
         await dispatch(env);
         await sendStartMenu(env, message);
       } catch (error) {
@@ -130,9 +127,6 @@ export default {
       }
     }
 
-    // Ignore everything else while the webhook is active.
-    // Normal messages and callbacks are processed by defence_poll.py
-    // after the workflow switches Telegram to polling.
     return new Response("OK");
   }
 };
