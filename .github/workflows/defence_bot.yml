@@ -55,7 +55,7 @@ jobs:
           import requests
 
           token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
-          webhook_url = "https://travian-defence.dmrylezfree-beep.workers.dev/"
+          webhook_url = "https://travian-defence.dmrylezfree.workers.dev/"
           api = f"https://api.telegram.org/bot{token}/setWebhook"
 
           last_error = None
@@ -134,7 +134,7 @@ jobs:
           import requests
 
           token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
-          webhook_url = "https://travian-defence.dmrylezfree-beep.workers.dev/"
+          webhook_url = "https://travian-defence.dmrylezfree.workers.dev/"
           api = f"https://api.telegram.org/bot{token}/setWebhook"
 
           last_error = None
