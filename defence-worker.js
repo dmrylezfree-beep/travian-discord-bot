@@ -348,7 +348,8 @@ export default {
     }
 
     return new Response("OK");
-  }
+  },
+
   async queue(batch, env) {
     for (const message of batch.messages) {
       try {
