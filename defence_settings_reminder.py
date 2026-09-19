@@ -30,15 +30,13 @@ def reminder_text(player):
 
         hero = village.get("hero") or {}
         if hero.get("present"):
-            standard = int(float(hero.get("standard_bonus", 0) or 0) * 100)
-            boots = int(float(hero.get("boots_bonus", 0) or 0) * 100)
-            items = []
-            if standard:
-                items.append(f"🚩 Штандарт +{standard}%")
-            if boots:
-                items.append(f"🥾 Сапоги +{boots}%")
             lines.append("🦸 <b>Герой находится здесь</b>")
-            lines.append("   " + (" · ".join(items) if items else "Предметы на скорость не указаны"))
+
+    inv = bot.hero_inventory(player)
+    lines += ["", "<b>🎒 Инвентарь героя:</b>"]
+    lines.append("🚩 Штандарты: " + (", ".join(f"+{x}%" for x in inv.get("standards", [])) or "нет"))
+    lines.append("🥾 Сапоги: " + (", ".join(f"+{x}%" for x in inv.get("boots", [])) or "нет"))
+    lines.append("🗺 Карты: " + (", ".join(f"+{x}%" for x in inv.get("maps", [])) or "нет"))
 
     lines += [
         "",
