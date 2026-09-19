@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import defence_bot as bot
+import defence_requests
 
 SERVER_TZ = ZoneInfo("Europe/London")
 LOOKAHEAD_SECONDS = 360
@@ -82,6 +83,13 @@ def main():
     if changed:
         bot.save_json(bot.REQUESTS_FILE, requests)
         bot.persist_data()
+
+    # The same five-minute job also keeps public optimal plans current.
+    # A plan is deleted and reposted only when the recommendation actually changes.
+    try:
+        defence_requests.refresh_optimal_plans()
+    except Exception as exc:
+        print(f"Optimal plan refresh failed: {exc}", flush=True)
 
 
 if __name__ == "__main__":
