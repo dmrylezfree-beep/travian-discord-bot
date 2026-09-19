@@ -73,6 +73,11 @@
     "substitutes": [],
     "state": null,
     "private_chat_id": null,
-    "private_notifications": true
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
