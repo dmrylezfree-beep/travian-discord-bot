@@ -41,18 +41,22 @@ async function queueReminder(env, payload) {
 }
 
 async function sendPrivateReminder(env, item) {
-  const extra = item.speed_mode === "ram" ? " + 1 таран"
-    : item.speed_mode === "catapult" ? " + 1 катапульта" : "";
+  const mode = item.speed_mode === "hero" ? "🦸 С героем"
+    : item.speed_mode === "ram" ? "🐏 + 1 таран"
+    : item.speed_mode === "catapult" ? "🪨 + 1 катапульта"
+    : "⚡ Без героя";
   const warning = item.speed_mode === "ram"
     ? "\n\n❗ Не забудь добавить <b>1 таран</b>."
     : item.speed_mode === "catapult"
       ? "\n\n❗ Не забудь добавить <b>1 катапульту</b>." : "";
   const text =
-    "<b>🚨 ЧЕРЕЗ 5 МИНУТ ОТПРАВКА ДЕФА</b>\n\n" +
-    `🏘 ${item.village || "?"} → 🎯 ${item.target_x} ${item.target_y}\n` +
-    `🛡 ${item.def_points || 0} очков дефа${extra}\n` +
-    `⏰ Отправить: <b>${item.deadline || "?"}</b>\n` +
-    `⚔️ Атака: <b>${item.attack_time_display || item.attack_time || "?"}</b>` +
+    "<b>🚨 ПОРА ОТПРАВЛЯТЬ ДЕФ</b>\n\n" +
+    `🏘 <b>${item.village || "?"}</b> → 🎯 <b>${item.target_x} ${item.target_y}</b>\n` +
+    `🛡 <b>${item.def_points || 0}</b> очков\n` +
+    `${mode}\n\n` +
+    `🚨 Отправить до: <b>${item.deadline || "?"}</b>\n` +
+    `⚔️ Атака: <b>${item.attack_time_display || item.attack_time || "?"}</b>\n\n` +
+    "⏱ До отправки около 5 минут." +
     warning;
 
   const response = await fetch(
