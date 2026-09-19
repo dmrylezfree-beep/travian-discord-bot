@@ -19,7 +19,11 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "send_draft",
+      "request_id": 6,
+      "draft": []
+    },
     "race": "gaul",
     "private_chat_id": 317595036,
     "private_notifications": true
