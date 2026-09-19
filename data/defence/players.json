@@ -52,5 +52,16 @@
     "villages": [],
     "substitutes": [],
     "state": "add_village_coords"
+  },
+  "246406753": {
+    "telegram_id": 246406753,
+    "username": "alex_8010",
+    "first_name": "Алишер",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": null,
+    "private_notifications": true
   }
 }
