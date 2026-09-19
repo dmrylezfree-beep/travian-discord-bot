@@ -3,6 +3,12 @@ name: Defence Bot Private Registration
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: "Telegram update type"
+        required: false
+      thread_id:
+        description: "Telegram thread ID"
+        required: false
       update_json:
         description: "Private Telegram update JSON"
         required: true
