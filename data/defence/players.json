@@ -20,11 +20,13 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "request_attack_date",
+      "type": "request_attack_time",
       "target_coords": "41 0",
       "target_x": 41,
       "target_y": 0,
-      "target_player": "TheAnarchy"
+      "target_player": "TheAnarchy",
+      "attack_date": "2026-09-19",
+      "attack_date_display": "19.09.2026"
     },
     "race": "gaul",
     "private_chat_id": 317595036,
