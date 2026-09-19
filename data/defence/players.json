@@ -20,11 +20,21 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "send_village_amount",
+      "type": "send_draft",
       "request_id": 7,
-      "village_idx": 0,
-      "draft": [],
-      "pending_amount": 4000
+      "draft": [
+        {
+          "village_idx": 0,
+          "village": "30 40",
+          "def_points": 4000,
+          "speed_mode": "normal",
+          "deadline_at": "2026-09-19 18:54:51",
+          "deadline": "18:54:51",
+          "reminder_at": "2026-09-19 18:49:51",
+          "reminder_time": "18:49:51",
+          "reminder_sent": false
+        }
+      ]
     },
     "race": "gaul",
     "private_chat_id": 317595036,
