@@ -23,7 +23,8 @@
       "type": "send_village_amount",
       "request_id": 7,
       "village_idx": 0,
-      "draft": []
+      "draft": [],
+      "pending_amount": 4000
     },
     "race": "gaul",
     "private_chat_id": 317595036,
