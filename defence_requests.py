@@ -1,5 +1,7 @@
 import html
 import os
+
+import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -10,11 +12,70 @@ from travian_bot import parse_map_data, SERVER_URL
 SNAPSHOT_DIR = Path("data/snapshots")
 STATE_FILE = bot.DATA_DIR / "state.json"
 SERVER_TZ = ZoneInfo("Europe/London")
+DEFENCE_WORKER_URL = "https://travian-defence.dmrylezfree.workers.dev"
 _snapshot_cache_path = None
 _snapshot_cache = None
 
 _original_process_text = bot.process_text
 _original_callback_query = bot.callback_query
+
+
+def schedule_defence_reminders(req, contribution):
+    """Queue exact private reminders without any permanent GitHub cron."""
+    token = os.environ.get("DEFENCE_TELEGRAM_TOKEN")
+    if not token:
+        print("Reminder scheduling skipped: DEFENCE_TELEGRAM_TOKEN is missing", flush=True)
+        return False
+
+    players = bot.players()
+    player = players.get(str(contribution.get("telegram_id"))) or {}
+    private_chat_id = player.get("private_chat_id")
+    if not private_chat_id or not player.get("private_notifications", True):
+        print("Reminder scheduling skipped: private notifications are unavailable", flush=True)
+        return False
+
+    reminders = []
+    for item in contribution.get("plan", []):
+        reminder_at = item.get("reminder_at")
+        if not reminder_at or item.get("reminder_sent"):
+            continue
+        reminders.append({
+            "request_id": req.get("id"),
+            "telegram_id": contribution.get("telegram_id"),
+            "private_chat_id": int(private_chat_id),
+            "village": item.get("village"),
+            "def_points": int(item.get("def_points", 0) or 0),
+            "speed_mode": item.get("speed_mode", "normal"),
+            "reminder_at": reminder_at,
+            "deadline_at": item.get("deadline_at"),
+            "deadline": item.get("deadline"),
+            "target_x": req.get("target_x"),
+            "target_y": req.get("target_y"),
+            "attack_time": req.get("attack_time"),
+            "attack_time_display": req.get("attack_time_display"),
+        })
+
+    if not reminders:
+        return True
+
+    try:
+        response = requests.post(
+            f"{DEFENCE_WORKER_URL}/schedule-reminders",
+            json={"reminders": reminders},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        print(
+            f"Queued {len(reminders)} defence reminder(s) for request #{req.get('id')}",
+            flush=True,
+        )
+        return True
+    except Exception as exc:
+        # The contribution itself must remain saved even if reminder scheduling
+        # temporarily fails.
+        print(f"Reminder scheduling failed: {exc}", flush=True)
+        return False
 
 
 def load_state():
@@ -1428,6 +1489,7 @@ def callback_query(q):
             req["status"] = "closed"
         bot.save_json(bot.REQUESTS_FILE, requests)
         bot.persist_data()
+        schedule_defence_reminders(req, req["contributions"][-1])
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
         bot.save_players(data)
