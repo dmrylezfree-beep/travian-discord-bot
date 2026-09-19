@@ -1154,20 +1154,10 @@ def process_text(message):
         if option is None:
             bot.send(chat_id, "❌ Эта деревня уже не успевает.", request_menu())
             return
-        if amount > option["max_def"]:
-            bot.send(chat_id, f"❌ Для этой деревни указано максимум <b>{option['max_def']}</b> очков.", force_reply=True)
-            return
-        eligible_variants = [
-            v for v in option["variants"]
-            if int(v.get("max_def", 0) or 0) >= amount
-        ]
-        if not eligible_variants:
-            bot.send(
-                chat_id,
-                "❌ Такое количество дефа не успевает ни одним доступным вариантом. Укажите меньше.",
-                force_reply=True,
-            )
-            return
+        # Registered troop counts are advisory and may be stale. They are used
+        # to determine which village/timing variants can theoretically arrive,
+        # but never cap the amount a player says they are actually sending.
+        eligible_variants = list(option["variants"])
         state["pending_amount"] = amount
         player["state"] = state
         bot.save_players(data)
@@ -1481,8 +1471,8 @@ def callback_query(q):
         bot.send(
             chat_id,
             f"<b>🏘 {option['village'].get('coordinates', '?')}</b>\n"
-            f"🛡 Доступно: до <b>{option['max_def']}</b> очков дефа\n\n"
-            "Сколько отправите?\n\n"
+            f"🛡 В настройках указано: <b>{option['max_def']}</b> очков дефа\n\n"
+            "Сколько отправите фактически?\n\n"
             "💡 Пехота = 1 очко · Конница = 2 очка",
             force_reply=True,
         )
@@ -1500,8 +1490,8 @@ def callback_query(q):
         option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None) if req else None
         variant = next((v for v in option["variants"] if v["key"] == mode), None) if option else None
         pending_amount = int(state.get("pending_amount", 0) or 0)
-        if variant is None or pending_amount > int(variant.get("max_def", 0) or 0):
-            bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает или не вмещает указанное количество дефа.", request_menu())
+        if variant is None:
+            bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает.", request_menu())
             return
         deadline = variant["deadline"]
         reminder = deadline - timedelta(minutes=5)
