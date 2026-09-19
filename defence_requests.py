@@ -527,6 +527,239 @@ def save_request(request):
     bot.persist_data()
     return request
 
+
+def _player_label(player):
+    return (
+        player.get("first_name")
+        or player.get("username")
+        or f"ID {player.get('telegram_id', '?')}"
+    )
+
+
+def _previously_declared_by_village(req):
+    """Informational only: never subtract these amounts from theoretical availability."""
+    result = {}
+    if req.get("status") != "active":
+        return result
+    for contribution in req.get("contributions", []):
+        for leg in contribution.get("plan", []):
+            coords = str(leg.get("village", "")).strip()
+            if not coords:
+                continue
+            result[coords] = result.get(coords, 0) + int(leg.get("def_points", 0) or 0)
+    return result
+
+
+def build_optimal_plan(req):
+    """Build a recommendation from declared settings, without reserving troops.
+
+    Priority: infantry first, then shorter distance. Cavalry is used only for
+    the remainder that eligible infantry cannot cover. Confirmed sends reduce
+    only the request's remaining need; they never reduce a village's declared
+    theoretical troop pool.
+    """
+    if req.get("status") != "active":
+        return None
+    attack = request_datetime(req)
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    remaining = request_remaining(req)
+    if attack is None or attack <= now or remaining <= 0:
+        return None
+
+    candidates = []
+    players = bot.players()
+    for player in players.values() if isinstance(players, dict) else []:
+        if not isinstance(player, dict):
+            continue
+        label = _player_label(player)
+        for village in player.get("villages", []):
+            coords = str(village.get("coordinates", "?"))
+            for item in source_village_units(player, village, req):
+                normal_deadline = attack - timedelta(seconds=item["no_hero_seconds"])
+                with_hero = False
+                deadline = normal_deadline
+                seconds = item["no_hero_seconds"]
+
+                # The hero is used in the recommendation only when the same
+                # troops would otherwise be too late.
+                if deadline <= now and item.get("hero_seconds") is not None:
+                    hero_deadline = attack - timedelta(seconds=item["hero_seconds"])
+                    if hero_deadline > now:
+                        with_hero = True
+                        deadline = hero_deadline
+                        seconds = item["hero_seconds"]
+
+                if deadline <= now:
+                    continue
+
+                cavalry = item["key"] in CAVALRY_UNITS
+                candidates.append({
+                    "player": label,
+                    "telegram_id": player.get("telegram_id"),
+                    "village": coords,
+                    "unit_key": item["key"],
+                    "unit_name": item["name"],
+                    "available_units": int(item["amount"]),
+                    "value": int(item["value"]),
+                    "max_def": int(item["amount"]) * int(item["value"]),
+                    "distance": float(item["distance"]),
+                    "seconds": float(seconds),
+                    "deadline": deadline,
+                    "with_hero": with_hero,
+                    "cavalry": cavalry,
+                })
+
+    # Preserve mobile cavalry whenever eligible infantry can do the job.
+    candidates.sort(key=lambda x: (
+        1 if x["cavalry"] else 0,
+        x["distance"],
+        x["seconds"],
+        x["player"].lower(),
+        x["village"],
+        x["unit_name"],
+    ))
+
+    need = remaining
+    chosen = []
+    for item in candidates:
+        if need <= 0:
+            break
+        points = min(need, item["max_def"])
+        # Cavalry contributes two defence points per registered unit.
+        units = min(item["available_units"], (points + item["value"] - 1) // item["value"])
+        points = min(need, units * item["value"])
+        if points <= 0 or units <= 0:
+            continue
+        picked = dict(item)
+        picked["units"] = units
+        picked["def_points"] = points
+        chosen.append(picked)
+        need -= points
+
+    return {
+        "remaining": remaining,
+        "covered": remaining - need,
+        "deficit": need,
+        "items": chosen,
+    }
+
+
+def optimal_plan_text(req, plan):
+    previous = _previously_declared_by_village(req)
+    lines = [
+        f"<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #{req['id']}</b>",
+        "",
+        f"🎯 Цель: {village_link(req['target_x'], req['target_y'])} — <b>{html.escape(req['target_player'])}</b>",
+        f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
+        f"🛡 Осталось закрыть: <b>{plan['remaining']}</b> очков",
+        "",
+    ]
+
+    if plan["items"]:
+        lines.append("<b>Рекомендуется:</b>")
+        lines.append("")
+        for item in plan["items"]:
+            troop_icon = "🐎" if item["cavalry"] else "🚶"
+            hero = " + герой" if item["with_hero"] else ""
+            lines.extend([
+                f"🏘 <b>{html.escape(item['village'])}</b> — {html.escape(item['player'])}",
+                f"{troop_icon} <b>{item['units']}</b> {html.escape(item['unit_name'])}{hero}"
+                + (f" = <b>{item['def_points']}</b> очков" if item["value"] != 1 else ""),
+                f"📏 {item['distance']:.1f} поля · отправить до <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
+            ])
+            already = previous.get(item["village"], 0)
+            if already:
+                lines.append(f"📩 По этой заявке ранее заявлено из деревни: <b>{already}</b> очков")
+            lines.append("")
+
+    infantry_points = sum(x["def_points"] for x in plan["items"] if not x["cavalry"])
+    cavalry_points = sum(x["def_points"] for x in plan["items"] if x["cavalry"])
+    lines.append(f"📊 План: <b>{plan['covered']} / {plan['remaining']}</b>")
+    lines.append(f"🚶 Пехота: <b>{infantry_points}</b> · 🐎 Конница: <b>{cavalry_points}</b>")
+    if plan["deficit"] > 0:
+        lines.append(f"⚠️ По указанным в настройках войскам не хватает: <b>{plan['deficit']}</b> очков")
+    elif cavalry_points == 0:
+        lines.append("✅ Заявка теоретически закрывается только пехотой.")
+    else:
+        lines.append("⚠️ Для полного закрытия по текущему расчёту требуется конница.")
+
+    lines.extend([
+        "",
+        "ℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна.",
+    ])
+    return "\n".join(lines)
+
+
+def _delete_plan_message(req, chat_id=None):
+    message_id = req.get("optimal_plan_message_id")
+    plan_chat_id = req.get("optimal_plan_chat_id") or chat_id
+    if message_id and plan_chat_id:
+        try:
+            bot.tg("deleteMessage", chat_id=int(plan_chat_id), message_id=int(message_id))
+        except Exception as exc:
+            print(f"Optimal plan delete failed: request=#{req.get('id')}: {exc}", flush=True)
+    req.pop("optimal_plan_message_id", None)
+    req.pop("optimal_plan_chat_id", None)
+    req.pop("optimal_plan_signature", None)
+
+
+def refresh_optimal_plans(chat_id=None, force=False):
+    """Recalculate active recommendations and repost only when the plan changed."""
+    state = load_state()
+    target_chat_id = chat_id or state.get("center_chat_id")
+    if not target_chat_id:
+        return False
+
+    requests = bot.load_json(bot.REQUESTS_FILE, [])
+    if not isinstance(requests, list):
+        return False
+
+    changed_data = False
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    for req in requests:
+        attack = request_datetime(req)
+        active = (
+            req.get("status") == "active"
+            and attack is not None
+            and attack > now
+            and request_remaining(req) > 0
+        )
+        if not active:
+            if req.get("optimal_plan_message_id"):
+                _delete_plan_message(req, target_chat_id)
+                changed_data = True
+            continue
+
+        plan = build_optimal_plan(req)
+        if plan is None:
+            continue
+        text = optimal_plan_text(req, plan)
+        # The rendered text is also a stable signature. Deadlines are fixed,
+        # so a periodic run changes it only when eligibility/recommendations change.
+        signature = text
+        if not force and req.get("optimal_plan_signature") == signature:
+            continue
+
+        if req.get("optimal_plan_message_id"):
+            _delete_plan_message(req, target_chat_id)
+
+        try:
+            message = bot.send(int(target_chat_id), text)
+            message_id = message.get("message_id") if isinstance(message, dict) else None
+            if message_id:
+                req["optimal_plan_message_id"] = int(message_id)
+                req["optimal_plan_chat_id"] = int(target_chat_id)
+                req["optimal_plan_signature"] = signature
+                req["optimal_plan_updated_at"] = datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                changed_data = True
+        except Exception as exc:
+            print(f"Optimal plan publish failed: request=#{req.get('id')}: {exc}", flush=True)
+
+    if changed_data:
+        bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.persist_data()
+    return changed_data
+
 def notification_source_options(player, req):
     """Return every troop type from every village that can still arrive in time.
 
@@ -1062,6 +1295,7 @@ def callback_query(q):
 
         bot.save_json(bot.REQUESTS_FILE, requests)
         bot.persist_data()
+        refresh_optimal_plans(chat_id=chat_id)
 
         bot.edit(
             chat_id,
@@ -1194,6 +1428,7 @@ def callback_query(q):
             req["status"] = "closed"
         bot.save_json(bot.REQUESTS_FILE, requests)
         bot.persist_data()
+        refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
         bot.save_players(data)
         result = draft_summary({"draft": draft}) + f"\n\n✅ Записано: <b>{total}</b> очков."
@@ -1257,6 +1492,7 @@ def callback_query(q):
         }
         save_request(req)
         notify_eligible_defenders(req)
+        refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
         bot.save_players(data)
         bot.edit(chat_id, msg_id, "<b>✅ Заявка создана.</b>\n\nОна добавлена в закреплённый Центр дефа.", request_menu())
