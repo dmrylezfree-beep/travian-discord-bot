@@ -304,14 +304,17 @@ export default {
     const message = update.message;
     const callback = update.callback_query;
 
-    if (
-      message &&
-      message.chat?.type === "private" &&
-      /^\/start(?:@[^\s]+)?(?:\s|$)/i.test(String(message.text || "").trim())
-    ) {
+    const privateChat =
+      message?.chat?.type === "private" ||
+      callback?.message?.chat?.type === "private";
+
+    if (privateChat) {
       try {
-        // Private registration uses a separate short workflow so it never
-        // cancels an active 510-second Defence Bot session.
+        // All personal settings are handled by the short private workflow.
+        // This keeps private configuration isolated from the alliance thread.
+        if (callback?.id) {
+          await answerCallback(env, callback.id);
+        }
         await dispatch(env, update, "defence_register.yml");
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
