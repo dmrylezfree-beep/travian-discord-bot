@@ -199,31 +199,75 @@ def format_duration(seconds):
     return f"{secs}с"
 
 
-def travel_seconds(distance, unit_speed, village, with_hero=False):
+def travel_seconds(distance, unit_speed, village, with_hero=False, standard_bonus=None, boots_bonus=None):
     cfg = bot.settings()
     world_speed = float(cfg.get("world_speed_multiplier", 1.0) or 1.0)
     arena = int(village.get("arena", 0) or 0)
     hero = village.get("hero", {}) or {}
 
     base_speed = float(unit_speed) * world_speed
+    if with_hero and hero.get("present"):
+        standard = float(standard_bonus if standard_bonus is not None else hero.get("standard_bonus", 0) or 0)
+        boots = float(boots_bonus if boots_bonus is not None else hero.get("boots_bonus", 0) or 0)
+    else:
+        standard = 0.0
+        boots = 0.0
 
-    # Standard affects the whole route, but only when the hero travels with
-    # the troops. The target of a defence request is assumed to be an ally.
-    standard = float(hero.get("standard_bonus", 0) or 0) if with_hero and hero.get("present") else 0.0
-
-    # Boots and Tournament Square bonuses apply only after the first 20 fields.
-    boots = float(hero.get("boots_bonus", 0) or 0) if with_hero and hero.get("present") else 0.0
     after20_bonus = (arena * 0.20) + boots
-
     first_leg = min(distance, 20.0)
     seconds = first_leg * 3600.0 / (base_speed * (1.0 + standard))
-
     if distance > 20:
         second_leg = distance - 20.0
         seconds += second_leg * 3600.0 / (
             base_speed * (1.0 + standard) * (1.0 + after20_bonus)
         )
     return seconds
+
+
+def hero_gear_options(player, village, distance, unit_speed):
+    """Outbound hero gear combinations from the saved inventory."""
+    if not (village.get("hero") or {}).get("present"):
+        return []
+    inv = bot.hero_inventory(player)
+    standards = [0] + list(inv.get("standards", []))
+    boots_values = [0] + list(inv.get("boots", []))
+    best_map = max(inv.get("maps", []) or [0])
+    options = []
+    seen = set()
+    for std in standards:
+        for boots in boots_values:
+            seconds = travel_seconds(
+                distance, unit_speed, village, with_hero=True,
+                standard_bonus=std / 100.0, boots_bonus=boots / 100.0,
+            )
+            # Equal travel times do not need duplicate buttons. Prefer the
+            # strongest boots and, without a standard, the best return map.
+            rounded = int(round(seconds))
+            label_parts = ["🦸 Герой"]
+            if std:
+                label_parts.append(f"🚩 +{std}%")
+            elif best_map:
+                label_parts.append(f"🗺 +{best_map}%")
+            if boots:
+                label_parts.append(f"🥾 +{boots}%")
+            item = {
+                "seconds": seconds,
+                "standard": std,
+                "boots": boots,
+                "map": best_map if std == 0 else 0,
+                "label": " · ".join(label_parts),
+            }
+            old = next((x for x in options if x["_rounded"] == rounded and x["standard"] == std), None)
+            if old is not None:
+                if boots > old["boots"]:
+                    options.remove(old)
+                else:
+                    continue
+            item["_rounded"] = rounded
+            options.append(item)
+    for item in options:
+        item.pop("_rounded", None)
+    return options
 
 
 CAVALRY_UNITS = {
@@ -283,8 +327,8 @@ def source_village_units(player, village, req):
             continue
 
         no_hero_seconds = travel_seconds(distance, speed, village, with_hero=False)
-        hero_available = bool((village.get("hero") or {}).get("present"))
-        hero_seconds = travel_seconds(distance, speed, village, with_hero=True) if hero_available else None
+        gear = hero_gear_options(player, village, distance, speed)
+        hero_seconds = min((x["seconds"] for x in gear), default=None)
         result.append({
             "key": unit_key,
             "name": unit.get("name", unit_key),
@@ -376,7 +420,7 @@ def best_source_options(player, req):
 
 
 def village_send_options(player, req):
-    """One village option, including hero-assisted sends when only they can arrive."""
+    """Available timing variants. The no-hero option is always considered."""
     attack = request_datetime(req)
     if attack is None:
         return []
@@ -390,43 +434,69 @@ def village_send_options(player, req):
         units = source_village_units(player, village, req)
         if not units:
             continue
-
         variants = []
 
-        # Normal army without hero: include every registered unit that can
-        # actually make the trip. The deadline is governed by the slowest unit
-        # in that eligible subset.
+        # Always offer a no-hero route when the registered troops can arrive.
         normal_units = [x for x in units if x["no_hero_seconds"] <= remaining]
         if normal_units:
             seconds = max(x["no_hero_seconds"] for x in normal_units)
             variants.append({
-                "key": "normal",
-                "label": "⚡ Без героя",
-                "seconds": seconds,
-                "deadline": attack - timedelta(seconds=seconds),
-                "arrival": attack,
+                "key": "normal", "label": "⚡ Без героя", "seconds": seconds,
+                "deadline": attack - timedelta(seconds=seconds), "arrival": attack,
                 "max_def": sum(int(x["amount"]) * int(x["value"]) for x in normal_units),
                 "with_hero": False,
             })
 
-        # Hero-assisted army. This fixes the mismatch where the notification
-        # correctly said e.g. "Druidrider + hero" can arrive, while the actual
-        # send flow rejected the same village.
-        hero_units = [
-            x for x in units
-            if x["hero_seconds"] is not None and x["hero_seconds"] <= remaining
-        ]
-        if hero_units:
-            seconds = max(x["hero_seconds"] for x in hero_units)
-            variants.append({
-                "key": "hero",
-                "label": "🦸 С героем",
-                "seconds": seconds,
-                "deadline": attack - timedelta(seconds=seconds),
-                "arrival": attack,
-                "max_def": sum(int(x["amount"]) * int(x["value"]) for x in hero_units),
-                "with_hero": True,
-            })
+        # Build useful hero+inventory combinations. A combination must work for
+        # every registered unit included in that variant; the slowest governs.
+        if (village.get("hero") or {}).get("present"):
+            inv = bot.hero_inventory(player)
+            standards = [0] + list(inv.get("standards", []))
+            boots_values = [0] + list(inv.get("boots", []))
+            best_map = max(inv.get("maps", []) or [0])
+            candidates = []
+            for std in standards:
+                for boots in boots_values:
+                    eligible = []
+                    for item in units:
+                        seconds = travel_seconds(
+                            item["distance"], item["speed"], village, with_hero=True,
+                            standard_bonus=std / 100.0, boots_bonus=boots / 100.0,
+                        )
+                        if seconds <= remaining:
+                            eligible.append((item, seconds))
+                    if not eligible:
+                        continue
+                    seconds = max(x[1] for x in eligible)
+                    label = "🦸 Герой"
+                    if std:
+                        label += f" · 🚩 +{std}%"
+                    elif best_map:
+                        label += f" · 🗺 +{best_map}%"
+                    if boots:
+                        label += f" · 🥾 +{boots}%"
+                    candidates.append({
+                        "key": f"h{std}b{boots}m{best_map if std == 0 else 0}",
+                        "label": label,
+                        "seconds": seconds,
+                        "deadline": attack - timedelta(seconds=seconds),
+                        "arrival": attack,
+                        "max_def": sum(int(x[0]["amount"]) * int(x[0]["value"]) for x in eligible),
+                        "with_hero": True,
+                        "standard": std, "boots": boots, "map": best_map if std == 0 else 0,
+                    })
+
+            # Remove combinations that produce the same deadline/max capacity.
+            unique = {}
+            for item in candidates:
+                sig = (int(round(item["seconds"])), int(item["max_def"]))
+                current = unique.get(sig)
+                score = (item.get("standard", 0), item.get("boots", 0), item.get("map", 0))
+                if current is None or score > (
+                    current.get("standard", 0), current.get("boots", 0), current.get("map", 0)
+                ):
+                    unique[sig] = item
+            variants.extend(sorted(unique.values(), key=lambda x: x["deadline"]))
 
         # Slowing tools remain separate no-hero timing variants.
         for key, label, speed in (
@@ -435,32 +505,23 @@ def village_send_options(player, req):
         ):
             eligible = []
             for item in units:
-                seconds = travel_seconds(
-                    item["distance"], min(float(item["speed"]), speed), village, with_hero=False
-                )
+                seconds = travel_seconds(item["distance"], min(float(item["speed"]), speed), village, with_hero=False)
                 if seconds <= remaining:
                     eligible.append((item, seconds))
             if eligible:
                 seconds = max(x[1] for x in eligible)
                 variants.append({
-                    "key": key,
-                    "label": label,
-                    "seconds": seconds,
-                    "deadline": attack - timedelta(seconds=seconds),
-                    "arrival": attack,
+                    "key": key, "label": label, "seconds": seconds,
+                    "deadline": attack - timedelta(seconds=seconds), "arrival": attack,
                     "max_def": sum(int(x[0]["amount"]) * int(x[0]["value"]) for x in eligible),
                     "with_hero": False,
                 })
 
         if variants:
             result.append({
-                "idx": idx,
-                "village": village,
-                "units": units,
-                "max_def": max(int(v["max_def"]) for v in variants),
-                "variants": variants,
+                "idx": idx, "village": village, "units": units,
+                "max_def": max(int(v["max_def"]) for v in variants), "variants": variants,
             })
-
     return result
 
 
@@ -500,7 +561,9 @@ def draft_summary(state, req=None):
     total = 0
     for item in state.get("draft", []):
         mode = ""
-        if item["speed_mode"] == "hero":
+        if item.get("gear_label"):
+            mode = " · " + item["gear_label"]
+        elif str(item.get("speed_mode", "")).startswith("h"):
             mode = " · 🦸 с героем"
         elif item["speed_mode"] == "ram":
             mode = " · 🐏 + 1 таран"
@@ -1501,6 +1564,7 @@ def callback_query(q):
             "village": option["village"].get("coordinates", ""),
             "def_points": int(state["pending_amount"]),
             "speed_mode": mode,
+            "gear_label": variant.get("label", ""),
             "deadline_at": deadline.strftime("%Y-%m-%d %H:%M:%S"),
             "deadline": deadline.strftime("%H:%M:%S"),
             "reminder_at": reminder.strftime("%Y-%m-%d %H:%M:%S"),
