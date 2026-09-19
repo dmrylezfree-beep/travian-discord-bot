@@ -146,8 +146,11 @@ def poll():
                     flush=True,
                 )
             else:
+                initial_message = initial_update.get("message") or initial_update.get("edited_message") or {}
+                initial_callback_message = (initial_update.get("callback_query") or {}).get("message") or {}
+                initial_chat = initial_message.get("chat") or initial_callback_message.get("chat") or {}
                 thread_id = update_thread_id(initial_update)
-                if thread_id == bot.THREAD_ID:
+                if initial_chat.get("type") == "private" or thread_id == bot.THREAD_ID:
                     if process_update(initial_update):
                         print(
                             f"Processed initial Telegram update "
@@ -187,8 +190,18 @@ def poll():
             if process_private_start(update):
                 continue
 
+            # While this workflow is polling, the webhook is disabled. Private
+            # messages and callbacks therefore arrive here too and must not be
+            # discarded just because they have no alliance topic thread_id.
+            chat_id = update_chat_id(update)
+            private_update = False
+            message = update.get("message") or update.get("edited_message") or {}
+            callback_message = (update.get("callback_query") or {}).get("message") or {}
+            update_chat = message.get("chat") or callback_message.get("chat") or {}
+            private_update = update_chat.get("type") == "private"
+
             thread_id = update_thread_id(update)
-            if thread_id != bot.THREAD_ID:
+            if not private_update and thread_id != bot.THREAD_ID:
                 continue
 
             try:
