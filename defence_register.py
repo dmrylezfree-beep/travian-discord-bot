@@ -2,6 +2,7 @@ import json
 import os
 
 import defence_bot as bot
+import defence_requests  # noqa: F401 - installs the full settings/request handlers
 
 
 def main():
