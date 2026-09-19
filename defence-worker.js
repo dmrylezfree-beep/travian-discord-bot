@@ -305,17 +305,12 @@ export default {
       return new Response("OK");
     }
 
-    // /def is the entry point: acknowledge immediately, start polling, and
-    // send the initial menu. The workflow will take over the webhook shortly.
+    // /def only starts the workflow. The Python bot owns the single
+    // authoritative Defence Centre message, including status colours,
+    // buttons and pinning. Do not create a temporary duplicate menu here.
     if (message && isDefCommand(message)) {
       try {
-        await sendTelegram(
-          env,
-          message.chat.id,
-          "⏳ <b>Команда /def получена.</b> Запускаю Defence Bot..."
-        );
         await dispatch(env, update);
-        await sendStartMenu(env, message);
       } catch (error) {
         const details = error instanceof Error ? error.message : String(error);
         console.error(details);
