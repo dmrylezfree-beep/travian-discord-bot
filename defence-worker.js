@@ -4,6 +4,69 @@ const GITHUB_REPO = "travian-discord-bot";
 const GITHUB_WORKFLOW = "defence_bot.yml";
 const GITHUB_REF = "main";
 
+const MAX_QUEUE_DELAY_SECONDS = 86400;
+
+function londonNowText() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
+  }).formatToParts(new Date());
+  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+}
+
+function secondsUntilLondon(localText) {
+  // Convert a Europe/London wall-clock timestamp to a delay without assuming
+  // that the Worker itself runs in the server timezone.
+  const now = new Date();
+  const nowParts = londonNowText();
+  const target = String(localText || "");
+  const parse = s => {
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+    return m ? Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]) : NaN;
+  };
+  return Math.floor((parse(target) - parse(nowParts)) / 1000);
+}
+
+async function queueReminder(env, payload) {
+  const delay = secondsUntilLondon(payload.reminder_at);
+  if (!Number.isFinite(delay)) throw new Error("Invalid reminder_at");
+  if (delay <= 0) {
+    await env.DEFENCE_REMINDERS.send(payload, { delaySeconds: 0 });
+  } else {
+    await env.DEFENCE_REMINDERS.send(payload, {
+      delaySeconds: Math.min(delay, MAX_QUEUE_DELAY_SECONDS)
+    });
+  }
+}
+
+async function sendPrivateReminder(env, item) {
+  const extra = item.speed_mode === "ram" ? " + 1 таран"
+    : item.speed_mode === "catapult" ? " + 1 катапульта" : "";
+  const warning = item.speed_mode === "ram"
+    ? "\n\n❗ Не забудь добавить <b>1 таран</b>."
+    : item.speed_mode === "catapult"
+      ? "\n\n❗ Не забудь добавить <b>1 катапульту</b>." : "";
+  const text =
+    "<b>🚨 ЧЕРЕЗ 5 МИНУТ ОТПРАВКА ДЕФА</b>\n\n" +
+    `🏘 ${item.village || "?"} → 🎯 ${item.target_x} ${item.target_y}\n` +
+    `🛡 ${item.def_points || 0} очков дефа${extra}\n` +
+    `⏰ Отправить: <b>${item.deadline || "?"}</b>\n` +
+    `⚔️ Атака: <b>${item.attack_time_display || item.attack_time || "?"}</b>` +
+    warning;
+
+  const response = await fetch(
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: item.private_chat_id, text, parse_mode: "HTML" })
+    }
+  );
+  if (!response.ok) throw new Error(`Telegram reminder ${response.status}: ${await response.text()}`);
+}
+
+
 async function sendTelegram(env, chatId, text) {
   const response = await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -188,6 +251,23 @@ function isDefCommand(message) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/schedule-reminders") {
+      const auth = request.headers.get("Authorization") || "";
+      if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      try {
+        const body = await request.json();
+        const reminders = Array.isArray(body?.reminders) ? body.reminders : [];
+        for (const reminder of reminders) await queueReminder(env, reminder);
+        return Response.json({ ok: true, scheduled: reminders.length });
+      } catch (error) {
+        return Response.json({ ok: false, error: String(error) }, { status: 400 });
+      }
+    }
+
     if (request.method !== "POST") {
       return new Response("OK");
     }
@@ -268,5 +348,22 @@ export default {
     }
 
     return new Response("OK");
+  }
+  async queue(batch, env) {
+    for (const message of batch.messages) {
+      try {
+        const item = message.body || {};
+        const remaining = secondsUntilLondon(item.reminder_at);
+        if (Number.isFinite(remaining) && remaining > 2) {
+          message.retry({ delaySeconds: Math.min(remaining, MAX_QUEUE_DELAY_SECONDS) });
+          continue;
+        }
+        await sendPrivateReminder(env, item);
+        message.ack();
+      } catch (error) {
+        console.error("Defence reminder failed:", error instanceof Error ? error.message : String(error));
+        message.retry({ delaySeconds: 60 });
+      }
+    }
   }
 };
