@@ -19,9 +19,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "subs"
-    },
+    "state": null,
     "race": "gaul",
     "private_chat_id": 317595036,
     "private_notifications": true
