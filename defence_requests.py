@@ -314,6 +314,98 @@ def best_source_options(player, req):
     return sorted(options, key=lambda x: (x["seconds"], -x["max_def"]))
 
 
+def village_send_options(player, req):
+    """One safe aggregate option per village, based on its slowest registered defence unit."""
+    attack = request_datetime(req)
+    if attack is None:
+        return []
+    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    result = []
+    for idx, village in enumerate(player.get("villages", [])):
+        units = source_village_units(player, village, req)
+        if not units:
+            continue
+        # The player enters defence points, not troop composition. Use the
+        # slowest registered troop so every registered mix covered by the
+        # entered amount is safe at this deadline.
+        slowest = max(units, key=lambda x: x["no_hero_seconds"])
+        normal_seconds = slowest["no_hero_seconds"]
+        if now + timedelta(seconds=normal_seconds) > attack:
+            continue
+        max_def = sum(int(x["amount"]) * int(x["value"]) for x in units)
+        variants = []
+        for key, label, speed in (
+            ("normal", "⚡ Обычная скорость", slowest["speed"]),
+            ("ram", "🐏 + 1 таран", 4.0),
+            ("catapult", "🪨 + 1 катапульта", 3.0),
+        ):
+            seconds = travel_seconds(
+                slowest["distance"], min(float(slowest["speed"]), speed), village, with_hero=False
+            )
+            deadline = attack - timedelta(seconds=seconds)
+            if deadline > now:
+                variants.append({
+                    "key": key, "label": label, "seconds": seconds,
+                    "deadline": deadline, "arrival": attack,
+                })
+        if variants:
+            result.append({
+                "idx": idx, "village": village, "units": units,
+                "max_def": max_def, "slowest_name": slowest["name"],
+                "variants": variants,
+            })
+    return result
+
+
+def send_village_keyboard(player, req, exclude=None):
+    exclude = set(exclude or [])
+    rows = []
+    for item in village_send_options(player, req):
+        if item["idx"] in exclude:
+            continue
+        rows.append([{
+            "text": f"🏘 {item['village'].get('coordinates', '?')} — до {item['max_def']}",
+            "callback_data": f"send_village:{req['id']}:{item['idx']}",
+        }])
+    rows.append([{"text": "⬅️ К заявке", "callback_data": f"send_req:{req['id']}"}])
+    return bot.kb(rows)
+
+
+def speed_variant_keyboard(req_id, village_idx, variants):
+    rows = []
+    for item in variants:
+        rows.append([{
+            "text": f"{item['label']} — {item['deadline'].strftime('%H:%M:%S')}",
+            "callback_data": f"send_speed:{req_id}:{village_idx}:{item['key']}",
+        }])
+    rows.append([{"text": "❌ Отмена", "callback_data": f"send_req:{req_id}"}])
+    return bot.kb(rows)
+
+
+def draft_summary(state):
+    lines = ["<b>🛡 План отправки</b>", ""]
+    for item in state.get("draft", []):
+        extra = ""
+        if item["speed_mode"] == "ram":
+            extra = " + 1 таран"
+        elif item["speed_mode"] == "catapult":
+            extra = " + 1 катапульта"
+        lines.append(
+            f"🏘 <b>{html.escape(item['village'])}</b> — <b>{item['def_points']}</b> очков{extra}\n"
+            f"🚨 Отправить: <b>{item['deadline']}</b> · 🔔 {item['reminder_time']}"
+        )
+    return "\n".join(lines)
+
+
+def draft_actions_keyboard(req_id, can_add=True):
+    rows = []
+    if can_add:
+        rows.append([{"text": "➕ Добавить ещё деревню", "callback_data": f"send_add:{req_id}"}])
+    rows.append([{"text": "✅ Готово", "callback_data": f"send_finish:{req_id}"}])
+    rows.append([{"text": "❌ Отмена", "callback_data": f"send_req:{req_id}"}])
+    return bot.kb(rows)
+
+
 def send_def_requests_keyboard(requests):
     rows = []
     for req in requests:
@@ -692,13 +784,13 @@ def process_text(message):
         return _original_process_text(message)
 
     typ = state.get("type")
-    if typ == "send_def_amount":
+    if typ == "send_village_amount":
         amount = bot.to_int(text)
         req_id = int(state.get("request_id", 0) or 0)
+        village_idx = int(state.get("village_idx", -1))
         if amount is None or amount <= 0:
             bot.send(chat_id, "Введите положительное количество очков дефа.", force_reply=True)
             return
-
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or request_closed(req):
@@ -706,83 +798,22 @@ def process_text(message):
             bot.save_players(data)
             bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
             return
-
-        options = best_source_options(player, req)
-        total_available = sum(x["max_def"] for x in options)
-        remaining = request_remaining(req)
-        if amount > total_available:
-            bot.send(
-                chat_id,
-                f"❌ Сейчас из ваших подходящих деревень можно отправить максимум <b>{total_available}</b> очков дефа.\n"
-                f"Введите число не больше этого значения.",
-                force_reply=True,
-            )
+        option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None)
+        if option is None:
+            bot.send(chat_id, "❌ Эта деревня уже не успевает.", request_menu())
             return
-
-        amount = min(amount, remaining)
-        left = amount
-        plan = []
-        for item in options:
-            if left <= 0:
-                break
-            contribution = min(left, item["max_def"])
-            if contribution <= 0:
-                continue
-            plan.append({
-                "village": item["village"].get("coordinates", ""),
-                "unit": item["unit_key"],
-                "unit_name": item["name"],
-                "def_points": contribution,
-                "arrival": item["arrival"].strftime("%H:%M:%S"),
-                "with_hero": item["with_hero"],
-            })
-            left -= contribution
-
-        if left > 0:
-            bot.send(chat_id, "❌ Не удалось подобрать подходящий план отправки.", request_menu())
+        if amount > option["max_def"]:
+            bot.send(chat_id, f"❌ Для этой деревни указано максимум <b>{option['max_def']}</b> очков.", force_reply=True)
             return
-
-        req.setdefault("contributions", []).append({
-            "telegram_id": int(user.get("id", 0)),
-            "username": user.get("username", ""),
-            "first_name": user.get("first_name", ""),
-            "def_points": amount,
-            "plan": plan,
-            "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
-        })
-        req["collected_def"] = int(req.get("collected_def", 0) or 0) + amount
-        if request_closed(req):
-            req["status"] = "closed"
-
-        bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data()
-        player["state"] = None
+        state["pending_amount"] = amount
+        player["state"] = state
         bot.save_players(data)
-
-        plan_lines = []
-        for item in plan:
-            hero = " + герой" if item["with_hero"] else ""
-            plan_lines.append(
-                f"🏘 {item['village']} — {item['unit_name']}{hero}: <b>{item['def_points']}</b> очков, "
-                f"прибытие {item['arrival']}"
-            )
-
-        if req["status"] == "closed":
-            result = (
-                f"<b>✅ Заявка #{req_id} закрыта.</b>\n\n"
-                f"Ваш вклад: <b>{amount}</b> очков дефа.\n\n"
-                + "\n".join(plan_lines)
-            )
-        else:
-            result = (
-                f"<b>✅ Вклад в заявку #{req_id} записан.</b>\n\n"
-                f"Ваш вклад: <b>{amount}</b> очков.\n"
-                f"Осталось: <b>{request_remaining(req)}</b> очков.\n\n"
-                + "\n".join(plan_lines)
-            )
-
-        bot.send(chat_id, result, request_menu())
-        refresh_center(chat_id=chat_id, create_if_missing=True)
+        bot.send(
+            chat_id,
+            f"<b>Выберите время отправки</b>\n\n🏘 {option['village'].get('coordinates', '?')}\n"
+            f"🛡 {amount} очков\n\nПоказываются только варианты, которые успевают до атаки.",
+            speed_variant_keyboard(req_id, village_idx, option["variants"]),
+        )
         return
 
     if not isinstance(state, dict):
@@ -1048,6 +1079,8 @@ def callback_query(q):
         if req is None or request_closed(req):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
+        player["state"] = None
+        bot.save_players(data)
         bot.edit(chat_id, msg_id, send_def_plan_text(player, req), send_def_plan_keyboard(player, req))
         return
 
@@ -1058,19 +1091,116 @@ def callback_query(q):
         if req is None or request_closed(req):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
-        if not best_source_options(player, req):
+        options = village_send_options(player, req)
+        if not options:
             bot.edit(chat_id, msg_id, "🔴 Подходящих деревень для этой заявки сейчас нет.", request_menu())
             return
-        player["state"] = {"type": "send_def_amount", "request_id": req_id}
+        player["state"] = {"type": "send_draft", "request_id": req_id, "draft": []}
+        bot.save_players(data)
+        bot.edit(chat_id, msg_id, "<b>🏘 Выберите деревню, из которой отправите деф:</b>", send_village_keyboard(player, req))
+        return
+
+    if action.startswith("send_village:"):
+        _, req_s, idx_s = action.split(":")
+        req_id, village_idx = int(req_s), int(idx_s)
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None) if req else None
+        if option is None:
+            bot.edit(chat_id, msg_id, "❌ Эта деревня уже не успевает.", request_menu())
+            return
+        old = player.get("state") if isinstance(player.get("state"), dict) else {}
+        draft = old.get("draft", []) if int(old.get("request_id", 0) or 0) == req_id else []
+        player["state"] = {"type": "send_village_amount", "request_id": req_id, "village_idx": village_idx, "draft": draft}
         bot.save_players(data)
         bot.send(
             chat_id,
-            f"<b>🛡 Отправить деф в заявку #{req_id}</b>\n\n"
-            f"Осталось закрыть: <b>{request_remaining(req)}</b> очков.\n\n"
-            "Введите количество дефа, которое готовы отправить.\n"
-            "Например: <code>10000</code>",
+            f"<b>🏘 {option['village'].get('coordinates', '?')}</b>\n"
+            f"Доступно до <b>{option['max_def']}</b> очков дефа.\n\nСколько отправите из этой деревни?",
             force_reply=True,
         )
+        return
+
+    if action.startswith("send_speed:"):
+        _, req_s, idx_s, mode = action.split(":")
+        req_id, village_idx = int(req_s), int(idx_s)
+        state = player.get("state") or {}
+        if state.get("type") != "send_village_amount" or int(state.get("request_id", 0)) != req_id or int(state.get("village_idx", -1)) != village_idx:
+            bot.edit(chat_id, msg_id, "❌ План отправки устарел. Начните выбор заново.", request_menu())
+            return
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None) if req else None
+        variant = next((v for v in option["variants"] if v["key"] == mode), None) if option else None
+        if variant is None:
+            bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает.", request_menu())
+            return
+        deadline = variant["deadline"]
+        reminder = deadline - timedelta(minutes=5)
+        draft = list(state.get("draft", []))
+        draft.append({
+            "village_idx": village_idx,
+            "village": option["village"].get("coordinates", ""),
+            "def_points": int(state["pending_amount"]),
+            "speed_mode": mode,
+            "deadline_at": deadline.strftime("%Y-%m-%d %H:%M:%S"),
+            "deadline": deadline.strftime("%H:%M:%S"),
+            "reminder_at": reminder.strftime("%Y-%m-%d %H:%M:%S"),
+            "reminder_time": reminder.strftime("%H:%M:%S"),
+            "reminder_sent": False,
+        })
+        player["state"] = {"type": "send_draft", "request_id": req_id, "draft": draft}
+        bot.save_players(data)
+        used = [x["village_idx"] for x in draft]
+        can_add = any(x["idx"] not in used for x in village_send_options(player, req))
+        bot.edit(chat_id, msg_id, draft_summary(player["state"]), draft_actions_keyboard(req_id, can_add))
+        return
+
+    if action.startswith("send_add:"):
+        req_id = int(action.split(":", 1)[1])
+        state = player.get("state") or {}
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None or int(state.get("request_id", 0) or 0) != req_id:
+            bot.edit(chat_id, msg_id, "❌ План отправки устарел.", request_menu())
+            return
+        used = [x["village_idx"] for x in state.get("draft", [])]
+        bot.edit(chat_id, msg_id, "<b>🏘 Выберите ещё одну деревню:</b>", send_village_keyboard(player, req, used))
+        return
+
+    if action.startswith("send_finish:"):
+        req_id = int(action.split(":", 1)[1])
+        state = player.get("state") or {}
+        draft = list(state.get("draft", []))
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None or not draft or int(state.get("request_id", 0) or 0) != req_id:
+            bot.edit(chat_id, msg_id, "❌ План отправки пуст или заявка уже закрыта.", request_menu())
+            return
+        total = sum(int(x["def_points"]) for x in draft)
+        remaining = request_remaining(req)
+        if total > remaining:
+            bot.edit(chat_id, msg_id, f"❌ В заявке осталось только <b>{remaining}</b> очков. Уменьшите план.", request_menu())
+            player["state"] = None
+            bot.save_players(data)
+            return
+        req.setdefault("contributions", []).append({
+            "telegram_id": int(user.get("id", 0)), "username": user.get("username", ""),
+            "first_name": user.get("first_name", ""), "def_points": total,
+            "plan": draft, "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        req["collected_def"] = int(req.get("collected_def", 0) or 0) + total
+        if request_closed(req):
+            req["status"] = "closed"
+        bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.persist_data()
+        player["state"] = None
+        bot.save_players(data)
+        result = draft_summary({"draft": draft}) + f"\n\n✅ Записано: <b>{total}</b> очков."
+        if req.get("status") != "closed":
+            result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
+        bot.edit(chat_id, msg_id, result, request_menu())
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     if action == "request_cancel":
