@@ -15,6 +15,10 @@ SETTINGS_FILE = DATA_DIR / "settings.json"
 PLAYERS_FILE = DATA_DIR / "players.json"
 REQUESTS_FILE = DATA_DIR / "requests.json"
 API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+OWNER_TELEGRAM_ID = 317595036
+
+INFANTRY_UNITS = {"phalanx", "spearman", "legionnaire", "praetorian"}
+CAVALRY_UNITS = {"druidrider", "haeduan", "paladin", "equites_caesaris"}
 
 RACES = {
     "gaul": {"name": "Галл", "units": ["phalanx", "druidrider", "haeduan"]},
@@ -228,8 +232,12 @@ def settings_text(player):
     return "\n".join(lines)
 
 
-def settings_kb():
-    return kb([
+def is_owner(user):
+    return int(user.get("id", 0) or 0) == OWNER_TELEGRAM_ID
+
+
+def settings_kb(owner=False):
+    rows = [
         [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
         [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
         [{"text": "➕ Добавить деревню", "callback_data": "add_village"}],
@@ -238,7 +246,104 @@ def settings_kb():
         [{"text": "👥 Заместители", "callback_data": "subs"}],
         [{"text": "🔔 Личные уведомления", "callback_data": "private_notify"}],
         [{"text": "⬅️ Назад", "callback_data": "menu"}],
-    ])
+    ]
+    if owner:
+        rows.insert(0, [{"text": "📊 Оборона альянса", "callback_data": "alliance_def"}])
+    return kb(rows)
+
+
+def fmt_num(value):
+    return f"{int(value):,}".replace(",", " ")
+
+
+def player_name(p):
+    return p.get("first_name") or (("@" + p.get("username")) if p.get("username") else str(p.get("telegram_id", "?")))
+
+
+def defence_stats():
+    units_cfg = settings().get("units", {})
+    totals = {key: 0 for key in INFANTRY_UNITS | CAVALRY_UNITS}
+    rows = []
+    village_count = 0
+    for p in players().values():
+        if not isinstance(p, dict):
+            continue
+        inf = cav = 0
+        per_unit = {key: 0 for key in totals}
+        player_villages = []
+        for v in p.get("villages", []):
+            v_inf = v_cav = 0
+            for key, raw in (v.get("troops") or {}).items():
+                if key not in totals:
+                    continue
+                try:
+                    amount = max(0, int(raw or 0))
+                except (TypeError, ValueError):
+                    amount = 0
+                totals[key] += amount
+                per_unit[key] += amount
+                if key in INFANTRY_UNITS:
+                    inf += amount; v_inf += amount
+                else:
+                    cav += amount; v_cav += amount
+            if v_inf or v_cav:
+                village_count += 1
+                player_villages.append((v.get("coordinates", "?"), v_inf, v_cav))
+        if inf or cav:
+            rows.append({"id": int(p.get("telegram_id", 0) or 0), "name": player_name(p), "inf": inf, "cav": cav, "score": inf + cav * 2, "units": per_unit, "villages": player_villages})
+    rows.sort(key=lambda x: (-x["score"], x["name"].lower()))
+    return totals, rows, village_count, units_cfg
+
+
+def alliance_def_text():
+    totals, rows, village_count, units_cfg = defence_stats()
+    inf = sum(totals.get(k, 0) for k in INFANTRY_UNITS)
+    cav = sum(totals.get(k, 0) for k in CAVALRY_UNITS)
+    score = inf + cav * 2
+    total_troops = inf + cav
+    lines = ["<b>🛡 ОБОРОНА АЛЬЯНСА</b>", "", f"👥 Игроков с дефом: <b>{len(rows)}</b>", f"🏘 Деф-деревень: <b>{village_count}</b>", "", f"🛡 Рейтинг дефа: <b>{fmt_num(score)}</b>", f"🚶 Пехота: <b>{fmt_num(inf)}</b> ({inf * 100 / total_troops:.1f}%)" if total_troops else "🚶 Пехота: <b>0</b>", f"🐎 Конница: <b>{fmt_num(cav)}</b> ({cav * 100 / total_troops:.1f}%)" if total_troops else "🐎 Конница: <b>0</b>", "", "<b>По юнитам:</b>"]
+    for key in ("phalanx", "druidrider", "haeduan", "spearman", "paladin", "legionnaire", "praetorian", "equites_caesaris"):
+        lines.append(f"{units_cfg.get(key, {}).get('name', key)} — <b>{fmt_num(totals.get(key, 0))}</b>")
+    lines += ["", "ℹ️ Рейтинг: пехота ×1, конница ×2.", "⚠️ Расчёт по войскам, указанным игроками в настройках."]
+    return "\n".join(lines)
+
+
+def alliance_def_kb():
+    return kb([[{"text": "🏆 Рейтинг деферов", "callback_data": "def_rank"}], [{"text": "⬅️ Мои настройки", "callback_data": "settings"}]])
+
+
+def defence_rank_text():
+    _, rows, _, _ = defence_stats()
+    lines = ["<b>🏆 РЕЙТИНГ ДЕФЕРОВ</b>", "", "Рейтинг = пехота ×1 + конница ×2", ""]
+    if not rows:
+        lines.append("Пока никто не указал деф.")
+    for i, row in enumerate(rows, 1):
+        lines.append(f"{i}. <b>{row['name']}</b> — {fmt_num(row['score'])} 🛡")
+    return "\n".join(lines)
+
+
+def defence_rank_kb():
+    _, rows, _, _ = defence_stats()
+    buttons = [[{"text": f"{i}. {row['name']} — {fmt_num(row['score'])}", "callback_data": f"def_player:{row['id']}"}] for i, row in enumerate(rows, 1)]
+    buttons.append([{"text": "⬅️ Общая армия", "callback_data": "alliance_def"}])
+    return kb(buttons)
+
+
+def defence_player_text(telegram_id):
+    _, rows, _, units_cfg = defence_stats()
+    row = next((r for r in rows if r["id"] == telegram_id), None)
+    if not row:
+        return "Данные игрока не найдены."
+    place = rows.index(row) + 1
+    lines = [f"<b>👤 {row['name']}</b>", "", f"🏆 Место: <b>{place} из {len(rows)}</b>", f"🛡 Рейтинг: <b>{fmt_num(row['score'])}</b>", f"🚶 Пехота: <b>{fmt_num(row['inf'])}</b>", f"🐎 Конница: <b>{fmt_num(row['cav'])}</b>", "", "<b>По юнитам:</b>"]
+    for key in ("phalanx", "druidrider", "haeduan", "spearman", "paladin", "legionnaire", "praetorian", "equites_caesaris"):
+        amount = row["units"].get(key, 0)
+        if amount:
+            lines.append(f"{units_cfg.get(key, {}).get('name', key)} — <b>{fmt_num(amount)}</b>")
+    lines += ["", "<b>По деревням:</b>"]
+    for coords, inf, cav in row["villages"]:
+        lines.append(f"🏘 <b>{coords}</b> — 🚶 {fmt_num(inf)} · 🐎 {fmt_num(cav)}")
+    return "\n".join(lines)
 
 
 def villages_kb(player, prefix="village"):
@@ -345,7 +450,7 @@ def process_text(message):
         player["private_chat_id"] = chat_id
         player["private_notifications"] = True
         save_players(data)
-        send(chat_id, settings_text(player), settings_kb(), thread_id=None)
+        send(chat_id, settings_text(player), settings_kb(is_owner(user)), thread_id=None)
         return
     if text.startswith("/def") and not is_private:
         player["state"] = None
@@ -413,7 +518,7 @@ def process_text(message):
         player["substitutes"] = [int(x) for x in ids]
         player["state"] = None
         save_players(data)
-        send(chat_id, settings_text(player), settings_kb())
+        send(chat_id, settings_text(player), settings_kb(is_owner(user)))
     elif typ in ("coords", "arena"):
         idx = state["index"]
         if idx >= len(player["villages"]):
@@ -459,10 +564,21 @@ def callback_query(q):
             else:
                 answer_callback(q["id"], "Сначала откройте личный чат с ботом и нажмите /start")
             return
-        edit(chat_id, msg_id, settings_text(player), settings_kb())
+        edit(chat_id, msg_id, settings_text(player), settings_kb(is_owner(user)))
     elif not is_private and action not in ("menu", "request_def"):
         answer_callback(q["id"], "Личные настройки изменяются только в личном чате")
         return
+    elif action in ("alliance_def", "def_rank") or action.startswith("def_player:"):
+        if not is_private or not is_owner(user):
+            answer_callback(q["id"], "Доступ запрещён")
+            return
+        if action == "alliance_def":
+            edit(chat_id, msg_id, alliance_def_text(), alliance_def_kb())
+        elif action == "def_rank":
+            edit(chat_id, msg_id, defence_rank_text(), defence_rank_kb())
+        else:
+            telegram_id = int(action.split(":", 1)[1])
+            edit(chat_id, msg_id, defence_player_text(telegram_id), kb([[{"text": "⬅️ Рейтинг", "callback_data": "def_rank"}]]))
     elif action == "race_menu":
         edit(chat_id, msg_id, "<b>🧬 Выбор расы</b>\n\nВыберите вашу расу. После смены расы список доступных юнитов во всех ваших деревнях будет автоматически отфильтрован.", race_keyboard())
     elif action.startswith("race:"):
