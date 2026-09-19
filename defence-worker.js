@@ -49,6 +49,15 @@ async function sendPrivateReminder(env, item) {
     ? "\n\n❗ Не забудь добавить <b>1 таран</b>."
     : item.speed_mode === "catapult"
       ? "\n\n❗ Не забудь добавить <b>1 катапульту</b>." : "";
+  // Travian map id on the 401x401 wrapped map (-200..200):
+  // id = (y + 200) * 401 + (x + 200) + 1.
+  // Example: 41 0 -> 80442.
+  const tx = Number(item.target_x);
+  const ty = Number(item.target_y);
+  const targetMapId = (ty + 200) * 401 + (tx + 200) + 1;
+  const sendDefUrl =
+    `https://ts7.x1.asia.travian.com/build.php?gid=16&tt=2&eventType=5&targetMapId=${targetMapId}`;
+
   const text =
     "<b>🚨 ПОРА ОТПРАВЛЯТЬ ДЕФ</b>\n\n" +
     `🏘 <b>${item.village || "?"}</b> → 🎯 <b>${item.target_x} ${item.target_y}</b>\n` +
@@ -64,7 +73,16 @@ async function sendPrivateReminder(env, item) {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: item.private_chat_id, text, parse_mode: "HTML" })
+      body: JSON.stringify({
+        chat_id: item.private_chat_id,
+        text,
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "⚔️ Отправить деф", url: sendDefUrl }
+          ]]
+        }
+      })
     }
   );
   if (!response.ok) throw new Error(`Telegram reminder ${response.status}: ${await response.text()}`);
