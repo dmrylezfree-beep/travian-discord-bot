@@ -20,11 +20,13 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "request_attack_date",
+      "type": "request_attack_time",
       "target_coords": "23 2",
       "target_x": 23,
       "target_y": 2,
-      "target_player": "pilcikcz"
+      "target_player": "pilcikcz",
+      "attack_date": "2026-09-20",
+      "attack_date_display": "20.09.2026"
     },
     "race": "gaul",
     "private_chat_id": 317595036,
