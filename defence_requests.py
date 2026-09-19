@@ -376,45 +376,91 @@ def best_source_options(player, req):
 
 
 def village_send_options(player, req):
-    """One safe aggregate option per village, based on its slowest registered defence unit."""
+    """One village option, including hero-assisted sends when only they can arrive."""
     attack = request_datetime(req)
     if attack is None:
         return []
     now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    remaining = (attack - now).total_seconds()
+    if remaining <= 0:
+        return []
+
     result = []
     for idx, village in enumerate(player.get("villages", [])):
         units = source_village_units(player, village, req)
         if not units:
             continue
-        # The player enters defence points, not troop composition. Use the
-        # slowest registered troop so every registered mix covered by the
-        # entered amount is safe at this deadline.
-        slowest = max(units, key=lambda x: x["no_hero_seconds"])
-        normal_seconds = slowest["no_hero_seconds"]
-        if now + timedelta(seconds=normal_seconds) > attack:
-            continue
-        max_def = sum(int(x["amount"]) * int(x["value"]) for x in units)
+
         variants = []
+
+        # Normal army without hero: include every registered unit that can
+        # actually make the trip. The deadline is governed by the slowest unit
+        # in that eligible subset.
+        normal_units = [x for x in units if x["no_hero_seconds"] <= remaining]
+        if normal_units:
+            seconds = max(x["no_hero_seconds"] for x in normal_units)
+            variants.append({
+                "key": "normal",
+                "label": "⚡ Обычная скорость",
+                "seconds": seconds,
+                "deadline": attack - timedelta(seconds=seconds),
+                "arrival": attack,
+                "max_def": sum(int(x["amount"]) * int(x["value"]) for x in normal_units),
+                "with_hero": False,
+            })
+
+        # Hero-assisted army. This fixes the mismatch where the notification
+        # correctly said e.g. "Druidrider + hero" can arrive, while the actual
+        # send flow rejected the same village.
+        hero_units = [
+            x for x in units
+            if x["hero_seconds"] is not None and x["hero_seconds"] <= remaining
+        ]
+        if hero_units:
+            seconds = max(x["hero_seconds"] for x in hero_units)
+            variants.append({
+                "key": "hero",
+                "label": "🦸 С героем",
+                "seconds": seconds,
+                "deadline": attack - timedelta(seconds=seconds),
+                "arrival": attack,
+                "max_def": sum(int(x["amount"]) * int(x["value"]) for x in hero_units),
+                "with_hero": True,
+            })
+
+        # Slowing tools remain separate no-hero timing variants.
         for key, label, speed in (
-            ("normal", "⚡ Обычная скорость", slowest["speed"]),
             ("ram", "🐏 + 1 таран", 4.0),
             ("catapult", "🪨 + 1 катапульта", 3.0),
         ):
-            seconds = travel_seconds(
-                slowest["distance"], min(float(slowest["speed"]), speed), village, with_hero=False
-            )
-            deadline = attack - timedelta(seconds=seconds)
-            if deadline > now:
+            eligible = []
+            for item in units:
+                seconds = travel_seconds(
+                    item["distance"], min(float(item["speed"]), speed), village, with_hero=False
+                )
+                if seconds <= remaining:
+                    eligible.append((item, seconds))
+            if eligible:
+                seconds = max(x[1] for x in eligible)
                 variants.append({
-                    "key": key, "label": label, "seconds": seconds,
-                    "deadline": deadline, "arrival": attack,
+                    "key": key,
+                    "label": label,
+                    "seconds": seconds,
+                    "deadline": attack - timedelta(seconds=seconds),
+                    "arrival": attack,
+                    "max_def": sum(int(x[0]["amount"]) * int(x[0]["value"]) for x in eligible),
+                    "with_hero": False,
                 })
+
         if variants:
             result.append({
-                "idx": idx, "village": village, "units": units,
-                "max_def": max_def, "slowest_name": slowest["name"],
+                "idx": idx,
+                "village": village,
+                "units": units,
+                "max_def": max(int(v["max_def"]) for v in variants),
                 "variants": variants,
             })
+
     return result
 
 
@@ -1099,14 +1145,25 @@ def process_text(message):
         if amount > option["max_def"]:
             bot.send(chat_id, f"❌ Для этой деревни указано максимум <b>{option['max_def']}</b> очков.", force_reply=True)
             return
+        eligible_variants = [
+            v for v in option["variants"]
+            if int(v.get("max_def", 0) or 0) >= amount
+        ]
+        if not eligible_variants:
+            bot.send(
+                chat_id,
+                "❌ Такое количество дефа не успевает ни одним доступным вариантом. Укажите меньше.",
+                force_reply=True,
+            )
+            return
         state["pending_amount"] = amount
         player["state"] = state
         bot.save_players(data)
         bot.send(
             chat_id,
             f"<b>Выберите время отправки</b>\n\n🏘 {option['village'].get('coordinates', '?')}\n"
-            f"🛡 {amount} очков\n\nПоказываются только варианты, которые успевают до атаки.",
-            speed_variant_keyboard(req_id, village_idx, option["variants"]),
+            f"🛡 {amount} очков\n\nПоказываются только варианты, которыми это количество успевает до атаки.",
+            speed_variant_keyboard(req_id, village_idx, eligible_variants),
         )
         return
 
@@ -1427,8 +1484,9 @@ def callback_query(q):
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None) if req else None
         variant = next((v for v in option["variants"] if v["key"] == mode), None) if option else None
-        if variant is None:
-            bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает.", request_menu())
+        pending_amount = int(state.get("pending_amount", 0) or 0)
+        if variant is None or pending_amount > int(variant.get("max_def", 0) or 0):
+            bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает или не вмещает указанное количество дефа.", request_menu())
             return
         deadline = variant["deadline"]
         reminder = deadline - timedelta(minutes=5)
