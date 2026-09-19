@@ -20,8 +20,9 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "send_draft",
+      "type": "send_village_amount",
       "request_id": 7,
+      "village_idx": 0,
       "draft": []
     },
     "race": "gaul",
