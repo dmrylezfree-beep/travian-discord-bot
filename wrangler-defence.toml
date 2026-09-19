@@ -1,3 +1,13 @@
 name = "travian-defence"
 compatibility_date = "2026-09-17"
 main = "defence-worker.js"
+
+[[queues.producers]]
+queue = "travian-defence-reminders"
+binding = "DEFENCE_REMINDERS"
+
+[[queues.consumers]]
+queue = "travian-defence-reminders"
+max_batch_size = 10
+max_batch_timeout = 1
+max_retries = 3
