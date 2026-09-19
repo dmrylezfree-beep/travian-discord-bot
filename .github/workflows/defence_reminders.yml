@@ -1,8 +1,9 @@
 name: Defence Reminders
 
+# Reminders are started on demand when a player confirms a defence send.
+# There is deliberately no permanent cron: when nobody has a pending
+# reminder, this workflow consumes no GitHub Actions time.
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
