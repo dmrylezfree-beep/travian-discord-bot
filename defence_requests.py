@@ -1179,7 +1179,12 @@ def refresh_center(chat_id=None, create_if_missing=False):
 def process_text(message):
     user = message.get("from", {})
     text = (message.get("text") or "").strip()
-    if not text or not bot.in_def_thread(message):
+    is_private = message.get("chat", {}).get("type") == "private"
+    if not text:
+        return
+    if is_private:
+        return _original_process_text(message)
+    if not bot.in_def_thread(message):
         return
 
     data, player = bot.get_player(user)
@@ -1298,6 +1303,9 @@ def process_text(message):
 
 def callback_query(q):
     message = q.get("message", {})
+    is_private = message.get("chat", {}).get("type") == "private"
+    if is_private:
+        return _original_callback_query(q)
     if message.get("message_thread_id") != bot.THREAD_ID:
         return
     action = q.get("data", "")
@@ -1312,7 +1320,16 @@ def callback_query(q):
         return
 
     if action == "settings":
-        bot.send(chat_id, bot.settings_text(player), bot.settings_kb())
+        private_chat_id = player.get("private_chat_id")
+        if private_chat_id:
+            bot.send_private(
+                private_chat_id,
+                bot.settings_text(player),
+                bot.settings_kb(bot.is_owner(user)),
+            )
+            bot.answer_callback(q.get("id"), "Настройки отправлены вам в личные сообщения")
+        else:
+            bot.answer_callback(q.get("id"), "Сначала откройте личный чат с ботом и нажмите /start")
         return
 
     if action == "private_notify":
