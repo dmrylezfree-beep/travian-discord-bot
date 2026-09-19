@@ -74,8 +74,14 @@ def tg(method, **kwargs):
     return result.get("result")
 
 
+def is_private_chat_id(chat_id):
+    return any(str(p.get("private_chat_id")) == str(chat_id) for p in players().values() if isinstance(p, dict) and p.get("private_chat_id"))
+
+
 def send(chat_id, text, reply_markup=None, thread_id=THREAD_ID, force_reply=False):
-    args = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "message_thread_id": thread_id}
+    args = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if thread_id is not None and not is_private_chat_id(chat_id):
+        args["message_thread_id"] = thread_id
     if force_reply:
         args["reply_markup"] = json.dumps({"force_reply": True, "selective": False}, ensure_ascii=False)
     elif reply_markup:
@@ -90,8 +96,11 @@ def edit(chat_id, message_id, text, reply_markup=None):
     return tg("editMessageText", **args)
 
 
-def send_private(chat_id, text):
-    return tg("sendMessage", chat_id=chat_id, text=text, parse_mode="HTML")
+def send_private(chat_id, text, reply_markup=None):
+    args = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if reply_markup:
+        args["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+    return tg("sendMessage", **args)
 
 
 def answer_callback(callback_id, text=None):
@@ -325,15 +334,23 @@ def to_int(value):
 def process_text(message):
     user = message.get("from", {})
     text = (message.get("text") or "").strip()
-    if not text or not in_def_thread(message):
+    is_private = message.get("chat", {}).get("type") == "private"
+    if not text or (not is_private and not in_def_thread(message)):
         return
     data, player = get_player(user)
     state = player.get("state")
     chat_id = message["chat"]["id"]
-    if text.startswith("/start") or text.startswith("/def"):
+    if text.startswith("/start") and is_private:
+        player["state"] = None
+        player["private_chat_id"] = chat_id
+        player["private_notifications"] = True
+        save_players(data)
+        send(chat_id, settings_text(player), settings_kb(), thread_id=None)
+        return
+    if text.startswith("/def") and not is_private:
         player["state"] = None
         save_players(data)
-        send(chat_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nЗдесь настраивается ваш теоретический резерв дефа.", main_menu())
+        send(chat_id, "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите раздел:", main_menu())
         return
     if not state:
         return
@@ -420,7 +437,8 @@ def process_text(message):
 
 def callback_query(q):
     message = q.get("message", {})
-    if message.get("message_thread_id") != THREAD_ID:
+    is_private = message.get("chat", {}).get("type") == "private"
+    if not is_private and message.get("message_thread_id") != THREAD_ID:
         return
     user = q.get("from", {})
     data, player = get_player(user)
@@ -433,7 +451,18 @@ def callback_query(q):
     elif action == "my_id":
         send(chat_id, f"🆔 Ваш Telegram ID: <code>{user.get('id')}</code>")
     elif action == "settings":
+        if not is_private:
+            private_chat_id = player.get("private_chat_id")
+            if private_chat_id:
+                send_private(private_chat_id, settings_text(player), settings_kb())
+                answer_callback(q["id"], "Настройки отправлены вам в личные сообщения")
+            else:
+                answer_callback(q["id"], "Сначала откройте личный чат с ботом и нажмите /start")
+            return
         edit(chat_id, msg_id, settings_text(player), settings_kb())
+    elif not is_private and action not in ("menu", "request_def"):
+        answer_callback(q["id"], "Личные настройки изменяются только в личном чате")
+        return
     elif action == "race_menu":
         edit(chat_id, msg_id, "<b>🧬 Выбор расы</b>\n\nВыберите вашу расу. После смены расы список доступных юнитов во всех ваших деревнях будет автоматически отфильтрован.", race_keyboard())
     elif action.startswith("race:"):
