@@ -401,7 +401,7 @@ def village_send_options(player, req):
             seconds = max(x["no_hero_seconds"] for x in normal_units)
             variants.append({
                 "key": "normal",
-                "label": "⚡ Обычная скорость",
+                "label": "⚡ Без героя",
                 "seconds": seconds,
                 "deadline": attack - timedelta(seconds=seconds),
                 "arrival": attack,
@@ -489,18 +489,32 @@ def speed_variant_keyboard(req_id, village_idx, variants):
     return bot.kb(rows)
 
 
-def draft_summary(state):
-    lines = ["<b>🛡 План отправки</b>", ""]
+def draft_summary(state, req=None):
+    lines = ["<b>🛡 ПЛАН ОТПРАВКИ</b>", ""]
+    if req is not None:
+        lines.extend([
+            f"🎯 Цель: {village_link(req['target_x'], req['target_y'])}",
+            f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
+            "",
+        ])
+    total = 0
     for item in state.get("draft", []):
-        extra = ""
-        if item["speed_mode"] == "ram":
-            extra = " + 1 таран"
+        mode = ""
+        if item["speed_mode"] == "hero":
+            mode = " · 🦸 с героем"
+        elif item["speed_mode"] == "ram":
+            mode = " · 🐏 + 1 таран"
         elif item["speed_mode"] == "catapult":
-            extra = " + 1 катапульта"
+            mode = " · 🪨 + 1 катапульта"
+        total += int(item.get("def_points", 0) or 0)
         lines.append(
-            f"🏘 <b>{html.escape(item['village'])}</b> — <b>{item['def_points']}</b> очков{extra}\n"
-            f"🚨 Отправить: <b>{item['deadline']}</b> · 🔔 {item['reminder_time']}"
+            f"🏘 <b>{html.escape(item['village'])}</b>\n"
+            f"🛡 <b>{item['def_points']}</b> очков{mode}\n"
+            f"🚨 Отправить: <b>{item['deadline']}</b>\n"
+            f"🔔 Напомню: <b>{item['reminder_time']}</b>"
         )
+        lines.append("")
+    lines.append(f"<b>Итого: {total} очков</b>")
     return "\n".join(lines)
 
 
@@ -537,9 +551,9 @@ def send_def_plan_text(player, req):
         "",
     ]
     if not options:
-        lines.append("🔴 Подходящих деревень нет — имеющийся деф не успевает.")
+        lines.append("🔴 Из твоих деревень сейчас ничего не успевает к атаке.")
     else:
-        lines.append("<b>Подходящие варианты:</b>")
+        lines.append("<b>Можно отправить из:</b>")
         for item in options:
             hero = " + герой" if item["with_hero"] else ""
             lines.append(
@@ -549,8 +563,8 @@ def send_def_plan_text(player, req):
             )
         lines.extend([
             "",
-            "Выберите подходящий вариант и укажите количество дефа.",
-            "Например: <code>10000</code> (в очках дефа; пехота = 1, конница = 2).",
+            "Выбери деревню и укажи количество дефа.",
+            "💡 Пехота = 1 очко · Конница = 2 очка.",
         ])
     return "\n".join(lines)
 
@@ -947,7 +961,7 @@ def notify_eligible_defenders(req):
             f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
             f"🛡 Требуется: <b>{req['required_def']}</b> очков",
             "",
-            "<b>Твои деревни, которые теоретически успевают:</b>",
+            "<b>Ты можешь успеть из:</b>",
             "",
         ]
 
@@ -961,14 +975,13 @@ def notify_eligible_defenders(req):
                 current_village = coords
 
             hero = " + герой" if item["with_hero"] else ""
+            points = int(item["amount"]) * int(item.get("value", 1))
             lines.extend([
-                f"🛡 {item['amount']} {item['name']}{hero}",
-                f"   ⏳ Осталось: <b>{format_duration(item['remaining'])}</b>",
-                f"   🚨 Отправить до: <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
-                f"   🏁 Прибытие: <b>{item['arrival'].strftime('%H:%M:%S')}</b>",
+                f"🛡 {item['amount']} {item['name']}{hero} — <b>{points}</b> очков",
+                f"🚨 Отправить до: <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
             ])
 
-        lines.append("Проверь реальные войска в игре и, если можешь помочь, отправь деф из меню активных заявок в Telegram.")
+        lines.append("Если можешь помочь, открой «Отправить деф» в Центре дефа.")
 
         try:
             bot.tg("sendMessage", chat_id=int(private_chat_id), text="\n".join(lines), parse_mode="HTML")
@@ -1033,13 +1046,12 @@ def active_requests_text(requests):
                 f"{icon} <b>#{req['id']}</b>",
                 f"📍 {village_link(req['target_x'], req['target_y'])} — <b>{html.escape(req['target_player'])}</b>",
                 f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
-                f"🛡 Деф: <b>{req.get('collected_def', 0)}</b> / <b>{req['required_def']}</b> очков",
+                f"🛡 Собрано: <b>{req.get('collected_def', 0)}</b> / <b>{req['required_def']}</b> очков",
+                f"⏳ Осталось собрать: <b>{request_remaining(req)}</b> очков",
                 "",
             ])
 
-    lines.append("Деф должен прибыть <b>ДО</b> времени атаки.")
-    lines.append("")
-    lines.append("🛡 Нажмите «Отправить деф», выберите подходящий вариант и укажите количество.")
+    lines.append("🛡 Чтобы помочь, нажмите «Отправить деф».")
     return "\n".join(lines), changed
 
 
@@ -1161,8 +1173,9 @@ def process_text(message):
         bot.save_players(data)
         bot.send(
             chat_id,
-            f"<b>Выберите время отправки</b>\n\n🏘 {option['village'].get('coordinates', '?')}\n"
-            f"🛡 {amount} очков\n\nПоказываются только варианты, которыми это количество успевает до атаки.",
+            f"<b>🚨 Когда отправлять</b>\n\n"
+            f"🏘 <b>{option['village'].get('coordinates', '?')}</b> → 🎯 <b>{req['target_x']} {req['target_y']}</b>\n"
+            f"🛡 <b>{amount}</b> очков\n\nВыбери вариант:",
             speed_variant_keyboard(req_id, village_idx, eligible_variants),
         )
         return
@@ -1468,7 +1481,9 @@ def callback_query(q):
         bot.send(
             chat_id,
             f"<b>🏘 {option['village'].get('coordinates', '?')}</b>\n"
-            f"Доступно до <b>{option['max_def']}</b> очков дефа.\n\nСколько отправите из этой деревни?",
+            f"🛡 Доступно: до <b>{option['max_def']}</b> очков дефа\n\n"
+            "Сколько отправите?\n\n"
+            "💡 Пехота = 1 очко · Конница = 2 очка",
             force_reply=True,
         )
         return
@@ -1506,7 +1521,7 @@ def callback_query(q):
         bot.save_players(data)
         used = [x["village_idx"] for x in draft]
         can_add = any(x["idx"] not in used for x in village_send_options(player, req))
-        bot.edit(chat_id, msg_id, draft_summary(player["state"]), draft_actions_keyboard(req_id, can_add))
+        bot.edit(chat_id, msg_id, draft_summary(player["state"], req), draft_actions_keyboard(req_id, can_add))
         return
 
     if action.startswith("send_add:"):
@@ -1551,7 +1566,7 @@ def callback_query(q):
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
         bot.save_players(data)
-        result = draft_summary({"draft": draft}) + f"\n\n✅ Записано: <b>{total}</b> очков."
+        result = draft_summary({"draft": draft}, req) + f"\n\n✅ Записано: <b>{total}</b> очков."
         if req.get("status") != "closed":
             result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
         bot.edit(chat_id, msg_id, result, request_menu())
