@@ -131,6 +131,7 @@ def player_default(user):
         "state": None,
         "private_chat_id": None,
         "private_notifications": True,
+        "hero_inventory": {"standards": [], "boots": [], "maps": []},
     }
 
 
@@ -147,6 +148,18 @@ def get_player(user):
     data[key].setdefault("state", None)
     data[key].setdefault("private_chat_id", None)
     data[key].setdefault("private_notifications", True)
+    inv = data[key].setdefault("hero_inventory", {"standards": [], "boots": [], "maps": []})
+    for kind in ("standards", "boots", "maps"):
+        inv.setdefault(kind, [])
+    # One-time compatibility: preserve old equipped standard/boots as owned items.
+    for village in data[key].get("villages", []):
+        hero = village.get("hero") or {}
+        std = int(round(float(hero.get("standard_bonus", 0) or 0) * 100))
+        boots = int(round(float(hero.get("boots_bonus", 0) or 0) * 100))
+        if std and std not in inv["standards"]:
+            inv["standards"].append(std)
+        if boots and boots not in inv["boots"]:
+            inv["boots"].append(boots)
     save_json(PLAYERS_FILE, data)
     return data, data[key]
 
@@ -168,8 +181,24 @@ def race_keyboard():
     ])
 
 
+def hero_inventory(player):
+    inv = player.setdefault("hero_inventory", {"standards": [], "boots": [], "maps": []})
+    for kind in ("standards", "boots", "maps"):
+        inv.setdefault(kind, [])
+        inv[kind] = sorted({int(x) for x in inv[kind] if int(x) > 0})
+    return inv
+
+
+def hero_village_index(player):
+    for i, village in enumerate(player.get("villages", [])):
+        if (village.get("hero") or {}).get("present"):
+            return i
+    return None
+
+
 def settings_text(player):
     units = settings().get("units", {})
+    inv = hero_inventory(player)
     lines = ["<b>🛡 Мои настройки дефа</b>", "", f"🧬 Раса: <b>{race_name(player)}</b>"]
     villages = player.get("villages", [])
     if not villages:
@@ -178,11 +207,13 @@ def settings_text(player):
         lines.append(f"<b>{i}. {v.get('coordinates', '?')}</b> — Арена {v.get('arena', 0)}")
         active = [f"{units.get(k, {}).get('name', k)}: {n}" for k, n in v.get("troops", {}).items() if int(n or 0) > 0]
         lines.append("  " + (", ".join(active) if active else "войска не указаны"))
-        h = v.get("hero", {})
-        if h.get("present"):
-            lines.append(f"  🦸 Герой: да | 🚩 {int(h.get('standard_bonus', 0)*100)}% | 🥾 {int(h.get('boots_bonus', 0)*100)}%")
-        else:
-            lines.append("  🦸 Герой: нет")
+        if (v.get("hero") or {}).get("present"):
+            lines.append("  🦸 Герой находится здесь")
+    if any(inv.values()):
+        lines += ["", "<b>🎒 Инвентарь героя:</b>"]
+        lines.append("🚩 Штандарты: " + (", ".join(f"+{x}%" for x in inv["standards"]) or "нет"))
+        lines.append("🥾 Сапоги: " + (", ".join(f"+{x}%" for x in inv["boots"]) or "нет"))
+        lines.append("🗺 Карты: " + (", ".join(f"+{x}%" for x in inv["maps"]) or "нет"))
     notification_status = "подключены" if player.get("private_chat_id") and player.get("private_notifications", True) else "не подключены"
     lines += ["", f"🔔 Личные уведомления: <b>{notification_status}</b>", f"👥 Заместители: {len(player.get('substitutes', []))}/2"]
     return "\n".join(lines)
@@ -220,6 +251,8 @@ def unit_text(v, player):
             lines.append(f"{unit['name']}: <b>{amount}</b> — {unit['speed']} полей/ч")
     if len(lines) == 4:
         lines.append("пока не указаны")
+    if (v.get("hero") or {}).get("present"):
+        lines += ["", "🦸 <b>Герой находится в этой деревне</b>"]
     return "\n".join(lines)
 
 
@@ -229,32 +262,45 @@ def unit_keyboard(index, player):
     for key in allowed_units(player):
         unit = units.get(key)
         if unit:
-            rows.append([{ "text": unit["name"], "callback_data": f"unit:{index}:{key}" }])
+            rows.append([{"text": unit["name"], "callback_data": f"unit:{index}:{key}"}])
     rows += [
         [{"text": "✏️ Координаты", "callback_data": f"coords:{index}"}, {"text": "✏️ Арена", "callback_data": f"arena:{index}"}],
-        [{"text": "🦸 Герой и предметы", "callback_data": f"hero:{index}"}],
+        [{"text": "🦸 Герой и инвентарь", "callback_data": f"hero:{index}"}],
         [{"text": "⬅️ Назад", "callback_data": "villages"}],
     ]
     return kb(rows)
 
 
-def hero_text(v):
-    h = v.get("hero", {})
-    return (f"<b>🦸 Герой — {v.get('coordinates')}</b>\n\n"
-            f"Герой в этой деревне: <b>{'да' if h.get('present') else 'нет'}</b>\n"
-            f"🚩 Штандарт: <b>+{int(h.get('standard_bonus',0)*100)}%</b>\n"
-            f"🥾 Сапоги: <b>+{int(h.get('boots_bonus',0)*100)}%</b>")
+def hero_text(v, player):
+    inv = hero_inventory(player)
+    return (
+        f"<b>🦸 Герой — {v.get('coordinates')}</b>\n\n"
+        f"Герой находится здесь: <b>{'да' if (v.get('hero') or {}).get('present') else 'нет'}</b>\n\n"
+        "<b>🎒 Доступно в инвентаре:</b>\n"
+        f"🚩 Штандарты: <b>{', '.join('+'+str(x)+'%' for x in inv['standards']) or 'нет'}</b>\n"
+        f"🥾 Сапоги: <b>{', '.join('+'+str(x)+'%' for x in inv['boots']) or 'нет'}</b>\n"
+        f"🗺 Карты: <b>{', '.join('+'+str(x)+'%' for x in inv['maps']) or 'нет'}</b>\n\n"
+        "Нажатие на предмет добавляет или убирает его из инвентаря."
+    )
 
 
-def hero_keyboard(idx):
+def hero_keyboard(idx, player):
+    inv = hero_inventory(player)
+    def mark(kind, value, icon):
+        return f"{'✅' if value in inv[kind] else '▫️'} {icon} +{value}%"
     return kb([
-        [{"text": "🔄 Герой: переключить", "callback_data": f"hero_present:{idx}"}],
-        [{"text": "🚩 +15%", "callback_data": f"std:{idx}:15"}, {"text": "+20%", "callback_data": f"std:{idx}:20"}, {"text": "+25%", "callback_data": f"std:{idx}:25"}],
-        [{"text": "🥾 +25%", "callback_data": f"boots:{idx}:25"}, {"text": "+50%", "callback_data": f"boots:{idx}:50"}, {"text": "+75%", "callback_data": f"boots:{idx}:75"}],
-        [{"text": "🚫 Без штандарта", "callback_data": f"std:{idx}:0"}, {"text": "🚫 Без сапог", "callback_data": f"boots:{idx}:0"}],
+        [{"text": "📍 Герой здесь / убрать", "callback_data": f"hero_present:{idx}"}],
+        [{"text": mark("standards", 15, "🚩"), "callback_data": f"hinv:{idx}:standards:15"},
+         {"text": mark("standards", 20, "🚩"), "callback_data": f"hinv:{idx}:standards:20"},
+         {"text": mark("standards", 25, "🚩"), "callback_data": f"hinv:{idx}:standards:25"}],
+        [{"text": mark("boots", 25, "🥾"), "callback_data": f"hinv:{idx}:boots:25"},
+         {"text": mark("boots", 50, "🥾"), "callback_data": f"hinv:{idx}:boots:50"},
+         {"text": mark("boots", 75, "🥾"), "callback_data": f"hinv:{idx}:boots:75"}],
+        [{"text": mark("maps", 30, "🗺"), "callback_data": f"hinv:{idx}:maps:30"},
+         {"text": mark("maps", 40, "🗺"), "callback_data": f"hinv:{idx}:maps:40"},
+         {"text": mark("maps", 50, "🗺"), "callback_data": f"hinv:{idx}:maps:50"}],
         [{"text": "⬅️ Назад", "callback_data": f"village:{idx}"}],
     ])
-
 
 def parse_coords(value):
     try:
@@ -320,7 +366,7 @@ def process_text(message):
         if arena is None or not 0 <= arena <= 20:
             send(chat_id, "Введите целое число от 0 до 20.", force_reply=True)
             return
-        player["villages"].append({"coordinates": state["coordinates"], "arena": arena, "troops": {}, "hero": {"present": False, "standard_bonus": 0, "boots_bonus": 0}})
+        player["villages"].append({"coordinates": state["coordinates"], "arena": arena, "troops": {}, "hero": {"present": False}})
         idx = len(player["villages"]) - 1
         player["state"] = None
         save_players(data)
@@ -451,24 +497,32 @@ def callback_query(q):
     elif action.startswith("hero:"):
         idx = int(action.split(":", 1)[1])
         if idx < len(player["villages"]):
-            player["villages"][idx].setdefault("hero", {"present": False, "standard_bonus": 0, "boots_bonus": 0})
-            edit(chat_id, msg_id, hero_text(player["villages"][idx]), hero_keyboard(idx))
+            player["villages"][idx].setdefault("hero", {"present": False})
+            edit(chat_id, msg_id, hero_text(player["villages"][idx], player), hero_keyboard(idx, player))
     elif action.startswith("hero_present:"):
         idx = int(action.split(":", 1)[1])
-        h = player["villages"][idx].setdefault("hero", {})
-        h["present"] = not h.get("present", False)
+        if idx < len(player["villages"]):
+            currently_here = bool((player["villages"][idx].get("hero") or {}).get("present"))
+            # There is only one hero per account.
+            for village in player.get("villages", []):
+                village.setdefault("hero", {})["present"] = False
+            if not currently_here:
+                player["villages"][idx]["hero"]["present"] = True
+            save_players(data)
+            edit(chat_id, msg_id, hero_text(player["villages"][idx], player), hero_keyboard(idx, player))
+    elif action.startswith("hinv:"):
+        _, idx_s, kind, value_s = action.split(":")
+        idx, value = int(idx_s), int(value_s)
+        if kind not in ("standards", "boots", "maps") or idx >= len(player["villages"]):
+            return
+        inv = hero_inventory(player)
+        if value in inv[kind]:
+            inv[kind].remove(value)
+        else:
+            inv[kind].append(value)
+            inv[kind].sort()
         save_players(data)
-        edit(chat_id, msg_id, hero_text(player["villages"][idx]), hero_keyboard(idx))
-    elif action.startswith("std:"):
-        _, idx, value = action.split(":")
-        player["villages"][int(idx)].setdefault("hero", {})["standard_bonus"] = int(value) / 100
-        save_players(data)
-        edit(chat_id, msg_id, hero_text(player["villages"][int(idx)]), hero_keyboard(int(idx)))
-    elif action.startswith("boots:"):
-        _, idx, value = action.split(":")
-        player["villages"][int(idx)].setdefault("hero", {})["boots_bonus"] = int(value) / 100
-        save_players(data)
-        edit(chat_id, msg_id, hero_text(player["villages"][int(idx)]), hero_keyboard(int(idx)))
+        edit(chat_id, msg_id, hero_text(player["villages"][idx], player), hero_keyboard(idx, player))
     elif action == "subs":
         player["state"] = {"type": "subs"}
         save_players(data)
