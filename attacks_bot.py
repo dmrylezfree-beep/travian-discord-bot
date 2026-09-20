@@ -5148,6 +5148,10 @@ def save_scout_report(chat_id, user_id):
     save_json(SCOUTS_FILE, scouts)
     persist_attacks_data_to_github()
 
+    # Если двойной скан поймал небольшую отправку, сопоставляем её с базой
+    # входящих и отправляем рекомендацию по Арене только владельцу.
+    notify_owner_arena_suggestion(record)
+
     clear_session(chat_id, user_id)
 
     send_message(
@@ -5244,6 +5248,224 @@ def show_offers_status(
         reply_markup=main_menu(),
     )
 
+
+
+
+# ============================================================
+# ПОДСКАЗКА ПО УТОЧНЕНИЮ АРЕНЫ ПО ДВОЙНОМУ СКАНУ
+# ============================================================
+
+SCOUT_SPAM_UNITS = {
+    1: {"infantry": {"legionnaire", "praetorian", "imperian"}, "catapult": "fire_catapult"},
+    2: {"infantry": {"clubswinger", "spearman", "axeman"}, "catapult": "catapult"},
+    3: {"infantry": {"phalanx", "swordsman"}, "catapult": "trebuchet"},
+    6: {"infantry": {"slave_militia", "ash_warden", "khopesh_warrior"}, "catapult": "stone_catapult"},
+    7: {"infantry": {"mercenary", "bowman"}, "catapult": "catapult"},
+    8: {"infantry": {"hoplite", "sentinel", "shieldman"}, "catapult": "ballista"},
+}
+
+
+def previous_scout_for_record(record, scouts):
+    coords = record.get("village_coords") or {}
+    current_dt = datetime.fromisoformat(record["scanned_at"])
+    candidates = []
+    for scout in scouts:
+        if scout.get("id") == record.get("id"):
+            continue
+        sc = scout.get("village_coords") or {}
+        if safe_int(sc.get("x")) != safe_int(coords.get("x")):
+            continue
+        if safe_int(sc.get("y")) != safe_int(coords.get("y")):
+            continue
+        try:
+            dt = datetime.fromisoformat(scout.get("scanned_at"))
+        except Exception:
+            continue
+        if dt < current_dt:
+            candidates.append((dt, scout))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
+def scout_arena_suggestion(record):
+    scouts = load_scouts()
+    previous = previous_scout_for_record(record, scouts)
+    if not previous:
+        return None
+
+    try:
+        before_dt = datetime.fromisoformat(previous["scanned_at"])
+        after_dt = datetime.fromisoformat(record["scanned_at"])
+    except Exception:
+        return None
+
+    # Подсказка рассчитана именно на двойной скан вокруг выхода.
+    # Слишком широкие интервалы не используем для автоматической рекомендации.
+    interval = (after_dt - before_dt).total_seconds()
+    if interval <= 0 or interval > 90:
+        return None
+
+    tribe_id = safe_int(record.get("tribe_id"))
+    model = SCOUT_SPAM_UNITS.get(tribe_id)
+    if not model:
+        return None
+
+    old_units = previous.get("units") or {}
+    new_units = record.get("units") or {}
+    infantry_delta = sum(
+        safe_int(new_units.get(key), 0) - safe_int(old_units.get(key), 0)
+        for key in model["infantry"]
+    )
+    cat_delta = (
+        safe_int(new_units.get(model["catapult"]), 0)
+        - safe_int(old_units.get(model["catapult"]), 0)
+    )
+
+    cats_gone = -cat_delta
+    if cats_gone not in (1, 2, 4):
+        return None
+
+    expected_infantry = 19 * cats_gone
+    infantry_gone = -infantry_delta
+    # Не требуем точных 19/38/76: между сканами могли строиться/возвращаться войска.
+    tolerance = max(12, round(expected_infantry * 0.45))
+    if abs(infantry_gone - expected_infantry) > tolerance:
+        return None
+
+    offer_id = record.get("offer_id")
+    offer = get_offer(offer_id)
+    if not offer:
+        return None
+
+    midpoint = before_dt + (after_dt - before_dt) / 2
+    matches = []
+
+    for attack in load_attacks():
+        if attack.get("offer_id") != offer_id:
+            continue
+        try:
+            arrival = datetime.fromisoformat(attack.get("arrival_datetime"))
+        except Exception:
+            continue
+        coords = attack.get("own_coords") or {}
+        tx, ty = safe_int(coords.get("x")), safe_int(coords.get("y"))
+        if tx is None or ty is None:
+            continue
+        distance = travian_distance(offer["x"], offer["y"], tx, ty)
+
+        for arena in range(0, 21):
+            exit_at = arrival - timedelta(
+                seconds=travel_time_seconds(distance, arena)
+            )
+            if before_dt <= exit_at <= after_dt:
+                waves = safe_int(attack.get("waves"), 0)
+                wave_penalty = 0 if waves == cats_gone else 1
+                midpoint_diff = abs((exit_at - midpoint).total_seconds())
+                matches.append((
+                    wave_penalty,
+                    midpoint_diff,
+                    attack,
+                    arena,
+                    exit_at,
+                ))
+
+    if not matches:
+        return None
+
+    matches.sort(key=lambda item: (item[0], item[1]))
+    best = matches[0]
+    wave_penalty, _, attack, arena, exit_at = best
+
+    # Если есть несколько одинаково сильных кандидатов, показываем гипотезу,
+    # но не предлагаем одним нажатием менять базу.
+    equally_strong = [
+        m for m in matches
+        if m[0] == best[0] and abs(m[1] - best[1]) <= 2
+    ]
+
+    return {
+        "previous": previous,
+        "before_dt": before_dt,
+        "after_dt": after_dt,
+        "infantry_delta": infantry_delta,
+        "cat_delta": cat_delta,
+        "waves_hint": cats_gone,
+        "expected_infantry": expected_infantry,
+        "attack": attack,
+        "arena": arena,
+        "exit_at": exit_at,
+        "unique": len(equally_strong) == 1,
+        "waves_match": wave_penalty == 0,
+    }
+
+
+def notify_owner_arena_suggestion(record):
+    if not BOT_OWNER_ID:
+        return
+
+    suggestion = scout_arena_suggestion(record)
+    if not suggestion:
+        return
+
+    offer = get_offer(record.get("offer_id"))
+    if not offer:
+        return
+
+    attack = suggestion["attack"]
+    target = attack.get("own_coords") or {}
+    current_arena = safe_int(offer.get("arena"), 0)
+    owner = get_offer_owner(offer) or record.get("player_name") or record.get("offer_id")
+
+    lines = [
+        "🏟 <b>Подсказка по Арене</b>",
+        "",
+        f"<b>Оффер:</b> {html.escape(str(owner))} "
+        f"({offer['x']}|{offer['y']})",
+        f"<b>Двойной скан:</b> "
+        f"{suggestion['before_dt'].strftime('%H:%M:%S')} → "
+        f"{suggestion['after_dt'].strftime('%H:%M:%S')}",
+        f"<b>Изменение пехоты:</b> {suggestion['infantry_delta']:+d}",
+        f"<b>Изменение катапульт:</b> {suggestion['cat_delta']:+d}",
+        f"Масштаб близок к <b>{suggestion['waves_hint']} небольшим волнам</b>.",
+        "",
+        f"<b>В базе входящих найден кандидат:</b>",
+        f"{html.escape(attack.get('own_player_name') or 'игрок')} "
+        f"({target.get('x')}|{target.get('y')}) — "
+        f"{attack.get('waves')} волн",
+        f"При <b>A{suggestion['arena']}</b> расчётный выход: "
+        f"<code>{suggestion['exit_at'].strftime('%H:%M:%S')}</code>",
+        f"Текущая Арена в базе: <b>"
+        f"{'неизвестна' if not current_arena else 'A' + str(current_arena)}</b>",
+    ]
+
+    keyboard = None
+    if suggestion["unique"] and suggestion["waves_match"] and suggestion["arena"] != current_arena:
+        lines.extend([
+            "",
+            f"Совпадают временное окно и число волн. "
+            f"Рекомендуется проверить замену Арены на <b>A{suggestion['arena']}</b>.",
+        ])
+        keyboard = {
+            "inline_keyboard": [
+                [{
+                    "text": f"✅ Установить A{suggestion['arena']}",
+                    "callback_data": (
+                        f"arena_suggest:{record.get('offer_id')}:{suggestion['arena']}"
+                    ),
+                }],
+                [{"text": "❌ Оставить текущее значение", "callback_data": "menu"}],
+            ]
+        }
+    else:
+        lines.extend([
+            "",
+            "Есть временное совпадение, но оно не уникально либо число волн "
+            "не совпадает точно. Автоматическая кнопка изменения Арены не предлагается.",
+        ])
+
+    send_message(BOT_OWNER_ID, "\n".join(lines), reply_markup=keyboard)
 
 
 # ============================================================
@@ -5583,6 +5805,7 @@ def process_callback(
     owner_only = (
         data == "set_arena"
         or data.startswith("manual_offer:")
+        or data.startswith("arena_suggest:")
         or data in {"scout_settings", "add_important", "add_scout_village", "show_scout_settings"}
     )
     if owner_only and not owner_private:
@@ -5827,6 +6050,35 @@ def process_callback(
             waves_value,
         )
 
+        return
+
+    if data.startswith("arena_suggest:"):
+        parts = data.split(":")
+        if len(parts) != 3:
+            send_message(chat_id, "❌ Некорректная рекомендация.")
+            return
+        offer_id = parts[1]
+        arena = parse_integer(parts[2])
+        if arena is None or not (0 <= arena <= 20):
+            send_message(chat_id, "❌ Некорректный уровень Арены.")
+            return
+        offer = get_offer(offer_id)
+        old_arena = safe_int(offer.get("arena"), 0) if offer else 0
+        success = set_arena(
+            offer_id,
+            arena,
+            "scout_verified",
+            "Подтверждено владельцем по двойному скауту и совпавшей входящей атаке.",
+        )
+        if success:
+            send_message(
+                chat_id,
+                f"✅ Арена обновлена: <b>A{old_arena}</b> → <b>A{arena}</b>.\n"
+                "Следующий план скаут-проверок будет использовать новое значение.",
+                reply_markup=main_menu(owner_private=True),
+            )
+        else:
+            send_message(chat_id, "❌ Не удалось сохранить Арену в GitHub.")
         return
 
     if data == "set_arena":
