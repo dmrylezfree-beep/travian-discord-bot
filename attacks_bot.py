@@ -1660,7 +1660,14 @@ def send_message(
         "parse_mode": "HTML",
     }
 
-    if thread_id is not None:
+    # message_thread_id допустим только для сообщения внутри forum-topic.
+    # В личных сообщениях Telegram возвращает 400 Bad Request, если передать
+    # ID групповой ветки. Поэтому ветку добавляем только когда явно пишем
+    # в групповой чат, а для лички (chat_id == user_id) не передаём её.
+    if (
+        thread_id is not None
+        and chat_id != BOT_OWNER_ID
+    ):
 
         data[
             "message_thread_id"
