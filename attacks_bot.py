@@ -20,6 +20,7 @@ print("ATTACKS BOT STARTED", flush=True)
 # ============================================================
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+BOT_OWNER_ID = safe_owner_id = int(os.environ.get("BOT_OWNER_ID", "0") or 0)
 
 TELEGRAM_THREAD_ID = 76303
 
@@ -94,6 +95,8 @@ OFFERS_FILE = DATA_DIR / "offers.json"
 ATTACKS_FILE = DATA_DIR / "attacks.json"
 SCOUTS_FILE = DATA_DIR / "scouts.json"
 PREFERENCES_FILE = DATA_DIR / "preferences.json"
+IMPORTANT_VILLAGES_FILE = DATA_DIR / "important_villages.json"
+SCOUT_VILLAGES_FILE = DATA_DIR / "scout_villages.json"
 
 # Общие настройки для всех игроков.
 SHARED_PREFERENCES_KEY = "_shared"
@@ -196,6 +199,12 @@ def ensure_data():
             PREFERENCES_FILE,
             {},
         )
+
+    if not IMPORTANT_VILLAGES_FILE.exists():
+        save_json(IMPORTANT_VILLAGES_FILE, [])
+
+    if not SCOUT_VILLAGES_FILE.exists():
+        save_json(SCOUT_VILLAGES_FILE, [])
 
 
 
@@ -464,6 +473,117 @@ def remember_arrival_datetime(user_id, arrival_datetime_text):
     remember_shared_arrival_datetime(
         arrival_datetime_text
     )
+
+
+
+def load_important_villages():
+    data = load_json(IMPORTANT_VILLAGES_FILE, [])
+    return data if isinstance(data, list) else []
+
+
+def load_scout_villages():
+    data = load_json(SCOUT_VILLAGES_FILE, [])
+    return data if isinstance(data, list) else []
+
+
+def is_owner(user_id):
+    return bool(BOT_OWNER_ID and user_id == BOT_OWNER_ID)
+
+
+def is_private_chat(chat):
+    return chat.get("type") == "private"
+
+
+def save_important_village(x, y):
+    villages = load_important_villages()
+    current = next(
+        (v for v in load_alliance_villages()
+         if v["x"] == x and v["y"] == y),
+        None,
+    )
+    item = {
+        "x": x,
+        "y": y,
+        "player_name": current.get("player_name") if current else None,
+        "village_name": current.get("village_name") if current else None,
+        "village_id": current.get("vid") if current else None,
+    }
+    villages = [
+        v for v in villages
+        if not (safe_int(v.get("x")) == x and safe_int(v.get("y")) == y)
+    ]
+    villages.append(item)
+    save_json(IMPORTANT_VILLAGES_FILE, villages)
+    persist_attacks_data_to_github()
+    return item
+
+
+SCOUT_SPEED_BY_TRIBE = {
+    1: 16.0,  # Римляне: Equites Legati
+    2: 9.0,   # Германцы: Разведчик
+    3: 17.0,  # Галлы: Следопыт
+    6: 16.0,  # Египтяне: разведчик Сопду
+    7: 19.0,  # Гунны: Наблюдатель
+    8: 17.0,  # Спартанцы: Разведчик
+}
+
+
+def get_world_village_by_coords(x, y):
+    for row in load_latest_map_rows():
+        if len(row) <= 10:
+            continue
+        if safe_int(row[1]) == x and safe_int(row[2]) == y:
+            return {
+                "x": x,
+                "y": y,
+                "tribe_id": safe_int(row[3]),
+                "vid": safe_int(row[4]),
+                "village_name": unquote_sql_value(row[5]) or "Без названия",
+                "uid": safe_int(row[6]),
+                "player_name": unquote_sql_value(row[7]) or "",
+                "alliance_id": safe_int(row[8]),
+            }
+    return None
+
+
+def save_scout_village(x, y, arena):
+    village = get_world_village_by_coords(x, y)
+    if not village or village.get("alliance_id") != OUR_ALLIANCE_ID:
+        return None, "Координаты не относятся к деревне нашего альянса."
+
+    tribe_id = village.get("tribe_id")
+    speed = SCOUT_SPEED_BY_TRIBE.get(tribe_id)
+    if not speed:
+        return None, "Не удалось определить скорость разведчика этой нации."
+
+    villages = load_scout_villages()
+    item = {
+        "x": x,
+        "y": y,
+        "arena": arena,
+        "tribe_id": tribe_id,
+        "scout_speed": speed,
+        "player_name": village.get("player_name"),
+        "village_name": village.get("village_name"),
+        "village_id": village.get("vid"),
+    }
+    villages = [
+        v for v in villages
+        if not (safe_int(v.get("x")) == x and safe_int(v.get("y")) == y)
+    ]
+    villages.append(item)
+    save_json(SCOUT_VILLAGES_FILE, villages)
+    persist_attacks_data_to_github()
+    return item, None
+
+
+def unit_travel_time_seconds(distance, base_speed, arena_level):
+    if distance <= 20:
+        return distance / base_speed * 3600
+    first_part = 20 / base_speed
+    speed_after_20 = base_speed * (1 + 0.20 * arena_level)
+    second_part = (distance - 20) / speed_after_20
+    return (first_part + second_part) * 3600
 
 
 def load_latest_map_rows():
@@ -3196,39 +3316,45 @@ def clear_session(
 # МЕНЮ
 # ============================================================
 
-def main_menu():
+def main_menu(owner_private=False):
+    keyboard = [
+        [
+            {
+                "text": "📥 Отчёт об атаке",
+                "callback_data": "attack_report",
+            }
+        ],
+        [
+            {
+                "text": "🔎 Добавить скаут-проверку",
+                "callback_data": "scout_report",
+            }
+        ],
+        [
+            {
+                "text": "🔭 План скаут-проверок",
+                "callback_data": "scout_plan",
+            }
+        ],
+    ]
 
-    return {
-        "inline_keyboard": [
-
+    if owner_private:
+        keyboard.extend([
             [
                 {
-                    "text": "📥 Отчёт об атаке",
-                    "callback_data": "attack_report",
-                }
-            ],
-
-            [
-                {
-                    "text": (
-                        "🏟 Установить Арену оффера"
-                    ),
+                    "text": "🏟 Офферы и Арены",
                     "callback_data": "set_arena",
                 }
             ],
-
             [
                 {
-                    "text": (
-                        "🔎 Добавить скаут-проверку"
-                    ),
-                    "callback_data": "scout_report",
+                    "text": "⚙️ Настройки разведки",
+                    "callback_data": "scout_settings",
                 }
             ],
+        ])
 
-
-        ]
-    }
+    return {"inline_keyboard": keyboard}
 
 
 # ============================================================
@@ -5119,6 +5245,274 @@ def show_offers_status(
     )
 
 
+
+# ============================================================
+# ПЛАН СКАУТ-ПРОВЕРОК
+# ============================================================
+
+def active_operation_context():
+    attacks = load_attacks()
+    active = [a for a in attacks if a.get("operation_status") == "active"]
+    if not active:
+        return None, []
+
+    def dt(a):
+        try:
+            return datetime.fromisoformat(a.get("operation_arrival_datetime") or a.get("arrival_datetime"))
+        except Exception:
+            return datetime.min.replace(tzinfo=SERVER_TIMEZONE)
+
+    newest = max(active, key=dt)
+    op_id = newest.get("operation_id")
+    op = [a for a in active if a.get("operation_id") == op_id]
+    return newest, op
+
+
+def operation_targets(operation_attacks):
+    result = {}
+    for v in load_important_villages():
+        x, y = safe_int(v.get("x")), safe_int(v.get("y"))
+        if x is None or y is None:
+            continue
+        result[(x, y)] = {
+            "x": x, "y": y,
+            "player_name": v.get("player_name"),
+            "village_name": v.get("village_name"),
+            "source": "важная",
+        }
+
+    for a in operation_attacks:
+        coords = a.get("own_coords") or {}
+        x, y = safe_int(coords.get("x")), safe_int(coords.get("y"))
+        if x is None or y is None:
+            continue
+        result[(x, y)] = {
+            "x": x, "y": y,
+            "player_name": a.get("own_player_name"),
+            "village_name": a.get("own_village_name"),
+            "source": "входящая",
+        }
+    return list(result.values())
+
+
+def offer_arena_hypotheses(offer, operation_attacks):
+    offer_id = offer.get("id") or offer.get("offer_id")
+    related = [a for a in operation_attacks if a.get("offer_id") == offer_id]
+    estimated = []
+    possible = []
+    for a in related:
+        e = safe_int(a.get("estimated_arena_level"))
+        if e is not None and 0 <= e <= 20:
+            estimated.append(e)
+        for level in a.get("possible_arena_levels") or []:
+            level = safe_int(level)
+            if level is not None and 0 <= level <= 20:
+                possible.append(level)
+
+    state = load_offers().get(offer_id, {})
+    fixed = safe_int(state.get("arena"), 0)
+    ordered = []
+    # Свежая оценка первой, затем жестко записанная Арена, затем весь диапазон.
+    for level in estimated + ([fixed] if fixed else []) + sorted(set(possible)):
+        if level not in ordered:
+            ordered.append(level)
+    if not ordered:
+        ordered = [0]
+    return ordered
+
+
+def choose_scout_source(enemy_x, enemy_y, scan_before, scan_after, now):
+    candidates = []
+    for source in load_scout_villages():
+        x, y = safe_int(source.get("x")), safe_int(source.get("y"))
+        arena = safe_int(source.get("arena"))
+        speed = source.get("scout_speed")
+        try:
+            speed = float(speed)
+        except (TypeError, ValueError):
+            continue
+        if x is None or y is None or arena is None:
+            continue
+        distance = travian_distance(x, y, enemy_x, enemy_y)
+        seconds = unit_travel_time_seconds(distance, speed, arena)
+        send_before = scan_before - timedelta(seconds=seconds)
+        send_after = scan_after - timedelta(seconds=seconds)
+        if send_before <= now or send_after <= now:
+            continue
+        candidates.append((send_before, send_after, source, seconds))
+
+    if not candidates:
+        return None
+    # Чем позже нужно отправлять, тем проще реально успеть.
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0]
+
+
+def build_scout_plan():
+    operation_head, operation_attacks = active_operation_context()
+    if not operation_head:
+        return None, "Нет активной операции."
+
+    targets = operation_targets(operation_attacks)
+    if not targets:
+        return None, "Нет целей для расчёта."
+    if not load_scout_villages():
+        return None, "Не настроены наши скаут-деревни."
+
+    try:
+        operation_arrival = datetime.fromisoformat(
+            operation_head.get("operation_arrival_datetime")
+            or operation_head.get("arrival_datetime")
+        )
+    except Exception:
+        return None, "Не удалось определить время операции."
+
+    if operation_arrival.tzinfo is None:
+        operation_arrival = operation_arrival.replace(tzinfo=SERVER_TIMEZONE)
+
+    now = datetime.now(SERVER_TIMEZONE)
+    tasks = []
+
+    for offer in get_all_offers():
+        offer_id = offer.get("id") or offer.get("offer_id")
+        arenas = offer_arena_hypotheses(offer, operation_attacks)
+        arena_count = len(arenas)
+
+        for arena_index, arena in enumerate(arenas):
+            candidates = []
+            for target in targets:
+                distance = travian_distance(
+                    offer["x"], offer["y"], target["x"], target["y"]
+                )
+                enemy_seconds = travel_time_seconds(distance, arena)
+                exit_at = operation_arrival - timedelta(seconds=enemy_seconds)
+                scan_before = exit_at - timedelta(seconds=10)
+                scan_after = exit_at + timedelta(seconds=10)
+
+                if scan_before <= now:
+                    continue
+
+                source = choose_scout_source(
+                    offer["x"], offer["y"], scan_before, scan_after, now
+                )
+                if not source:
+                    continue
+                candidates.append((exit_at, target, source, scan_before, scan_after))
+
+            if not candidates:
+                continue
+
+            candidates.sort(key=lambda item: item[0])
+            # Разные гипотезы Арены разводим по разным частям временного диапазона.
+            fraction = (arena_index + 1) / (arena_count + 1)
+            idx = round(fraction * (len(candidates) - 1))
+            exit_at, target, source, scan_before, scan_after = candidates[idx]
+            send_before, send_after, scout_village, scout_seconds = source
+
+            tasks.append({
+                "offer_id": offer_id,
+                "offer_x": offer["x"],
+                "offer_y": offer["y"],
+                "arena": arena,
+                "target": target,
+                "exit_at": exit_at,
+                "scan_before": scan_before,
+                "scan_after": scan_after,
+                "send_before": send_before,
+                "send_after": send_after,
+                "scout_village": scout_village,
+            })
+
+    tasks.sort(key=lambda t: t["send_before"])
+    return tasks, None
+
+
+def show_scout_plan(chat_id):
+    tasks, error = build_scout_plan()
+    if error:
+        send_message(chat_id, f"🔭 <b>План скаут-проверок</b>\n\n{html.escape(error)}")
+        return
+
+    if not tasks:
+        send_message(
+            chat_id,
+            "🔭 <b>План скаут-проверок</b>\n\n"
+            "Нет проверок, на которые разведчики ещё успевают."
+        )
+        return
+
+    lines = ["🔭 <b>План скаут-проверок</b>", ""]
+    for task in tasks:
+        offer = get_offer(task["offer_id"])
+        owner = get_offer_owner(offer) if offer else None
+        target = task["target"]
+        sv = task["scout_village"]
+        lines.extend([
+            f"<b>{html.escape(owner or task['offer_id'])} "
+            f"({task['offer_x']}|{task['offer_y']}) — A{task['arena']}</b>",
+            f"Проверяем выход на: "
+            f"<b>{html.escape(target.get('player_name') or 'игрок')} "
+            f"({target['x']}|{target['y']})</b>",
+            f"Теоретический выход: <code>{task['exit_at'].strftime('%H:%M:%S')}</code>",
+            f"Сканы: <code>{task['scan_before'].strftime('%H:%M:%S')}</code> / "
+            f"<code>{task['scan_after'].strftime('%H:%M:%S')}</code>",
+            f"Отправить из {sv['x']}|{sv['y']}: "
+            f"<code>{task['send_before'].strftime('%H:%M:%S')}</code> / "
+            f"<code>{task['send_after'].strftime('%H:%M:%S')}</code>",
+            "",
+        ])
+
+    # Telegram message limit: делим длинный план на части.
+    chunk = ""
+    for line in lines:
+        candidate = chunk + line + "\n"
+        if len(candidate) > 3800:
+            send_message(chat_id, chunk)
+            chunk = line + "\n"
+        else:
+            chunk = candidate
+    if chunk.strip():
+        send_message(chat_id, chunk)
+
+
+def scout_settings_menu():
+    return {
+        "inline_keyboard": [
+            [{"text": "⭐ Добавить важную деревню", "callback_data": "add_important"}],
+            [{"text": "🛰 Добавить скаут-деревню", "callback_data": "add_scout_village"}],
+            [{"text": "📋 Показать настройки", "callback_data": "show_scout_settings"}],
+            [{"text": "⬅️ Назад", "callback_data": "menu"}],
+        ]
+    }
+
+
+def show_scout_settings(chat_id):
+    important = load_important_villages()
+    scouts = load_scout_villages()
+    lines = ["⚙️ <b>Настройки разведки</b>", "", "<b>Важные деревни:</b>"]
+    if important:
+        for v in important:
+            lines.append(
+                f"• {html.escape(v.get('player_name') or '')} "
+                f"{v.get('x')}|{v.get('y')}"
+            )
+    else:
+        lines.append("— не добавлены")
+
+    lines.extend(["", "<b>Наши скаут-деревни:</b>"])
+    if scouts:
+        for v in scouts:
+            lines.append(
+                f"• {html.escape(v.get('player_name') or '')} "
+                f"{v.get('x')}|{v.get('y')} — A{v.get('arena')} "
+                f"(скорость {v.get('scout_speed')})"
+            )
+    else:
+        lines.append("— не добавлены")
+
+    send_message(chat_id, "\n".join(lines), reply_markup=scout_settings_menu())
+
+
 # ============================================================
 # CALLBACK
 # ============================================================
@@ -5178,18 +5572,24 @@ def process_callback(
         flush=True,
     )
 
-    if thread_id != TELEGRAM_THREAD_ID:
+    owner_private = is_owner(user_id) and is_private_chat(chat)
+    in_group_thread = thread_id == TELEGRAM_THREAD_ID
 
-        answer_callback(
-            callback_id,
-            "Бот работает в ветке 76303.",
-        )
-
+    if not in_group_thread and not owner_private:
+        answer_callback(callback_id, "Эта функция здесь недоступна.")
         return
 
-    answer_callback(
-        callback_id
+    # Изменение Арены и настройки разведки доступны только владельцу в личке.
+    owner_only = (
+        data == "set_arena"
+        or data.startswith("manual_offer:")
+        or data in {"scout_settings", "add_important", "add_scout_village", "show_scout_settings"}
     )
+    if owner_only and not owner_private:
+        answer_callback(callback_id, "Доступно только владельцу в личных сообщениях.")
+        return
+
+    answer_callback(callback_id)
 
     if data == "menu":
 
@@ -5202,9 +5602,47 @@ def process_callback(
             chat_id,
             message["message_id"],
             "<b>Меню анализа входящих атак</b>",
-            main_menu(),
+            main_menu(owner_private=owner_private),
         )
 
+        return
+
+    if data == "scout_plan":
+        show_scout_plan(chat_id)
+        return
+
+    if data == "scout_settings":
+        edit_message(
+            chat_id,
+            message["message_id"],
+            "⚙️ <b>Настройки разведки</b>",
+            scout_settings_menu(),
+        )
+        return
+
+    if data == "show_scout_settings":
+        show_scout_settings(chat_id)
+        return
+
+    if data == "add_important":
+        clear_session(chat_id, user_id)
+        session = get_session(chat_id, user_id)
+        session["flow"] = "scout_settings"
+        session["step"] = "important_coords"
+        send_message(chat_id, "⭐ Введите координаты важной деревни: <code>55 46</code>")
+        return
+
+    if data == "add_scout_village":
+        clear_session(chat_id, user_id)
+        session = get_session(chat_id, user_id)
+        session["flow"] = "scout_settings"
+        session["step"] = "scout_coords_arena"
+        send_message(
+            chat_id,
+            "🛰 Введите координаты нашей скаут-деревни и её Арену:\n"
+            "<code>55 46 18</code>\n\n"
+            "Скорость разведчика бот определит по нации деревни.",
+        )
         return
 
     if data == "attack_report":
@@ -5547,8 +5985,10 @@ def process_message(
         flush=True,
     )
 
-    if thread_id != TELEGRAM_THREAD_ID:
+    owner_private = is_owner(user_id) and is_private_chat(chat)
+    in_group_thread = thread_id == TELEGRAM_THREAD_ID
 
+    if not in_group_thread and not owner_private:
         return
 
     if text.startswith(
@@ -5569,7 +6009,7 @@ def process_message(
                 f"<b>{ENEMY_ALLIANCE_NAME}</b>\n\n"
                 "Выберите действие:"
             ),
-            reply_markup=main_menu(),
+            reply_markup=main_menu(owner_private=owner_private),
         )
 
         return
@@ -5586,7 +6026,7 @@ def process_message(
         send_message(
             chat_id,
             "<b>Меню анализа входящих атак</b>",
-            reply_markup=main_menu(),
+            reply_markup=main_menu(owner_private=owner_private),
         )
 
         return
@@ -5615,6 +6055,59 @@ def process_message(
         f"text={text!r}",
         flush=True,
     )
+
+    # ========================================================
+    # НАСТРОЙКИ РАЗВЕДКИ — ТОЛЬКО ВЛАДЕЛЕЦ В ЛИЧКЕ
+    # ========================================================
+
+    if flow == "scout_settings":
+        if not owner_private:
+            clear_session(chat_id, user_id)
+            return
+
+        if step == "important_coords":
+            coords = parse_coordinates(text)
+            if not coords:
+                send_message(chat_id, "❌ Формат: <code>55 46</code>")
+                return
+            x, y = coords
+            item = save_important_village(x, y)
+            clear_session(chat_id, user_id)
+            send_message(
+                chat_id,
+                f"✅ Важная деревня добавлена: "
+                f"<b>{html.escape(item.get('player_name') or '')} {x}|{y}</b>",
+                reply_markup=scout_settings_menu(),
+            )
+            return
+
+        if step == "scout_coords_arena":
+            parts = text.replace("|", " ").split()
+            if len(parts) != 3:
+                send_message(chat_id, "❌ Формат: <code>55 46 18</code>")
+                return
+            x, y, arena = (parse_integer(p) for p in parts)
+            if (
+                x is None or y is None or arena is None
+                or not (-200 <= x <= 200)
+                or not (-200 <= y <= 200)
+                or not (0 <= arena <= 20)
+            ):
+                send_message(chat_id, "❌ Проверьте координаты и уровень Арены 0–20.")
+                return
+            item, error = save_scout_village(x, y, arena)
+            if error:
+                send_message(chat_id, f"❌ {html.escape(error)}")
+                return
+            clear_session(chat_id, user_id)
+            send_message(
+                chat_id,
+                f"✅ Скаут-деревня добавлена: <b>{x}|{y}</b>, "
+                f"Арена <b>A{arena}</b>, скорость разведчика "
+                f"<b>{item['scout_speed']}</b>.",
+                reply_markup=scout_settings_menu(),
+            )
+            return
 
     # ========================================================
     # АТАКА
@@ -6229,6 +6722,10 @@ def process_message(
     # ========================================================
 
     if flow == "manual_arena":
+
+        if not owner_private:
+            clear_session(chat_id, user_id)
+            return
 
         if step == "arena_value":
 
