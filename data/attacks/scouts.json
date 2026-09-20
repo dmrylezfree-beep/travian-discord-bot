@@ -11,5 +11,36 @@
     "automatic_arena_change": true,
     "arena_before": 17,
     "arena_after": 17
+  },
+  {
+    "id": "scout_1789901050903",
+    "record_type": "village_troops",
+    "offer_id": "offer_2",
+    "village_id": 24549,
+    "village_coords": {
+      "x": 139,
+      "y": 187
+    },
+    "village_name": "02",
+    "player_uid": 181,
+    "player_name": "NEXT",
+    "tribe_id": 2,
+    "tribe_name": "Германцы",
+    "scanned_at": "2026-09-20T12:00:40+01:00",
+    "units": {
+      "clubswinger": 42131,
+      "spearman": 0,
+      "axeman": 0,
+      "scout": 0,
+      "paladin": 0,
+      "teutonic_knight": 14003,
+      "ram": 4555,
+      "catapult": 1203,
+      "chief": 0,
+      "settler": 0
+    },
+    "hero": 0,
+    "created_at": "2026-09-20T10:44:10Z",
+    "created_by": 317595036
   }
 ]
