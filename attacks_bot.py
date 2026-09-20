@@ -4469,291 +4469,487 @@ def save_manual_arena(
 # СКАУТ-ПРОВЕРКА
 # ============================================================
 
-def start_scout_report(
-    chat_id,
-    user_id,
-):
+SCOUT_TRIBES = {
+    1: {
+        "name": "Римляне",
+        "units": [
+            ("Легионер", "legionnaire"),
+            ("Преторианец", "praetorian"),
+            ("Империанец", "imperian"),
+            ("Конный разведчик", "equites_legati"),
+            ("Конница императора", "equites_imperatoris"),
+            ("Конница цезаря", "equites_caesaris"),
+            ("Таран", "ram"),
+            ("Огненная катапульта", "fire_catapult"),
+            ("Сенатор", "senator"),
+            ("Поселенец", "settler"),
+        ],
+    },
+    2: {
+        "name": "Германцы",
+        "units": [
+            ("Дубинщик", "clubswinger"),
+            ("Копейщик", "spearman"),
+            ("Топорщик", "axeman"),
+            ("Разведчик", "scout"),
+            ("Паладин", "paladin"),
+            ("Тевтонская конница", "teutonic_knight"),
+            ("Таран", "ram"),
+            ("Катапульта", "catapult"),
+            ("Вождь", "chief"),
+            ("Поселенец", "settler"),
+        ],
+    },
+    3: {
+        "name": "Галлы",
+        "units": [
+            ("Фаланга", "phalanx"),
+            ("Мечник", "swordsman"),
+            ("Следопыт", "pathfinder"),
+            ("Гром Теутатеса", "theutates_thunder"),
+            ("Друид-всадник", "druidrider"),
+            ("Эдуйская конница", "haeduan"),
+            ("Таран", "ram"),
+            ("Требушет", "trebuchet"),
+            ("Предводитель", "chieftain"),
+            ("Поселенец", "settler"),
+        ],
+    },
+    6: {
+        "name": "Египтяне",
+        "units": [
+            ("Раб", "slave_militia"),
+            ("Страж", "ash_warden"),
+            ("Хопеш-воин", "khopesh_warrior"),
+            ("Разведчик Сопду", "sopdu_explorer"),
+            ("Страж Анхур", "anhur_guard"),
+            ("Колесница Решефа", "resheph_chariot"),
+            ("Таран", "ram"),
+            ("Камнемёт", "stone_catapult"),
+            ("Номарх", "nomarch"),
+            ("Поселенец", "settler"),
+        ],
+    },
+    7: {
+        "name": "Гунны",
+        "units": [
+            ("Наёмник", "mercenary"),
+            ("Лучник", "bowman"),
+            ("Наблюдатель", "spotter"),
+            ("Степной всадник", "steppe_rider"),
+            ("Стрелок", "marksman"),
+            ("Мародёр", "marauder"),
+            ("Таран", "ram"),
+            ("Катапульта", "catapult"),
+            ("Логад", "logades"),
+            ("Поселенец", "settler"),
+        ],
+    },
+    8: {
+        "name": "Спартанцы",
+        "units": [
+            ("Гоплит", "hoplite"),
+            ("Страж", "sentinel"),
+            ("Щитоносец", "shieldman"),
+            ("Разведчик", "scout"),
+            ("Элпида-всадник", "elpida_rider"),
+            ("Коринфский всадник", "corinthian_crusher"),
+            ("Таран", "ram"),
+            ("Баллиста", "ballista"),
+            ("Эфор", "ephor"),
+            ("Поселенец", "settler"),
+        ],
+    },
+}
 
-    clear_session(
-        chat_id,
-        user_id,
-    )
 
-    session = get_session(
-        chat_id,
-        user_id,
-    )
+def get_enemy_village_by_coords(x, y):
+    rows = load_latest_map_rows()
 
+    for row in rows:
+        if len(row) <= 10:
+            continue
+
+        row_x = safe_int(row[1])
+        row_y = safe_int(row[2])
+
+        if row_x != x or row_y != y:
+            continue
+
+        return {
+            "x": row_x,
+            "y": row_y,
+            "tribe_id": safe_int(row[3]),
+            "village_id": safe_int(row[4]),
+            "village_name": unquote_sql_value(row[5]) or "",
+            "player_uid": safe_int(row[6]),
+            "player_name": unquote_sql_value(row[7]) or "",
+            "alliance_id": safe_int(row[8]),
+            "alliance_name": unquote_sql_value(row[9]) or "",
+            "population": safe_int(row[10], 0),
+        }
+
+    return None
+
+
+def scout_date_keyboard():
+    today = datetime.now(SERVER_TIMEZONE).date()
+
+    return {
+        "inline_keyboard": [
+            [
+                {
+                    "text": f"📅 Сегодня — {today.strftime('%d.%m.%Y')}",
+                    "callback_data": "scout_date_today",
+                }
+            ],
+            [
+                {
+                    "text": "✏️ Ввести другую дату",
+                    "callback_data": "scout_date_custom",
+                }
+            ],
+            [
+                {
+                    "text": "❌ Отмена",
+                    "callback_data": "menu",
+                }
+            ],
+        ]
+    }
+
+
+def parse_scout_date(text):
+    value = (text or "").strip()
+    now = datetime.now(SERVER_TIMEZONE)
+
+    for fmt in ("%d.%m.%Y", "%d.%m"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+            year = parsed.year if fmt == "%d.%m.%Y" else now.year
+            return parsed.replace(year=year).date()
+        except ValueError:
+            pass
+
+    return None
+
+
+def parse_scout_time(text):
+    try:
+        return datetime.strptime(
+            (text or "").strip(),
+            "%H:%M:%S",
+        ).time()
+    except ValueError:
+        return None
+
+
+def get_latest_village_scout(x, y):
+    result = []
+
+    for scout in load_scouts():
+        coords = scout.get("village_coords") or {}
+        sx = safe_int(coords.get("x"))
+        sy = safe_int(coords.get("y"))
+
+        if sx != x or sy != y:
+            continue
+
+        scanned_at = scout.get("scanned_at")
+        if not scanned_at:
+            continue
+
+        try:
+            dt = datetime.fromisoformat(scanned_at)
+        except (TypeError, ValueError):
+            continue
+
+        result.append((dt, scout))
+
+    if not result:
+        return None
+
+    result.sort(key=lambda item: item[0])
+    return result[-1][1]
+
+
+def build_scout_template(tribe_id, previous=None):
+    tribe = SCOUT_TRIBES.get(tribe_id)
+
+    if not tribe:
+        return None
+
+    old_units = {}
+    old_hero = 0
+
+    if isinstance(previous, dict):
+        old_units = previous.get("units") or {}
+        old_hero = safe_int(previous.get("hero"), 0) or 0
+
+    lines = []
+
+    for label, key in tribe["units"]:
+        value = safe_int(old_units.get(key), 0) or 0
+        lines.append(f"{label}: {value}")
+
+    # Герой намеренно идёт последним — как в отчёте Travian.
+    lines.append(f"Герой: {old_hero}")
+
+    return "\n".join(lines)
+
+
+def parse_scout_units(text, tribe_id):
+    tribe = SCOUT_TRIBES.get(tribe_id)
+
+    if not tribe:
+        return None, "Неизвестная народность деревни."
+
+    expected = [(label, key) for label, key in tribe["units"]]
+    expected.append(("Герой", "hero"))
+
+    aliases = {
+        re.sub(r"[^а-яёa-z0-9]+", "", label.lower()): (label, key)
+        for label, key in expected
+    }
+
+    values = {}
+
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+
+        if not line:
+            continue
+
+        match = re.match(r"^(.+?)\s*:?\s*([0-9][0-9\s]*)$", line)
+
+        if not match:
+            return None, f"Не удалось разобрать строку: {line}"
+
+        raw_name = re.sub(
+            r"[^а-яёa-z0-9]+",
+            "",
+            match.group(1).lower(),
+        )
+
+        item = aliases.get(raw_name)
+
+        if not item:
+            return None, f"Неизвестный юнит: {match.group(1).strip()}"
+
+        label, key = item
+
+        try:
+            value = int(match.group(2).replace(" ", ""))
+        except ValueError:
+            return None, f"Неверное число для {label}."
+
+        values[key] = value
+
+    missing = [
+        label
+        for label, key in expected
+        if key not in values
+    ]
+
+    if missing:
+        return None, (
+            "Не заполнены строки: "
+            + ", ".join(missing)
+        )
+
+    hero = values.pop("hero")
+    return {
+        "units": values,
+        "hero": hero,
+    }, None
+
+
+def start_scout_report(chat_id, user_id):
+    clear_session(chat_id, user_id)
+
+    session = get_session(chat_id, user_id)
     session["flow"] = "scout"
+    session["step"] = "village"
 
     send_message(
         chat_id,
         (
             "🔎 <b>Скаут-проверка</b>\n\n"
-            "Сначала выберите оффер:"
+            "Выберите конкретную вражескую деревню:"
         ),
-        reply_markup=offers_keyboard(
-            "scout_offer"
-        ),
+        reply_markup=offers_keyboard("scout_offer"),
     )
 
 
-def scout_offer_selected(
-    chat_id,
-    user_id,
-    offer_id,
-):
-
-    offer = get_offer(
-        offer_id
-    )
+def scout_offer_selected(chat_id, user_id, offer_id):
+    offer = get_offer(offer_id)
 
     if not offer:
-
-        send_message(
-            chat_id,
-            "Оффер не найден.",
-        )
-
+        send_message(chat_id, "❌ Деревня не найдена.")
         return
 
-    session = get_session(
-        chat_id,
-        user_id,
-    )
+    x = safe_int(offer.get("x"))
+    y = safe_int(offer.get("y"))
+    village = get_enemy_village_by_coords(x, y)
 
+    if not village:
+        send_message(
+            chat_id,
+            (
+                "❌ Эта деревня не найдена в последнем map.sql.\n\n"
+                "Без данных map.sql бот не может автоматически "
+                "определить народность и сформировать шаблон войск."
+            ),
+            reply_markup=main_menu(),
+        )
+        return
+
+    tribe_id = village.get("tribe_id")
+
+    if tribe_id not in SCOUT_TRIBES:
+        send_message(
+            chat_id,
+            (
+                "❌ Не удалось определить поддерживаемую народность "
+                f"деревни. ID народности: <code>{tribe_id}</code>."
+            ),
+            reply_markup=main_menu(),
+        )
+        return
+
+    session = get_session(chat_id, user_id)
     session["offer_id"] = offer_id
+    session["village_x"] = x
+    session["village_y"] = y
+    session["village_id"] = village.get("village_id")
+    session["village_name"] = village.get("village_name")
+    session["player_uid"] = village.get("player_uid")
+    session["player_name"] = village.get("player_name")
+    session["tribe_id"] = tribe_id
+    session["tribe_name"] = SCOUT_TRIBES[tribe_id]["name"]
+    session["step"] = "date"
 
-    session["step"] = "attack_id"
-
-    owner = get_offer_owner(
-        offer
-    )
-
-    if owner:
-
-        owner_text = html.escape(
-            owner
-        )
-
-    else:
-
-        owner_text = (
-            "Владелец не найден"
-        )
+    player = html.escape(village.get("player_name") or "Владелец не найден")
+    village_name = html.escape(village.get("village_name") or "Без названия")
 
     send_message(
         chat_id,
         (
-            f"Оффер: "
-            f"<b>{owner_text} "
-            f"({offer['x']}|{offer['y']})</b>\n\n"
+            "🔎 <b>Скаут-проверка</b>\n\n"
+            f"<b>Деревня:</b> {x} {y} — {village_name}\n"
+            f"<b>Игрок:</b> {player}\n"
+            f"<b>Народность:</b> {SCOUT_TRIBES[tribe_id]['name']}\n\n"
+            "Выберите дату скаут-отчёта:"
+        ),
+        reply_markup=scout_date_keyboard(),
+    )
 
-            "Введите ID входящей атаки, "
-            "под которую проводилась "
-            "скаут-проверка.\n\n"
 
-            "Например:\n"
-            "<code>attack_1</code>\n\n"
+def scout_date_selected(chat_id, user_id, report_date):
+    session = get_session(chat_id, user_id)
+    session["report_date"] = report_date.strftime("%d.%m.%Y")
+    session["step"] = "time"
 
-            "Связь с атакой обязательна для "
-            "автоматического изменения Арены."
+    send_message(
+        chat_id,
+        (
+            f"📅 Дата отчёта: <b>{session['report_date']}</b>\n\n"
+            "🕐 Введите <b>точное время</b> скаут-отчёта "
+            "по серверу Travian.\n\n"
+            "Формат обязательно с секундами:\n"
+            "<code>14:37:26</code>"
         ),
         reply_markup=input_keyboard(),
     )
 
 
-def scout_attack_selected(
-    chat_id,
-    user_id,
-    attack_id,
-):
+def scout_send_army_template(chat_id, user_id):
+    session = get_session(chat_id, user_id)
 
-    attack = find_attack(
-        attack_id
+    previous = get_latest_village_scout(
+        session["village_x"],
+        session["village_y"],
     )
 
-    if not attack:
+    template = build_scout_template(
+        session["tribe_id"],
+        previous,
+    )
 
+    if template is None:
         send_message(
             chat_id,
-            (
-                "❌ Такая атака не найдена.\n"
-                "Введите существующий ID."
-            ),
-            reply_markup=input_keyboard(),
+            "❌ Не удалось сформировать шаблон войск.",
+            reply_markup=main_menu(),
         )
-
         return
 
-    session = get_session(
-        chat_id,
-        user_id,
-    )
-
-    if attack.get(
-        "offer_id"
-    ) != session.get(
-        "offer_id"
-    ):
-
-        send_message(
-            chat_id,
-            (
-                "❌ Эта атака относится "
-                "к другому офферу."
-            ),
-            reply_markup=input_keyboard(),
-        )
-
-        return
-
-    session["attack_id"] = attack_id
-
-    session["step"] = "tested_arena"
-
-    possible = attack.get(
-        "possible_arena_levels",
-        [],
-    )
+    session["step"] = "units"
 
     send_message(
         chat_id,
         (
-            f"Атака: "
-            f"<code>{attack_id}</code>\n"
-
-            f"Возможная Арена по атаке: "
-            f"<b>{format_range(possible)}</b>\n\n"
-
-            "Введите уровень Арены, "
-            "который проверяли скаутами."
+            "📋 <b>Состав войск</b>\n\n"
+            "Ниже отдельный шаблон. Скопируйте его, вставьте "
+            "в новое сообщение и измените числа по новому "
+            "скаут-отчёту.\n\n"
+            "Если по этой деревне уже есть проверки, шаблон "
+            "заполнен данными самого позднего по времени скана."
         ),
-        reply_markup=input_keyboard(),
     )
-
-
-def scout_arena_selected(
-    chat_id,
-    user_id,
-    arena,
-):
-
-    session = get_session(
-        chat_id,
-        user_id,
-    )
-
-    attack = find_attack(
-        session.get(
-            "attack_id"
-        )
-    )
-
-    if not attack:
-
-        send_message(
-            chat_id,
-            "Атака не найдена.",
-        )
-
-        clear_session(
-            chat_id,
-            user_id,
-        )
-
-        return
-
-    possible = attack.get(
-        "possible_arena_levels",
-        [],
-    )
-
-    if arena not in possible:
-
-        send_message(
-            chat_id,
-            (
-                f"⚠️ Арена {arena} "
-                f"не входит в диапазон "
-                f"{format_range(possible)}.\n\n"
-
-                "Введите уровень, который "
-                "действительно проверяли."
-            ),
-            reply_markup=input_keyboard(),
-        )
-
-        return
-
-    session["tested_arena"] = arena
-
-    session["step"] = "observed_change"
 
     send_message(
         chat_id,
-        (
-            "Введите результат скаут-проверки.\n\n"
-
-            "Например:\n"
-            "<code>76+4 за 20 секунд</code>\n\n"
-
-            "Это наблюдение будет сохранено "
-            "в истории."
-        ),
+        f"<pre>{html.escape(template)}</pre>",
         reply_markup=input_keyboard(),
     )
 
 
-def scout_observation_entered(
-    chat_id,
-    user_id,
-    text,
-):
+def scout_show_confirmation(chat_id, user_id):
+    session = get_session(chat_id, user_id)
+    tribe = SCOUT_TRIBES[session["tribe_id"]]
 
-    if not text:
+    lines = [
+        "🔎 <b>Проверьте скаут-проверку</b>",
+        "",
+        (
+            f"<b>Деревня:</b> "
+            f"{session['village_x']} {session['village_y']}"
+        ),
+        (
+            f"<b>Игрок:</b> "
+            f"{html.escape(session.get('player_name') or 'Владелец не найден')}"
+        ),
+        f"<b>Дата:</b> {session['report_date']}",
+        f"<b>Время:</b> {session['report_time']}",
+        "",
+    ]
 
-        send_message(
-            chat_id,
-            "Введите результат проверки.",
-            reply_markup=input_keyboard(),
+    for label, key in tribe["units"]:
+        lines.append(
+            f"{html.escape(label)}: "
+            f"<b>{session['units'][key]:,}</b>".replace(",", " ")
         )
 
-        return
-
-    session = get_session(
-        chat_id,
-        user_id,
-    )
-
-    session["observed_change"] = text
-
-    session["step"] = "verdict"
+    lines.append(f"Герой: <b>{session['hero']}</b>")
 
     keyboard = {
         "inline_keyboard": [
-
             [
                 {
-                    "text": "✅ Подтверждает",
-                    "callback_data": (
-                        "scout_verdict:confirmed"
-                    ),
+                    "text": "✅ Сохранить",
+                    "callback_data": "scout_save",
                 }
             ],
-
             [
                 {
-                    "text": "❌ Опровергает",
-                    "callback_data": (
-                        "scout_verdict:rejected"
-                    ),
+                    "text": "✏️ Исправить состав",
+                    "callback_data": "scout_edit_units",
                 }
             ],
-
             [
                 {
-                    "text": "⬅️ Отмена",
+                    "text": "❌ Отмена",
                     "callback_data": "menu",
                 }
             ],
@@ -4762,113 +4958,81 @@ def scout_observation_entered(
 
     send_message(
         chat_id,
-        (
-            f"Наблюдение: "
-            f"<code>{html.escape(text)}</code>\n"
-
-            f"Проверяемая Арена: "
-            f"<b>{session['tested_arena']}</b>\n\n"
-
-            "Результат?"
-        ),
+        "\n".join(lines),
         reply_markup=keyboard,
     )
 
 
-def finish_scout(
-    chat_id,
-    user_id,
-    verdict,
-):
+def save_scout_report(chat_id, user_id):
+    session = get_session(chat_id, user_id)
 
-    session = get_session(
-        chat_id,
-        user_id,
+    required = (
+        "village_x",
+        "village_y",
+        "tribe_id",
+        "report_date",
+        "report_time",
+        "units",
+        "hero",
     )
 
-    evidence = add_scout_evidence(
-        offer_id=session["offer_id"],
-        attack_id=session["attack_id"],
-        tested_arena=session["tested_arena"],
-        observed_change=session["observed_change"],
-        verdict=verdict,
-    )
-
-    offer = get_offer(
-        session["offer_id"]
-    )
-
-    clear_session(
-        chat_id,
-        user_id,
-    )
-
-    if verdict == "confirmed":
-
-        if evidence[
-            "automatic_arena_change"
-        ]:
-
-            result = (
-                "✅ Гипотеза подтверждена.\n"
-                "Арена автоматически обновлена."
-            )
-
-        else:
-
-            result = (
-                "✅ Гипотеза сохранена.\n"
-                "Автоматическое изменение "
-                "Арены не выполнено."
-            )
-
-    else:
-
-        result = (
-            "❌ Гипотеза опровергнута.\n"
-            "Текущая Арена не изменена."
+    if any(key not in session for key in required):
+        send_message(
+            chat_id,
+            "❌ Данные скаут-проверки неполные. Начните ввод заново.",
+            reply_markup=main_menu(),
         )
+        clear_session(chat_id, user_id)
+        return
 
-    owner = get_offer_owner(
-        offer
+    scanned_at = datetime.strptime(
+        f"{session['report_date']} {session['report_time']}",
+        "%d.%m.%Y %H:%M:%S",
+    ).replace(
+        tzinfo=SERVER_TIMEZONE
     )
 
-    if owner:
+    scouts = load_scouts()
 
-        owner_text = html.escape(
-            owner
-        )
+    if not isinstance(scouts, list):
+        scouts = []
 
-    else:
+    record = {
+        "id": f"scout_{int(time.time() * 1000)}",
+        "record_type": "village_troops",
+        "offer_id": session.get("offer_id"),
+        "village_id": session.get("village_id"),
+        "village_coords": {
+            "x": session["village_x"],
+            "y": session["village_y"],
+        },
+        "village_name": session.get("village_name"),
+        "player_uid": session.get("player_uid"),
+        "player_name": session.get("player_name"),
+        "tribe_id": session["tribe_id"],
+        "tribe_name": session.get("tribe_name"),
+        "scanned_at": scanned_at.isoformat(timespec="seconds"),
+        "units": dict(session["units"]),
+        "hero": session["hero"],
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "created_by": user_id,
+    }
 
-        owner_text = (
-            "Владелец не найден"
-        )
+    scouts.append(record)
+    save_json(SCOUTS_FILE, scouts)
+    persist_attacks_data_to_github()
+
+    clear_session(chat_id, user_id)
 
     send_message(
         chat_id,
         (
-            "<b>Скаут-проверка сохранена</b>\n\n"
-
-            f"<b>Оффер:</b> "
-            f"{owner_text} "
-            f"({offer['x']}|{offer['y']})\n"
-
-            f"<b>Атака:</b> "
-            f"<code>{evidence['attack_id']}</code>\n"
-
-            f"<b>Проверяли Арену:</b> "
-            f"{evidence['tested_arena']}\n"
-
-            f"<b>Наблюдение:</b> "
-            f"<code>"
-            f"{html.escape(evidence['observed_change'])}"
-            f"</code>\n\n"
-
-            f"{result}\n\n"
-
-            f"<b>Текущая Арена:</b> "
-            f"{offer.get('arena', 0)}"
+            "✅ <b>Скаут-проверка сохранена</b>\n\n"
+            f"<b>Деревня:</b> "
+            f"{record['village_coords']['x']} "
+            f"{record['village_coords']['y']}\n"
+            f"<b>Дата:</b> {scanned_at.strftime('%d.%m.%Y')}\n"
+            f"<b>Время:</b> {scanned_at.strftime('%H:%M:%S')}"
         ),
         reply_markup=main_menu(),
     )
@@ -5279,19 +5443,50 @@ def process_callback(
 
         return
 
-    if data.startswith(
-        "scout_verdict:"
-    ):
+    if data == "scout_date_today":
 
-        verdict = data.split(
-            ":",
-            1,
-        )[1]
-
-        finish_scout(
+        scout_date_selected(
             chat_id,
             user_id,
-            verdict,
+            datetime.now(SERVER_TIMEZONE).date(),
+        )
+
+        return
+
+    if data == "scout_date_custom":
+
+        session = get_session(
+            chat_id,
+            user_id,
+        )
+        session["step"] = "date_custom"
+
+        send_message(
+            chat_id,
+            (
+                "📅 Введите дату скаут-отчёта.\n\n"
+                "Формат: <code>20.09.2026</code>\n"
+                "или <code>20.09</code>."
+            ),
+            reply_markup=input_keyboard(),
+        )
+
+        return
+
+    if data == "scout_edit_units":
+
+        scout_send_army_template(
+            chat_id,
+            user_id,
+        )
+
+        return
+
+    if data == "scout_save":
+
+        save_scout_report(
+            chat_id,
+            user_id,
         )
 
         return
@@ -6072,53 +6267,94 @@ def process_message(
 
     if flow == "scout":
 
-        if step == "attack_id":
+        if step == "date_custom":
 
-            scout_attack_selected(
-                chat_id,
-                user_id,
-                text,
-            )
-
-            return
-
-        if step == "tested_arena":
-
-            arena = parse_integer(
+            report_date = parse_scout_date(
                 text
             )
 
-            if (
-                arena is None
-                or arena < 0
-                or arena > 20
-            ):
+            if not report_date:
 
                 send_message(
                     chat_id,
                     (
-                        "Уровень Арены "
-                        "должен быть от 0 до 20."
+                        "❌ Неверная дата.\n\n"
+                        "Введите <code>20.09.2026</code> "
+                        "или <code>20.09</code>."
                     ),
                     reply_markup=input_keyboard(),
                 )
 
                 return
 
-            scout_arena_selected(
+            scout_date_selected(
                 chat_id,
                 user_id,
-                arena,
+                report_date,
             )
 
             return
 
-        if step == "observed_change":
+        if step == "time":
 
-            scout_observation_entered(
+            report_time = parse_scout_time(
+                text
+            )
+
+            if not report_time:
+
+                send_message(
+                    chat_id,
+                    (
+                        "❌ Неверное время.\n\n"
+                        "Нужна точность до секунды. "
+                        "Введите время в формате:\n"
+                        "<code>14:37:26</code>"
+                    ),
+                    reply_markup=input_keyboard(),
+                )
+
+                return
+
+            session["report_time"] = report_time.strftime(
+                "%H:%M:%S"
+            )
+
+            scout_send_army_template(
                 chat_id,
                 user_id,
+            )
+
+            return
+
+        if step == "units":
+
+            parsed, error = parse_scout_units(
                 text,
+                session.get("tribe_id"),
+            )
+
+            if error:
+
+                send_message(
+                    chat_id,
+                    (
+                        f"❌ {html.escape(error)}\n\n"
+                        "Скопируйте шаблон целиком и "
+                        "измените только числа."
+                    ),
+                    reply_markup=input_keyboard(),
+                )
+
+                return
+
+            session["units"] = parsed["units"]
+            session["hero"] = parsed["hero"]
+            session["step"] = "confirm"
+
+            scout_show_confirmation(
+                chat_id,
+                user_id,
             )
 
             return
