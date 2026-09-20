@@ -1119,10 +1119,7 @@ def persist_attacks_data_to_github():
             [
                 "git",
                 "add",
-                "data/attacks/offers.json",
-                "data/attacks/attacks.json",
-                "data/attacks/scouts.json",
-                "data/attacks/preferences.json",
+                "data/attacks",
             ],
             check=True,
         )
@@ -4377,6 +4374,11 @@ def finish_attack_report(
         text,
         reply_markup=main_menu(),
     )
+
+    # Новая входящая сразу становится полноценной целью текущей операции.
+    # После сохранения пересчитываем разведку автоматически, чтобы игрокам
+    # не приходилось отдельно нажимать кнопку "План скаут-проверок".
+    show_scout_plan(chat_id)
 
 
 # ============================================================
