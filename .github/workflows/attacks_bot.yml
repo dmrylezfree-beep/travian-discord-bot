@@ -29,4 +29,5 @@ jobs:
       - name: Run attacks bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.ATTACKS_TELEGRAM_TOKEN }}
+          BOT_OWNER_ID: ${{ secrets.BOT_OWNER_ID }}
         run: python attacks_bot.py
