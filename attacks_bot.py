@@ -5461,7 +5461,46 @@ def show_scout_history_detail(chat_id, offer_id, page=0):
 
 def show_scout_history_timeline(chat_id, offer_id, page=0):
     records = scout_history_records(offer_id)
-    attacks = [a for a in load_attacks() if a.get("offer_id") == offer_id]
+
+    # Для хронологии разведки старые входящие теряют практический смысл.
+    # Показываем только атаки этого оффера, замеченные сегодня или вчера
+    # по серверному времени Travian. Сами сканы при этом остаются доступными
+    # как полная история.
+    today = datetime.now(SERVER_TIMEZONE).date()
+    oldest_attack_date = today - timedelta(days=1)
+    attacks = []
+    for attack in load_attacks():
+        if attack.get("offer_id") != offer_id:
+            continue
+
+        value = attack.get("detected_server_datetime")
+        attack_dt = None
+        if value:
+            try:
+                attack_dt = datetime.fromisoformat(value)
+            except Exception:
+                attack_dt = None
+
+        if attack_dt is None:
+            report_date = attack.get("report_date")
+            detected_time = attack.get("detected_server_time")
+            if report_date and detected_time:
+                try:
+                    attack_dt = datetime.strptime(
+                        f"{report_date} {detected_time}",
+                        "%d.%m.%Y %H:%M:%S",
+                    )
+                except Exception:
+                    attack_dt = None
+
+        if attack_dt is None:
+            continue
+        if attack_dt.tzinfo is None:
+            attack_dt = attack_dt.replace(tzinfo=SERVER_TIMEZONE)
+
+        if attack_dt.astimezone(SERVER_TIMEZONE).date() >= oldest_attack_date:
+            attacks.append(attack)
+
     events = []
 
     for dt, record in records:
