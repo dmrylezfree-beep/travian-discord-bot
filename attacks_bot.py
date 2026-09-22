@@ -3423,8 +3423,8 @@ def start_attack_report(
     send_message(
         chat_id,
         (
-            "📥 <b>Отчёт об атаке</b>\n\n"
-            "Выберите игрока вашего альянса:"
+            "📥 <b>ОТЧЁТ ОБ АТАКЕ</b>\n\n"
+            "🎯 Выберите игрока, на которого идёт атака:"
         ),
         reply_markup=alliance_players_keyboard(user_id),
     )
@@ -3483,9 +3483,9 @@ def attack_player_selected(
     send_message(
         chat_id,
         (
-            f"👤 Игрок: "
-            f"<b>{html.escape(player_name)}</b>\n\n"
-            "Выберите деревню:"
+            "📥 <b>ОТЧЁТ ОБ АТАКЕ</b>\n\n"
+            f"👤 <b>{html.escape(player_name)}</b>\n\n"
+            "🎯 Выберите атакованную деревню:"
         ),
         reply_markup=alliance_villages_keyboard(
             user_id,
@@ -3802,7 +3802,8 @@ def attack_choose_offer(
 
     send_message(
         chat_id,
-        "Выберите вражеского оффера:",
+        "📥 <b>ОТЧЁТ ОБ АТАКЕ</b>\n\n"
+        "⚔️ Выберите вражеского оффера:",
         reply_markup=offers_keyboard(
             "attack_offer"
         ),
@@ -3948,10 +3949,10 @@ def attack_offer_selected(
     send_message(
         chat_id,
         (
-            f"Выбран оффер "
-            f"<b>{owner_text} "
-            f"({offer['x']}|{offer['y']})</b>.\n\n"
-            "Сколько входящих волн?"
+            "📥 <b>ОТЧЁТ ОБ АТАКЕ</b>\n\n"
+            f"⚔️ <b>{owner_text}</b> "
+            f"({offer['x']}|{offer['y']})\n\n"
+            "🌊 Сколько входящих волн?"
         ),
         reply_markup=attack_waves_keyboard(),
     )
@@ -4008,7 +4009,7 @@ def attack_arrival_prompt(
                     [
                         {
                             "text": (
-                                "✏️ Ввести другое время"
+                                "✏️ Другое время"
                             ),
                             "callback_data": (
                                 "attack_arrival_manual"
@@ -4027,16 +4028,10 @@ def attack_arrival_prompt(
             send_message(
                 chat_id,
                 (
-                    "🕒 <b>Когда прибывают войска?</b>\n\n"
-                    "Последнее введённое время "
-                    "входящей атаки:\n"
+                    "📥 <b>ОТЧЁТ ОБ АТАКЕ</b>\n\n"
+                    "🕒 <b>Время прибытия</b>\n"
                     f"<code>{html.escape(last_arrival)}</code>\n\n"
-                    "Если это та же операция — просто "
-                    "нажмите на время.\n\n"
-                    "Если время другое — выберите "
-                    "«Ввести другое время».\n\n"
-                    "Указывайте именно серверное "
-                    "время Travian."
+                    "Это время текущей операции?"
                 ),
                 reply_markup=keyboard,
             )
@@ -4976,11 +4971,11 @@ def scout_offer_selected(chat_id, user_id, offer_id):
     send_message(
         chat_id,
         (
-            "🔎 <b>Скаут-проверка</b>\n\n"
-            f"<b>Деревня:</b> {x} {y} — {village_name}\n"
-            f"<b>Игрок:</b> {player}\n"
-            f"<b>Народность:</b> {SCOUT_TRIBES[tribe_id]['name']}\n\n"
-            "Выберите дату скаут-отчёта:"
+            "🔎 <b>СКАУТ-ПРОВЕРКА</b>\n\n"
+            f"⚔️ <b>{player}</b>\n"
+            f"🏠 {village_name} ({x}|{y})\n"
+            f"🏛 {SCOUT_TRIBES[tribe_id]['name']}\n\n"
+            "📅 Когда сделан скан?"
         ),
         reply_markup=scout_date_keyboard(),
     )
@@ -4994,10 +4989,9 @@ def scout_date_selected(chat_id, user_id, report_date):
     send_message(
         chat_id,
         (
-            f"📅 Дата отчёта: <b>{session['report_date']}</b>\n\n"
-            "🕐 Введите <b>точное время</b> скаут-отчёта "
-            "по серверу Travian.\n\n"
-            "Формат обязательно с секундами:\n"
+            "🔎 <b>СКАУТ-ПРОВЕРКА</b>\n\n"
+            f"📅 <b>{session['report_date']}</b>\n\n"
+            "🕐 Введите точное время скана:\n"
             "<code>14:37:26</code>"
         ),
         reply_markup=input_keyboard(),
@@ -5030,12 +5024,12 @@ def scout_send_army_template(chat_id, user_id):
     send_message(
         chat_id,
         (
-            "📋 <b>Состав войск</b>\n\n"
-            "Ниже отдельный шаблон. Скопируйте его, вставьте "
-            "в новое сообщение и измените числа по новому "
-            "скаут-отчёту.\n\n"
-            "Если по этой деревне уже есть проверки, шаблон "
-            "заполнен данными самого позднего по времени скана."
+            "🔎 <b>СКАУТ-ПРОВЕРКА</b>\n\n"
+            "📋 <b>Состав войск</b>\n"
+            "Скопируйте шаблон ниже, вставьте его новым сообщением "
+            "и измените только числа.\n\n"
+            "Если деревню уже сканировали, подставлены данные "
+            "последней проверки."
         ),
     )
 
@@ -5051,18 +5045,17 @@ def scout_show_confirmation(chat_id, user_id):
     tribe = SCOUT_TRIBES[session["tribe_id"]]
 
     lines = [
-        "🔎 <b>Проверьте скаут-проверку</b>",
+        "🔎 <b>ПРОВЕРКА СКАНА</b>",
         "",
         (
-            f"<b>Деревня:</b> "
-            f"{session['village_x']} {session['village_y']}"
+            f"⚔️ <b>{html.escape(session.get('player_name') or 'Владелец не найден')}</b>"
         ),
         (
-            f"<b>Игрок:</b> "
-            f"{html.escape(session.get('player_name') or 'Владелец не найден')}"
+            f"🏠 <code>({session['village_x']}|{session['village_y']})</code>"
         ),
-        f"<b>Дата:</b> {session['report_date']}",
-        f"<b>Время:</b> {session['report_time']}",
+        f"📅 {session['report_date']} • {session['report_time']}",
+        "",
+        "<b>ВОЙСКА</b>",
         "",
     ]
 
@@ -5443,7 +5436,8 @@ def show_scout_history_detail(chat_id, offer_id, page=0):
     selected = records[start:end]
     offer = get_offer(offer_id)
     owner = get_offer_owner(offer) if offer else offer_id
-    lines = [f"📋 <b>Последние сканы — {html.escape(owner or offer_id)}</b>", ""]
+    coords = f" ({offer['x']}|{offer['y']})" if offer else ""
+    lines = [f"📋 <b>ПОСЛЕДНИЕ СКАНЫ</b>", f"⚔️ <b>{html.escape(owner or offer_id)}</b>{coords}", ""]
 
     for idx, (dt, record) in enumerate(selected):
         absolute_index = start + idx
@@ -5522,7 +5516,8 @@ def show_scout_history_timeline(chat_id, offer_id, page=0):
         else:
             break
 
-    lines = [f"📈 <b>Хронология — {html.escape(owner or offer_id)}</b>", ""]
+    coords = f" ({offer['x']}|{offer['y']})" if offer else ""
+    lines = [f"📈 <b>ХРОНОЛОГИЯ</b>", f"⚔️ <b>{html.escape(owner or offer_id)}</b>{coords}", ""]
     for dt, kind, item in selected:
         if kind == "attack":
             target = item.get("own_coords") or {}
@@ -5541,11 +5536,13 @@ def show_scout_history_timeline(chat_id, offer_id, page=0):
                 else ""
             )
             lines.extend([
-                f"⚔️ <b>{dt.strftime('%d.%m.%Y %H:%M:%S')} — ВХОДЯЩАЯ</b>",
+                "━━━━━━━━━━━━━━━━━━",
+                f"⚔️ <b>{dt.strftime('%d.%m.%Y %H:%M:%S')} • ВХОДЯЩАЯ</b>",
+                "",
                 f"🎯 <b>Цель:</b> {html.escape(str(target_player))}{village_text}",
-                f"📍 <b>Координаты:</b> <code>{html.escape(coords_text)}</code>",
-                f"🌊 <b>Волн:</b> {item.get('waves', '—')}",
-                f"⏰ <b>Прибытие:</b> {html.escape(item.get('arrival_datetime_text') or item.get('arrival_datetime') or '—')}",
+                f"📍 <code>{html.escape(coords_text)}</code>",
+                f"🌊 <b>{item.get('waves', '—')} волн</b>",
+                f"⏰ Прибытие: <b>{html.escape(item.get('arrival_datetime_text') or item.get('arrival_datetime') or '—')}</b>",
                 "",
             ])
             continue
@@ -5555,7 +5552,8 @@ def show_scout_history_timeline(chat_id, offer_id, page=0):
             interval = f" | Δt {format_duration(seconds)}"
         else:
             interval = ""
-        lines.append(f"🔎 <b>{dt.strftime('%d.%m.%Y %H:%M:%S')}</b>{interval}")
+        lines.append("━━━━━━━━━━━━━━━━━━")
+        lines.append(f"🔎 <b>{dt.strftime('%d.%m.%Y %H:%M:%S')} • СКАН</b>{interval}")
         rows = scout_unit_rows(item, previous=previous_scout, compact=True)
         # В хронологии выводим все войска, а правителей-захватчиков и героя
         # дополнительно выделяем отдельной строкой, чтобы их выход не потерялся.
@@ -6080,23 +6078,25 @@ def show_scout_plan(chat_id):
         )
         return
 
-    lines = ["🔭 <b>План скаут-проверок</b>", ""]
+    lines = ["🔭 <b>ПЛАН РАЗВЕДКИ</b>", ""]
     for task in tasks:
         offer = get_offer(task["offer_id"])
         owner = get_offer_owner(offer) if offer else None
         target = task["target"]
         sv = task["scout_village"]
         lines.extend([
-            f"<b>{html.escape(owner or task['offer_id'])} "
-            f"({task['offer_x']}|{task['offer_y']}) — A{task['arena']}</b>",
-            f"Проверяем выход на: "
+            "━━━━━━━━━━━━━━━━━━",
+            f"⚔️ <b>{html.escape(owner or task['offer_id'])}</b> "
+            f"({task['offer_x']}|{task['offer_y']}) • A{task['arena']}",
+            "",
+            f"🎯 Проверяем атаку на "
             f"<b>{html.escape(target.get('player_name') or 'игрок')} "
             f"({target['x']}|{target['y']})</b>",
-            f"Теоретический выход: <code>{task['exit_at'].strftime('%H:%M:%S')}</code>",
-            f"Сканы: <code>{task['scan_before'].strftime('%H:%M:%S')}</code> / "
+            f"⚔️ Выход врага: <code>{task['exit_at'].strftime('%H:%M:%S')}</code>",
+            f"🔎 Сканировать: <code>{task['scan_before'].strftime('%H:%M:%S')}</code> → "
             f"<code>{task['scan_after'].strftime('%H:%M:%S')}</code>",
-            f"Отправить из {sv['x']}|{sv['y']}: "
-            f"<code>{task['send_before'].strftime('%H:%M:%S')}</code> / "
+            f"🛰 Отправить из ({sv['x']}|{sv['y']}): "
+            f"<code>{task['send_before'].strftime('%H:%M:%S')}</code> → "
             f"<code>{task['send_after'].strftime('%H:%M:%S')}</code>",
             "",
         ])
