@@ -96,6 +96,7 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.ATTACKS_TELEGRAM_TOKEN }}
           BOT_OWNER_ID: ${{ secrets.BOT_OWNER_ID }}
+          TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
           ATTACKS_RUN_SECONDS: "510"
           ATTACKS_TG_POLL_TIMEOUT: "20"
           ATTACKS_INITIAL_UPDATE_JSON: ${{ inputs.update_json }}
