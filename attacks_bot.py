@@ -23,6 +23,9 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 BOT_OWNER_ID = safe_owner_id = int(os.environ.get("BOT_OWNER_ID", "0") or 0)
 
 TELEGRAM_THREAD_ID = 76303
+# ID основной Telegram-группы. Нужен для проверки членства пользователей,
+# которые работают с ботом в личных сообщениях.
+TELEGRAM_GROUP_CHAT_ID = int(os.environ.get("TELEGRAM_GROUP_CHAT_ID", "0") or 0)
 
 SERVER_NAME = "Азия 7 TEST"
 SERVER_URL = "https://ts7.x1.asia.travian.com"
@@ -492,6 +495,46 @@ def is_owner(user_id):
 
 def is_private_chat(chat):
     return chat.get("type") == "private"
+
+
+def is_group_member(user_id):
+    """Проверяет, состоит ли пользователь в основной Telegram-группе."""
+    if is_owner(user_id):
+        return True
+    if not TELEGRAM_GROUP_CHAT_ID:
+        return False
+    try:
+        member = telegram(
+            "getChatMember",
+            chat_id=TELEGRAM_GROUP_CHAT_ID,
+            user_id=user_id,
+        ) or {}
+    except Exception as exc:
+        print(
+            f"Не удалось проверить членство Telegram user_id={user_id}: {exc}",
+            flush=True,
+        )
+        return False
+
+    status = member.get("status")
+    if status in {"creator", "administrator", "member"}:
+        return True
+    if status == "restricted":
+        return bool(member.get("is_member"))
+    return False
+
+
+def private_menu(owner_private=False):
+    keyboard = [
+        [{"text": "📥 Отчёт об атаке", "callback_data": "attack_report"}],
+        [{"text": "🔎 Добавить скаут-проверку", "callback_data": "scout_report"}],
+    ]
+    if owner_private:
+        keyboard.extend([
+            [{"text": "🏟 Офферы и Арены", "callback_data": "set_arena"}],
+            [{"text": "⚙️ Настройки разведки", "callback_data": "scout_settings"}],
+        ])
+    return {"inline_keyboard": keyboard}
 
 
 def save_important_village(x, y):
@@ -1663,7 +1706,8 @@ def send_message(
     # в групповой чат, а для лички (chat_id == user_id) не передаём её.
     if (
         thread_id is not None
-        and chat_id != BOT_OWNER_ID
+        and TELEGRAM_GROUP_CHAT_ID
+        and chat_id == TELEGRAM_GROUP_CHAT_ID
     ):
 
         data[
@@ -6385,11 +6429,25 @@ def process_callback(
         flush=True,
     )
 
-    owner_private = is_owner(user_id) and is_private_chat(chat)
+    private_chat = is_private_chat(chat)
+    owner_private = is_owner(user_id) and private_chat
+    private_member = private_chat and is_group_member(user_id)
     in_group_thread = thread_id == TELEGRAM_THREAD_ID
 
-    if not in_group_thread and not owner_private:
-        answer_callback(callback_id, "Эта функция здесь недоступна.")
+    if not in_group_thread and not private_member:
+        answer_callback(callback_id, "Доступно только участникам группы альянса.")
+        return
+
+    # В личке обычным участникам доступны только ввод входящей и скаут-отчёта.
+    group_only = (
+        data == "scout_plan"
+        or data == "scout_history"
+        or data.startswith("scout_history_offer:")
+        or data.startswith("scout_history_detail:")
+        or data.startswith("scout_history_timeline:")
+    )
+    if private_chat and group_only:
+        answer_callback(callback_id, "План и история доступны в теме группы.")
         return
 
     # Изменение Арены и настройки разведки доступны только владельцу в личке.
@@ -6416,7 +6474,9 @@ def process_callback(
             chat_id,
             message["message_id"],
             "<b>Меню анализа входящих атак</b>",
-            main_menu(owner_private=owner_private),
+            private_menu(owner_private=owner_private)
+            if private_chat
+            else main_menu(owner_private=False),
         )
 
         return
@@ -6861,10 +6921,18 @@ def process_message(
         flush=True,
     )
 
-    owner_private = is_owner(user_id) and is_private_chat(chat)
+    private_chat = is_private_chat(chat)
+    owner_private = is_owner(user_id) and private_chat
+    private_member = private_chat and is_group_member(user_id)
     in_group_thread = thread_id == TELEGRAM_THREAD_ID
 
-    if not in_group_thread and not owner_private:
+    if not in_group_thread and not private_member:
+        if private_chat and text.startswith(("/start", "/menu")):
+            send_message(
+                chat_id,
+                "⛔ Доступ к боту разрешён только участникам группы альянса.",
+                thread_id=None,
+            )
         return
 
     if text.startswith(
@@ -6885,7 +6953,12 @@ def process_message(
                 f"<b>{ENEMY_ALLIANCE_NAME}</b>\n\n"
                 "Выберите действие:"
             ),
-            reply_markup=main_menu(owner_private=owner_private),
+            reply_markup=(
+                private_menu(owner_private=owner_private)
+                if private_chat
+                else main_menu(owner_private=False)
+            ),
+            thread_id=None if private_chat else TELEGRAM_THREAD_ID,
         )
 
         return
@@ -6902,7 +6975,12 @@ def process_message(
         send_message(
             chat_id,
             "<b>Меню анализа входящих атак</b>",
-            reply_markup=main_menu(owner_private=owner_private),
+            reply_markup=(
+                private_menu(owner_private=owner_private)
+                if private_chat
+                else main_menu(owner_private=False)
+            ),
+            thread_id=None if private_chat else TELEGRAM_THREAD_ID,
         )
 
         return
