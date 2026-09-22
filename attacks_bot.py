@@ -1706,8 +1706,8 @@ def send_message(
     # в групповой чат, а для лички (chat_id == user_id) не передаём её.
     if (
         thread_id is not None
-        and TELEGRAM_GROUP_CHAT_ID
-        and chat_id == TELEGRAM_GROUP_CHAT_ID
+        and isinstance(chat_id, int)
+        and chat_id < 0
     ):
 
         data[
