@@ -486,7 +486,7 @@
     "possible_send_to_datetime_text": "20.09.2026 11:40:00",
     "operation_id": "operation_3",
     "operation_arrival_datetime": "2026-09-21T02:00:00",
-    "operation_status": "active",
+    "operation_status": "closed",
     "travel_time": "14:20:00",
     "travel_seconds": 51600.0,
     "min_travel_seconds": 51600.0,
