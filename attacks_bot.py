@@ -5098,6 +5098,138 @@ def scout_show_confirmation(chat_id, user_id):
     )
 
 
+# Минимальный размер заметной боевой армии дома, при котором одиночный
+# скаут можно использовать как сильный признак того, что уже замеченные
+# входящие от этого оффера не содержат эту армию.
+LARGE_HOME_ARMY_MIN_UNITS = 10000
+
+SCOUT_NON_COMBAT_KEYS = {
+    "equites_legati", "scout", "pathfinder", "sopdu_explorer", "spotter",
+    "senator", "chief", "chieftain", "nomarch", "logades", "ephor",
+    "settler",
+}
+
+
+def home_army_size(record):
+    units = record.get("units") or {}
+    total = 0
+    for key, value in units.items():
+        if key in SCOUT_NON_COMBAT_KEYS:
+            continue
+        total += max(0, safe_int(value, 0))
+    return total
+
+
+def mark_previous_attacks_probable_spam(record):
+    """
+    Если после регистрации входящей основной/крупный офф всё ещё замечен
+    дома, помечаем более ранние, ещё летящие входящие от этого же оффера
+    как вероятный спам.
+
+    Важно: проверяем именно время обнаружения атаки, а не время записи JSON.
+    Также не трогаем атаки, которые к моменту скана уже прибыли: их войска
+    теоретически могли успеть вернуться домой.
+    """
+    if home_army_size(record) < LARGE_HOME_ARMY_MIN_UNITS:
+        return []
+
+    offer_id = record.get("offer_id")
+    if not offer_id:
+        return []
+
+    try:
+        scanned_at = datetime.fromisoformat(record.get("scanned_at"))
+    except Exception:
+        return []
+
+    if scanned_at.tzinfo is None:
+        scanned_at = scanned_at.replace(tzinfo=SERVER_TIMEZONE)
+
+    attacks = load_attacks()
+    changed = []
+    for attack in attacks:
+        if attack.get("offer_id") != offer_id:
+            continue
+
+        detected_text = attack.get("detected_server_datetime")
+        arrival_text = attack.get("arrival_datetime")
+        if not detected_text or not arrival_text:
+            continue
+
+        try:
+            detected_at = datetime.fromisoformat(detected_text)
+            arrival_at = datetime.fromisoformat(arrival_text)
+        except Exception:
+            continue
+
+        if detected_at.tzinfo is None:
+            detected_at = detected_at.replace(tzinfo=SERVER_TIMEZONE)
+        if arrival_at.tzinfo is None:
+            arrival_at = arrival_at.replace(tzinfo=SERVER_TIMEZONE)
+
+        # Атака уже была замечена, а к моменту скана всё ещё должна быть в пути.
+        if not (detected_at < scanned_at < arrival_at):
+            continue
+
+        attack["analysis_status"] = "probable_spam"
+        attack["analysis_status_text"] = "вероятный спам"
+        attack["analysis_updated_at"] = datetime.utcnow().isoformat(
+            timespec="seconds"
+        ) + "Z"
+        attack["analysis_reason"] = (
+            "После обнаружения этой входящей крупная армия оффера "
+            "была обнаружена дома скаут-проверкой."
+        )
+        attack["analysis_evidence"] = {
+            "type": "large_army_home_after_detection",
+            "scout_id": record.get("id"),
+            "scanned_at": record.get("scanned_at"),
+            "home_army_units": home_army_size(record),
+        }
+        changed.append(attack)
+
+    if changed:
+        save_json(ATTACKS_FILE, attacks)
+
+    return changed
+
+
+def format_probable_spam_result(record, attacks):
+    if not attacks:
+        return ""
+
+    coords = record.get("village_coords") or {}
+    lines = [
+        "",
+        "🟢 <b>Предварительный вывод</b>",
+        (
+            f"В оффере {html.escape(record.get('player_name') or record.get('offer_id') or '—')} "
+            f"({coords.get('x')}|{coords.get('y')}) после обнаружения входящих "
+            f"зафиксирована крупная армия дома."
+        ),
+        f"Боевых войск дома: <b>{home_army_size(record):,}</b>".replace(",", " "),
+        "",
+        "Поэтому следующие ещё летящие входящие от этого оффера "
+        "помечены как <b>вероятный спам</b>:",
+    ]
+
+    for attack in attacks:
+        target = attack.get("own_coords") or {}
+        lines.append(
+            f"• {html.escape(attack.get('own_player_name') or 'игрок')} "
+            f"({target.get('x')}|{target.get('y')}) — "
+            f"{attack.get('waves', '—')} волн, "
+            f"прибытие {html.escape(attack.get('arrival_datetime_text') or '—')}"
+        )
+
+    lines.extend([
+        "",
+        "Это предварительный вывод: скаут подтверждает, что замеченная "
+        "крупная армия не находилась в этих входящих на момент проверки.",
+    ])
+    return "\n".join(lines)
+
+
 def save_scout_report(chat_id, user_id):
     session = get_session(chat_id, user_id)
 
@@ -5155,6 +5287,12 @@ def save_scout_report(chat_id, user_id):
 
     scouts.append(record)
     save_json(SCOUTS_FILE, scouts)
+
+    # Одиночный скан тоже даёт полезный вывод: если крупная армия оффера
+    # обнаружена дома после того, как входящая уже была замечена, эта
+    # входящая не могла содержать замеченную основную армию.
+    probable_spam = mark_previous_attacks_probable_spam(record)
+
     persist_attacks_data_to_github()
 
     # Если двойной скан поймал небольшую отправку, сопоставляем её с базой
@@ -5162,6 +5300,8 @@ def save_scout_report(chat_id, user_id):
     notify_owner_arena_suggestion(record)
 
     clear_session(chat_id, user_id)
+
+    analysis_text = format_probable_spam_result(record, probable_spam)
 
     send_message(
         chat_id,
@@ -5172,6 +5312,7 @@ def save_scout_report(chat_id, user_id):
             f"{record['village_coords']['y']}\n"
             f"<b>Дата:</b> {scanned_at.strftime('%d.%m.%Y')}\n"
             f"<b>Время:</b> {scanned_at.strftime('%H:%M:%S')}"
+            f"{analysis_text}"
         ),
         reply_markup=main_menu(),
     )
