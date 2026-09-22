@@ -4376,10 +4376,11 @@ def finish_attack_report(
         reply_markup=main_menu(),
     )
 
-    # Новая входящая сразу становится полноценной целью текущей операции.
-    # После сохранения пересчитываем разведку автоматически, чтобы игрокам
-    # не приходилось отдельно нажимать кнопку "План скаут-проверок".
-    show_scout_plan(chat_id)
+    # Автоматический план рассылаем только при действительно однозначном
+    # результате: этот конкретный отчёт должен оставить ровно один уровень
+    # Арены. Тогда рассчитываем будущие выходы этого оффера на все другие
+    # важные деревни, куда пара сканов ещё физически успевает.
+    show_precise_arena_auto_plan(chat_id, attack)
 
 
 # ============================================================
@@ -6022,6 +6023,140 @@ def choose_scout_source(enemy_x, enemy_y, scan_before, scan_after, now):
     # Чем позже нужно отправлять, тем проще реально успеть.
     candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0]
+
+
+def build_precise_arena_auto_plan(attack):
+    """Автоплан только когда входящая однозначно дала один уровень Арены."""
+    possible = []
+    for level in attack.get("possible_arena_levels") or []:
+        level = safe_int(level)
+        if level is not None and 0 <= level <= 20 and level not in possible:
+            possible.append(level)
+
+    if len(possible) != 1:
+        return []
+
+    arena = possible[0]
+    offer = get_offer(attack.get("offer_id"))
+    if not offer:
+        return []
+
+    important = load_important_villages()
+    if not important or not load_scout_villages():
+        return []
+
+    try:
+        arrival = datetime.fromisoformat(
+            attack.get("operation_arrival_datetime")
+            or attack.get("arrival_datetime")
+        )
+    except Exception:
+        return []
+
+    if arrival.tzinfo is None:
+        arrival = arrival.replace(tzinfo=SERVER_TIMEZONE)
+
+    now = datetime.now(SERVER_TIMEZONE)
+    attacked = attack.get("own_coords") or {}
+    attacked_xy = (safe_int(attacked.get("x")), safe_int(attacked.get("y")))
+    tasks = []
+
+    for target in important:
+        x, y = safe_int(target.get("x")), safe_int(target.get("y"))
+        if x is None or y is None:
+            continue
+        # Первый отчёт уже проверяет эту цель; автоплан нужен для других
+        # важных деревень альянса.
+        if (x, y) == attacked_xy:
+            continue
+
+        distance = travian_distance(offer["x"], offer["y"], x, y)
+        enemy_seconds = travel_time_seconds(distance, arena)
+        exit_at = arrival - timedelta(seconds=enemy_seconds)
+        scan_before = exit_at - timedelta(seconds=10)
+        scan_after = exit_at + timedelta(seconds=10)
+
+        if scan_before <= now:
+            continue
+
+        source = choose_scout_source(
+            offer["x"], offer["y"], scan_before, scan_after, now
+        )
+        if not source:
+            continue
+
+        send_before, send_after, scout_village, _ = source
+        tasks.append({
+            "offer_id": attack.get("offer_id"),
+            "offer_x": offer["x"],
+            "offer_y": offer["y"],
+            "arena": arena,
+            "target": {
+                "x": x,
+                "y": y,
+                "player_name": target.get("player_name"),
+                "village_name": target.get("village_name"),
+                "source": "важная",
+            },
+            "exit_at": exit_at,
+            "scan_before": scan_before,
+            "scan_after": scan_after,
+            "send_before": send_before,
+            "send_after": send_after,
+            "scout_village": scout_village,
+        })
+
+    tasks.sort(key=lambda task: task["send_before"])
+    return tasks
+
+
+def show_precise_arena_auto_plan(chat_id, attack):
+    tasks = build_precise_arena_auto_plan(attack)
+    if not tasks:
+        return
+
+    offer = get_offer(attack.get("offer_id"))
+    owner = get_offer_owner(offer) if offer else None
+    arena = safe_int((attack.get("possible_arena_levels") or [None])[0])
+
+    lines = [
+        "🎯 <b>АРЕНА ОПРЕДЕЛЕНА ОДНОЗНАЧНО</b>",
+        "",
+        f"⚔️ <b>{html.escape(owner or attack.get('offer_id') or 'Оффер')}</b> "
+        f"({offer['x']}|{offer['y']}) • A{arena}",
+        "",
+        "🔭 <b>Автоматический план проверок на важные деревни</b>",
+        "",
+    ]
+
+    for task in tasks:
+        target = task["target"]
+        sv = task["scout_village"]
+        target_name = html.escape(
+            target.get("player_name") or target.get("village_name") or "важная деревня"
+        )
+        lines.extend([
+            "━━━━━━━━━━━━━━━━━━",
+            f"⭐ <b>{target_name}</b> ({target['x']}|{target['y']})",
+            f"⚔️ Выход армии: <code>{task['exit_at'].strftime('%H:%M:%S')}</code>",
+            f"🔎 Сканы: <code>{task['scan_before'].strftime('%H:%M:%S')}</code> → "
+            f"<code>{task['scan_after'].strftime('%H:%M:%S')}</code>",
+            f"🛰 Отправить из ({sv['x']}|{sv['y']}): "
+            f"<code>{task['send_before'].strftime('%H:%M:%S')}</code> → "
+            f"<code>{task['send_after'].strftime('%H:%M:%S')}</code>",
+            "",
+        ])
+
+    chunk = ""
+    for line in lines:
+        candidate = chunk + line + "\n"
+        if len(candidate) > 3800:
+            send_message(chat_id, chunk)
+            chunk = line + "\n"
+        else:
+            chunk = candidate
+    if chunk.strip():
+        send_message(chat_id, chunk)
 
 
 def build_scout_plan():
