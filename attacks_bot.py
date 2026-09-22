@@ -531,6 +531,8 @@ def private_menu(owner_private=False):
     ]
     if owner_private:
         keyboard.extend([
+            [{"text": "🔭 План скаут-проверок", "callback_data": "scout_plan"}],
+            [{"text": "📚 История скаутов", "callback_data": "scout_history"}],
             [{"text": "🏟 Офферы и Арены", "callback_data": "set_arena"}],
             [{"text": "⚙️ Настройки разведки", "callback_data": "scout_settings"}],
         ])
@@ -6446,7 +6448,7 @@ def process_callback(
         or data.startswith("scout_history_detail:")
         or data.startswith("scout_history_timeline:")
     )
-    if private_chat and group_only:
+    if private_chat and group_only and not owner_private:
         answer_callback(callback_id, "План и история доступны в теме группы.")
         return
 
