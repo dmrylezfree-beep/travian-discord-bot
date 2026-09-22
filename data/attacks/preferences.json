@@ -29,5 +29,12 @@
   "_shared": {
     "last_arrival_datetime": "23.09.2026 02:00:00",
     "last_arrival_updated_at": "2026-09-22T16:28:31Z"
+  },
+  "246406753": {
+    "last_arrival_datetime": null,
+    "recent_players": [
+      "979"
+    ],
+    "recent_villages": []
   }
 }
