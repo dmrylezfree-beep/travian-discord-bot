@@ -1,0 +1,3 @@
+name = "travian-attacks"
+compatibility_date = "2026-09-22"
+main = "attacks-worker.js"
