@@ -3340,6 +3340,12 @@ def main_menu(owner_private=False):
                 "callback_data": "scout_plan",
             }
         ],
+        [
+            {
+                "text": "📚 История скаутов",
+                "callback_data": "scout_history",
+            }
+        ],
     ]
 
     if owner_private:
@@ -5319,6 +5325,238 @@ def save_scout_report(chat_id, user_id):
 
 
 # ============================================================
+# ИСТОРИЯ СКАУТ-ОТЧЁТОВ
+# ============================================================
+
+SCOUT_UNIT_SHORT = {
+    "legionnaire": "Лег", "praetorian": "Прет", "imperian": "Имп",
+    "equites_legati": "Разв", "equites_imperatoris": "КИ",
+    "equites_caesaris": "КЦ", "ram": "Тар", "fire_catapult": "Кат",
+    "senator": "Сенатор", "settler": "Пос",
+    "clubswinger": "Дуб", "spearman": "Коп", "axeman": "Топ",
+    "scout": "Разв", "paladin": "Пал", "teutonic_knight": "ТК",
+    "catapult": "Кат", "chief": "Вождь",
+    "phalanx": "Фал", "swordsman": "Меч", "pathfinder": "Разв",
+    "theutates_thunder": "ГТ", "druidrider": "Друид", "haeduan": "Эдуй",
+    "trebuchet": "Треб", "chieftain": "Предводитель",
+    "slave_militia": "Раб", "ash_warden": "Страж", "khopesh_warrior": "Хопеш",
+    "sopdu_explorer": "Разв", "anhur_guard": "Анхур",
+    "resheph_chariot": "Решеф", "stone_catapult": "Камнемёт",
+    "nomarch": "Номарх",
+    "mercenary": "Наём", "bowman": "Луч", "spotter": "Разв",
+    "steppe_rider": "Степ", "marksman": "Стрел", "marauder": "Марод",
+    "logades": "Логад",
+    "hoplite": "Гоп", "sentinel": "Страж", "shieldman": "Щит",
+    "elpida_rider": "Элпида", "corinthian_crusher": "Коринф",
+    "ballista": "Балл", "ephor": "Эфор",
+}
+
+SCOUT_CHIEF_KEYS = {
+    1: "senator",
+    2: "chief",
+    3: "chieftain",
+    6: "nomarch",
+    7: "logades",
+    8: "ephor",
+}
+
+
+def scout_history_records(offer_id):
+    records = []
+    for scout in load_scouts():
+        if scout.get("record_type") != "village_troops":
+            continue
+        if scout.get("offer_id") != offer_id:
+            continue
+        try:
+            dt = datetime.fromisoformat(scout.get("scanned_at"))
+        except Exception:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=SERVER_TIMEZONE)
+        records.append((dt, scout))
+    records.sort(key=lambda item: item[0])
+    return records
+
+
+def scout_history_offer_keyboard():
+    keyboard = []
+    for offer in get_all_offers():
+        offer_id = offer.get("id") or offer.get("offer_id")
+        count = len(scout_history_records(offer_id))
+        owner = get_offer_owner(offer) or offer_id
+        keyboard.append([{
+            "text": f"{owner} — ({offer['x']} {offer['y']}) — {count} скан.",
+            "callback_data": f"scout_history_offer:{offer_id}",
+        }])
+    keyboard.append([{"text": "⬅️ Назад", "callback_data": "menu"}])
+    return {"inline_keyboard": keyboard}
+
+
+def scout_history_mode_keyboard(offer_id):
+    return {
+        "inline_keyboard": [
+            [{"text": "📋 Последние сканы", "callback_data": f"scout_history_detail:{offer_id}:0"}],
+            [{"text": "📈 Хронология", "callback_data": f"scout_history_timeline:{offer_id}:0"}],
+            [{"text": "⬅️ К офферам", "callback_data": "scout_history"}],
+        ]
+    }
+
+
+def signed_delta(value):
+    value = safe_int(value, 0)
+    return f"+{value}" if value > 0 else str(value)
+
+
+def scout_unit_rows(record, previous=None, compact=False):
+    tribe_id = safe_int(record.get("tribe_id"))
+    tribe = SCOUT_TRIBES.get(tribe_id, {})
+    old_units = (previous or {}).get("units") or {}
+    units = record.get("units") or {}
+    rows = []
+    for full_name, key in tribe.get("units", []):
+        value = safe_int(units.get(key), 0)
+        delta = value - safe_int(old_units.get(key), 0) if previous else None
+        name = SCOUT_UNIT_SHORT.get(key, full_name) if compact else full_name
+        delta_text = f" ({signed_delta(delta)})" if previous and delta else ""
+        rows.append(f"{name}: {value:,}{delta_text}".replace(",", " "))
+
+    hero = safe_int(record.get("hero"), 0)
+    old_hero = safe_int((previous or {}).get("hero"), 0)
+    hero_delta = hero - old_hero if previous else 0
+    hero_delta_text = f" ({signed_delta(hero_delta)})" if previous and hero_delta else ""
+    rows.append(f"Герой: {hero}{hero_delta_text}")
+    return rows
+
+
+def show_scout_history_detail(chat_id, offer_id, page=0):
+    records = scout_history_records(offer_id)
+    if not records:
+        send_message(chat_id, "📚 По этому офферу пока нет новых скаут-отчётов.",
+                     reply_markup=scout_history_mode_keyboard(offer_id))
+        return
+
+    page = max(0, page)
+    page_size = 3
+    end = len(records) - page * page_size
+    start = max(0, end - page_size)
+    selected = records[start:end]
+    offer = get_offer(offer_id)
+    owner = get_offer_owner(offer) if offer else offer_id
+    lines = [f"📋 <b>Последние сканы — {html.escape(owner or offer_id)}</b>", ""]
+
+    for idx, (dt, record) in enumerate(selected):
+        absolute_index = start + idx
+        previous = records[absolute_index - 1][1] if absolute_index > 0 else None
+        previous_dt = records[absolute_index - 1][0] if absolute_index > 0 else None
+        lines.append(f"🔎 <b>{dt.strftime('%d.%m.%Y %H:%M:%S')}</b>")
+        if previous_dt:
+            seconds = int((dt - previous_dt).total_seconds())
+            lines.append(f"Интервал с предыдущим: <b>{format_duration(seconds)}</b>")
+        lines.extend(scout_unit_rows(record, previous=previous, compact=False))
+        lines.append("")
+
+    keyboard = []
+    if start > 0:
+        keyboard.append([{"text": "Показать ещё ⬇️",
+                          "callback_data": f"scout_history_detail:{offer_id}:{page + 1}"}])
+    keyboard.append([{"text": "📈 Хронология", "callback_data": f"scout_history_timeline:{offer_id}:0"}])
+    keyboard.append([{"text": "⬅️ К офферам", "callback_data": "scout_history"}])
+    send_message(chat_id, "\n".join(lines), reply_markup={"inline_keyboard": keyboard})
+
+
+def show_scout_history_timeline(chat_id, offer_id, page=0):
+    records = scout_history_records(offer_id)
+    attacks = [a for a in load_attacks() if a.get("offer_id") == offer_id]
+    events = []
+
+    for dt, record in records:
+        events.append((dt, "scout", record))
+
+    for attack in attacks:
+        value = attack.get("detected_server_datetime")
+        if not value:
+            continue
+        try:
+            dt = datetime.fromisoformat(value)
+        except Exception:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=SERVER_TIMEZONE)
+        events.append((dt, "attack", attack))
+
+    events.sort(key=lambda item: item[0])
+    if not events:
+        send_message(chat_id, "📈 По этому офферу пока нет событий.",
+                     reply_markup=scout_history_mode_keyboard(offer_id))
+        return
+
+    offer = get_offer(offer_id)
+    owner = get_offer_owner(offer) if offer else offer_id
+    page = max(0, page)
+    page_size = 8
+    end = len(events) - page * page_size
+    start = max(0, end - page_size)
+    selected = events[start:end]
+
+    previous_scout = None
+    previous_scout_dt = None
+    for dt, record in records:
+        if dt < selected[0][0]:
+            previous_scout = record
+            previous_scout_dt = dt
+        else:
+            break
+
+    lines = [f"📈 <b>Хронология — {html.escape(owner or offer_id)}</b>", ""]
+    for dt, kind, item in selected:
+        if kind == "attack":
+            target = item.get("own_coords") or {}
+            lines.extend([
+                f"⚔️ <b>{dt.strftime('%d.%m.%Y %H:%M:%S')} — ВХОДЯЩАЯ</b>",
+                f"→ {html.escape(item.get('own_player_name') or 'игрок')} "
+                f"({target.get('x')}|{target.get('y')}) — {item.get('waves', '—')} волн",
+                f"Прибытие: {html.escape(item.get('arrival_datetime_text') or '—')}",
+                "",
+            ])
+            continue
+
+        if previous_scout_dt:
+            seconds = int((dt - previous_scout_dt).total_seconds())
+            interval = f" | Δt {format_duration(seconds)}"
+        else:
+            interval = ""
+        lines.append(f"🔎 <b>{dt.strftime('%d.%m.%Y %H:%M:%S')}</b>{interval}")
+        rows = scout_unit_rows(item, previous=previous_scout, compact=True)
+        # В хронологии выводим все войска, а правителей-захватчиков и героя
+        # дополнительно выделяем отдельной строкой, чтобы их выход не потерялся.
+        lines.append(" | ".join(rows))
+        tribe_id = safe_int(item.get("tribe_id"))
+        chief_key = SCOUT_CHIEF_KEYS.get(tribe_id)
+        if chief_key:
+            chief_name = SCOUT_UNIT_SHORT.get(chief_key, chief_key)
+            chief_value = safe_int((item.get("units") or {}).get(chief_key), 0)
+            chief_old = safe_int((previous_scout or {}).get("units", {}).get(chief_key), 0)
+            chief_delta = chief_value - chief_old if previous_scout else 0
+            chief_delta_text = f" ({signed_delta(chief_delta)})" if previous_scout and chief_delta else ""
+            lines.append(
+                f"👑 <b>{html.escape(chief_name)}: {chief_value}{chief_delta_text}</b> | "
+                f"Герой: <b>{safe_int(item.get('hero'), 0)}</b>"
+            )
+        lines.append("")
+        previous_scout = item
+        previous_scout_dt = dt
+
+    keyboard = []
+    if start > 0:
+        keyboard.append([{"text": "Показать ещё ⬇️",
+                          "callback_data": f"scout_history_timeline:{offer_id}:{page + 1}"}])
+    keyboard.append([{"text": "📋 Последние сканы", "callback_data": f"scout_history_detail:{offer_id}:0"}])
+    keyboard.append([{"text": "⬅️ К офферам", "callback_data": "scout_history"}])
+    send_message(chat_id, "\n".join(lines), reply_markup={"inline_keyboard": keyboard})
+
+
+# ============================================================
 # СТАТУС
 # ============================================================
 
@@ -5983,6 +6221,39 @@ def process_callback(
     if data == "scout_plan":
         show_scout_plan(chat_id)
         return
+    if data == "scout_history":
+        edit_message(
+            chat_id,
+            message["message_id"],
+            "📚 <b>История скаутов</b>\n\nВыберите вражеский оффер:",
+            scout_history_offer_keyboard(),
+        )
+        return
+
+    if data.startswith("scout_history_offer:"):
+        offer_id = data.split(":", 1)[1]
+        offer = get_offer(offer_id)
+        owner = get_offer_owner(offer) if offer else offer_id
+        edit_message(
+            chat_id,
+            message["message_id"],
+            f"📚 <b>{html.escape(owner or offer_id)}</b>\n\nВыберите режим просмотра:",
+            scout_history_mode_keyboard(offer_id),
+        )
+        return
+
+    if data.startswith("scout_history_detail:"):
+        parts = data.split(":")
+        if len(parts) == 3:
+            show_scout_history_detail(chat_id, parts[1], safe_int(parts[2], 0))
+        return
+
+    if data.startswith("scout_history_timeline:"):
+        parts = data.split(":")
+        if len(parts) == 3:
+            show_scout_history_timeline(chat_id, parts[1], safe_int(parts[2], 0))
+        return
+
 
     if data == "scout_settings":
         edit_message(
