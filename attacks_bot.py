@@ -5474,13 +5474,27 @@ def show_scout_history_timeline(chat_id, offer_id, page=0):
         events.append((dt, "scout", record))
 
     for attack in attacks:
+        # Новые отчёты содержат точную дату обнаружения. Для старых записей
+        # восстанавливаем её из даты отчёта + detected_server_time, чтобы они
+        # тоже попадали в хронологию.
         value = attack.get("detected_server_datetime")
-        if not value:
-            continue
-        try:
-            dt = datetime.fromisoformat(value)
-        except Exception:
-            continue
+        if value:
+            try:
+                dt = datetime.fromisoformat(value)
+            except Exception:
+                continue
+        else:
+            report_date = attack.get("report_date")
+            detected_time = attack.get("detected_server_time")
+            if not report_date or not detected_time:
+                continue
+            try:
+                dt = datetime.strptime(
+                    f"{report_date} {detected_time}",
+                    "%d.%m.%Y %H:%M:%S",
+                )
+            except Exception:
+                continue
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=SERVER_TIMEZONE)
         events.append((dt, "attack", attack))
@@ -5512,11 +5526,26 @@ def show_scout_history_timeline(chat_id, offer_id, page=0):
     for dt, kind, item in selected:
         if kind == "attack":
             target = item.get("own_coords") or {}
+            target_player = item.get("own_player_name") or "игрок не определён"
+            target_village = item.get("own_village_name")
+            tx = target.get("x")
+            ty = target.get("y")
+            coords_text = (
+                f"({tx}|{ty})"
+                if tx is not None and ty is not None
+                else "(координаты не указаны)"
+            )
+            village_text = (
+                f" — {html.escape(str(target_village))}"
+                if target_village
+                else ""
+            )
             lines.extend([
                 f"⚔️ <b>{dt.strftime('%d.%m.%Y %H:%M:%S')} — ВХОДЯЩАЯ</b>",
-                f"→ {html.escape(item.get('own_player_name') or 'игрок')} "
-                f"({target.get('x')}|{target.get('y')}) — {item.get('waves', '—')} волн",
-                f"Прибытие: {html.escape(item.get('arrival_datetime_text') or '—')}",
+                f"🎯 <b>Цель:</b> {html.escape(str(target_player))}{village_text}",
+                f"📍 <b>Координаты:</b> <code>{html.escape(coords_text)}</code>",
+                f"🌊 <b>Волн:</b> {item.get('waves', '—')}",
+                f"⏰ <b>Прибытие:</b> {html.escape(item.get('arrival_datetime_text') or item.get('arrival_datetime') or '—')}",
                 "",
             ])
             continue
