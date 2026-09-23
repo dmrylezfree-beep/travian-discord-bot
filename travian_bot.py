@@ -14,7 +14,7 @@ import requests
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
-SERVER_URL = "https://ts7.x1.asia.travian.com"
+SERVER_URL = "https://ts8.x1.asia.travian.com"
 MAP_SQL_URL = f"{SERVER_URL}/map.sql"
 
 SNAPSHOT_DIR = Path("data/snapshots")
@@ -29,19 +29,14 @@ POP_DROP_THRESHOLD = 50
 DELETED_PLAYER_MIN_POP = 100
 
 # ID нашего альянса
-OUR_ALLIANCE_IDS = {
-    26,  # Alliance 1
-    9,  # Alliance 2
-    19,  # Alliance 3
-    
-}
+OUR_ALLIANCE_IDS = set()  # ? — заполним после старта Азии 8
 
 
 # ============================================================
 # ВРАЖЕСКИЙ АЛЬЯНС
 # ============================================================
 
-ENEMY_ALLIANCE_ID = 5
+ENEMY_ALLIANCE_ID = None  # ? — заполним после старта Азии 8
 
 # Тема Telegram
 THREAD_ID = 75792
@@ -652,6 +647,10 @@ def find_positive_sector_intruders(raw_today, raw_previous):
     Деревни без альянса также считаются чужими.
     """
 
+    if not OUR_ALLIANCE_IDS:
+        print("ID наших альянсов пока не настроены — проверка сектора (+,+) пропущена.")
+        return []
+
     v_today, _ = parse_map_data(raw_today)
     v_previous, _ = parse_map_data(raw_previous)
 
@@ -949,6 +948,10 @@ def find_enemy_alliance_activity(
     print(
         "\n=== ПРОВЕРКА ВРАЖЕСКОГО АЛЬЯНСА ==="
     )
+
+    if ENEMY_ALLIANCE_ID is None:
+        print("ID вражеского альянса пока не настроен — проверка пропущена.")
+        return None
 
     print(
         f"Искомый alliance_id: "
