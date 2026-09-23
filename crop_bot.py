@@ -242,8 +242,14 @@ def process_callback(q):
         send(chat_id,"⚠️ <b>Бронируйте кропку только тогда, когда до готовности очков культуры и поселенцев осталось не более 2 часов.</b>\n\nВведите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
     elif data=="crop:mine": show_mine(chat_id,thread,user)
     elif data=="crop:cancel":
-        rows=[r for r in load_reservations() if r.get("user_id")!=uid]; save_reservations(rows)
-        send(chat_id,"Бронь отменена.",thread,main_keyboard())
+        rows = load_reservations()
+        mine = next((r for r in rows if r.get("user_id") == uid), None)
+        if not mine:
+            answer_callback(q.get("id"), "У вас нет активной брони.")
+            return
+        rows = [r for r in rows if r.get("user_id") != uid]
+        save_reservations(rows)
+        send(chat_id, "Бронь отменена.", thread, main_keyboard())
     elif data.startswith("crop:type:"):
         state=SESSIONS.setdefault(uid,{})
         state["crop_fields"]=int(data.rsplit(":",1)[1]); state["step"]="bonus"
