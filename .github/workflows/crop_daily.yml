@@ -1,0 +1,21 @@
+name: Crop Daily Report
+on:
+  schedule:
+    - cron: "35 5 * * *"
+  workflow_dispatch:
+jobs:
+  crop-daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install requests
+      - name: Daily crop changes
+        env:
+          CROP_TELEGRAM_TOKEN: ${{ secrets.CROP_TELEGRAM_TOKEN }}
+          TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
+        run: python crop_daily.py
