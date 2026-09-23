@@ -56,7 +56,7 @@ async function sendPrivateReminder(env, item) {
   const ty = Number(item.target_y);
   const targetMapId = (ty + 200) * 401 + (tx + 200) + 1;
   const sendDefUrl =
-    `https://ts7.x1.asia.travian.com/build.php?gid=16&tt=2&eventType=5&targetMapId=${targetMapId}`;
+    `https://ts8.x1.asia.travian.com/build.php?gid=16&tt=2&eventType=5&targetMapId=${targetMapId}`;
 
   const text =
     "<b>🚨 ПОРА ОТПРАВЛЯТЬ ДЕФ</b>\n\n" +
