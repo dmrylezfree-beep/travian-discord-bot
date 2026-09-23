@@ -44,7 +44,7 @@ def send(chat_id, text, thread_id=None, keyboard=None, force_reply=False):
     if keyboard is not None:
         payload["reply_markup"] = keyboard
     elif force_reply:
-        payload["reply_markup"] = {"force_reply": True, "selective": True}
+        payload["reply_markup"] = {"force_reply": True}
     return telegram("sendMessage", **payload)
 
 
