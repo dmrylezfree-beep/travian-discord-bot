@@ -37,12 +37,14 @@ def telegram(method, **kwargs):
     return data.get("result")
 
 
-def send(chat_id, text, thread_id=None, keyboard=None):
+def send(chat_id, text, thread_id=None, keyboard=None, force_reply=False):
     payload = dict(chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True)
     if thread_id is not None:
         payload["message_thread_id"] = thread_id
     if keyboard is not None:
         payload["reply_markup"] = keyboard
+    elif force_reply:
+        payload["reply_markup"] = {"force_reply": True, "selective": True}
     return telegram("sendMessage", **payload)
 
 
