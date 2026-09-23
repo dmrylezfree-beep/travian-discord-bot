@@ -1,23 +1,25 @@
 {
+  "246406753": {
+    "telegram_id": 246406753,
+    "username": "alex_8010",
+    "first_name": "Алишер",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": null,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
+  },
   "317595036": {
     "telegram_id": 317595036,
     "username": "dmrylez",
     "first_name": "Дмитрий",
-    "villages": [
-      {
-        "coordinates": "30 40",
-        "arena": 18,
-        "troops": {
-          "phalanx": 8000,
-          "druidrider": 3000
-        },
-        "hero": {
-          "present": true,
-          "standard_bonus": 0.15,
-          "boots_bonus": 0
-        }
-      }
-    ],
+    "villages": [],
     "substitutes": [],
     "state": null,
     "race": "gaul",
@@ -35,15 +37,6 @@
       ]
     }
   },
-  "8940235277": {
-    "telegram_id": 8940235277,
-    "username": "SokolDefBot",
-    "first_name": "Sokol Def Bot",
-    "race": "teuton",
-    "villages": [],
-    "substitutes": [],
-    "state": null
-  },
   "545074834": {
     "telegram_id": 545074834,
     "username": "Yaroslav9728",
@@ -51,9 +44,7 @@
     "race": null,
     "villages": [],
     "substitutes": [],
-    "state": {
-      "type": "request_target_coords"
-    }
+    "state": null
   },
   "972118673": {
     "telegram_id": 972118673,
@@ -62,22 +53,15 @@
     "race": null,
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords"
+    "state": null
   },
-  "246406753": {
-    "telegram_id": 246406753,
-    "username": "alex_8010",
-    "first_name": "Алишер",
-    "race": null,
+  "8940235277": {
+    "telegram_id": 8940235277,
+    "username": "SokolDefBot",
+    "first_name": "Sokol Def Bot",
+    "race": "teuton",
     "villages": [],
     "substitutes": [],
-    "state": null,
-    "private_chat_id": null,
-    "private_notifications": true,
-    "hero_inventory": {
-      "standards": [],
-      "boots": [],
-      "maps": []
-    }
+    "state": null
   }
 }
