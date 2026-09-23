@@ -190,13 +190,13 @@ def process_message(msg):
     if state["step"] == "origin":
         coords = parse_coords(text)
         if not coords:
-            send(chat_id, "Введите координаты через пробел, например: <code>55 46</code>", thread); return
+            send(chat_id, "Введите координаты через пробел, например: <code>55 46</code>", thread, force_reply=True); return
         state["origin"] = coords; state["step"] = "type"
         send(chat_id, "Какую кропку ищем?", thread, {"inline_keyboard":[[{"text":"15c","callback_data":"crop:type:15"},{"text":"9c","callback_data":"crop:type:9"}]]})
     elif state["step"] == "reserve_coords":
         coords = parse_coords(text)
         if not coords:
-            send(chat_id, "Введите координаты через пробел, например: <code>196 195</code>", thread); return
+            send(chat_id, "Введите координаты через пробел, например: <code>196 195</code>", thread, force_reply=True); return
         reserve(chat_id, thread, user, *coords)
 
 
@@ -236,10 +236,10 @@ def process_callback(q):
     if data=="crop:menu": SESSIONS.pop(uid,None); show_menu(chat_id,thread)
     elif data=="crop:search":
         SESSIONS[uid]={"step":"origin"}
-        send(chat_id,"Введите координаты вашей деревни через пробел.\nНапример: <code>55 46</code>",thread)
+        send(chat_id,"Введите координаты вашей деревни через пробел.\nНапример: <code>55 46</code>",thread,force_reply=True)
     elif data=="crop:reserve":
         SESSIONS[uid]={"step":"reserve_coords"}
-        send(chat_id,"Введите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread)
+        send(chat_id,"Введите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
     elif data=="crop:mine": show_mine(chat_id,thread,user)
     elif data=="crop:cancel":
         rows=[r for r in load_reservations() if r.get("user_id")!=uid]; save_reservations(rows)
