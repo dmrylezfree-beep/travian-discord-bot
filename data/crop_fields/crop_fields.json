@@ -1,0 +1,14 @@
+{
+  "server": "ts8.x1.asia.travian.com",
+  "map_size": 401,
+  "test_data": true,
+  "updated_at": "TEST_DATA",
+  "crop_fields": [
+    {"x":196,"y":195,"crop_fields":15,"crop_bonus":75,"oases":[{"x":194,"y":197,"crop_bonus":50},{"x":198,"y":191,"crop_bonus":25}]},
+    {"x":200,"y":193,"crop_fields":15,"crop_bonus":25,"oases":[{"x":198,"y":191,"crop_bonus":25}]},
+    {"x":12,"y":8,"crop_fields":15,"crop_bonus":150,"oases":[{"x":10,"y":7,"crop_bonus":50},{"x":13,"y":6,"crop_bonus":50},{"x":14,"y":10,"crop_bonus":50}]},
+    {"x":-34,"y":21,"crop_fields":15,"crop_bonus":125,"oases":[{"x":-36,"y":20,"crop_bonus":50},{"x":-33,"y":23,"crop_bonus":50},{"x":-31,"y":22,"crop_bonus":25}]},
+    {"x":18,"y":-27,"crop_fields":9,"crop_bonus":150,"oases":[{"x":16,"y":-26,"crop_bonus":50},{"x":19,"y":-29,"crop_bonus":50},{"x":20,"y":-25,"crop_bonus":50}]},
+    {"x":-51,"y":39,"crop_fields":9,"crop_bonus":100,"oases":[{"x":-49,"y":40,"crop_bonus":50},{"x":-53,"y":37,"crop_bonus":50}]}
+  ]
+}
