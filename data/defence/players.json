@@ -22,19 +22,13 @@
     "villages": [],
     "substitutes": [],
     "state": null,
-    "race": "gaul",
+    "race": null,
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
-      "standards": [
-        15
-      ],
-      "boots": [
-        25
-      ],
-      "maps": [
-        30
-      ]
+      "standards": [],
+      "boots": [],
+      "maps": []
     }
   },
   "545074834": {
@@ -59,7 +53,7 @@
     "telegram_id": 8940235277,
     "username": "SokolDefBot",
     "first_name": "Sokol Def Bot",
-    "race": "teuton",
+    "race": null,
     "villages": [],
     "substitutes": [],
     "state": null
