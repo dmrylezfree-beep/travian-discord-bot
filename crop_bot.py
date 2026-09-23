@@ -239,7 +239,7 @@ def process_callback(q):
         send(chat_id,"Введите координаты вашей деревни через пробел.\nНапример: <code>55 46</code>",thread,force_reply=True)
     elif data=="crop:reserve":
         SESSIONS[uid]={"step":"reserve_coords"}
-        send(chat_id,"Введите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
+        send(chat_id,"⚠️ <b>Бронируйте кропку только тогда, когда до готовности очков культуры и поселенцев осталось не более 2 часов.</b>\n\nВведите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
     elif data=="crop:mine": show_mine(chat_id,thread,user)
     elif data=="crop:cancel":
         rows=[r for r in load_reservations() if r.get("user_id")!=uid]; save_reservations(rows)
