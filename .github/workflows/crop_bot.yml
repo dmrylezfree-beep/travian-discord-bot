@@ -1,0 +1,71 @@
+name: Crop Bot
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        required: false
+        default: "message"
+      thread_id:
+        required: false
+        default: "20"
+      update_json:
+        required: false
+        default: ""
+permissions:
+  contents: write
+concurrency:
+  group: crop-bot
+  cancel-in-progress: true
+jobs:
+  crop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - run: pip install requests
+      - name: Restore webhook only
+        if: inputs.action == 'restore_webhook'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.CROP_TELEGRAM_TOKEN }}
+          CROP_WEBHOOK_URL: ${{ secrets.CROP_WEBHOOK_URL }}
+        run: |
+          python - <<'PY'
+          import os, requests
+          r=requests.post(f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/setWebhook",json={"url":os.environ["CROP_WEBHOOK_URL"],"allowed_updates":["message","callback_query"]},timeout=40)
+          print(r.status_code,r.text); r.raise_for_status()
+          PY
+      - name: Switch to polling
+        if: inputs.action != 'restore_webhook'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.CROP_TELEGRAM_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os,requests
+          r=requests.post(f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/deleteWebhook",json={"drop_pending_updates":False},timeout=40)
+          print(r.status_code,r.text); r.raise_for_status()
+          PY
+      - name: Run crop bot
+        if: inputs.action != 'restore_webhook'
+        env:
+          CROP_TELEGRAM_TOKEN: ${{ secrets.CROP_TELEGRAM_TOKEN }}
+          CROP_INITIAL_UPDATE_JSON: ${{ inputs.update_json }}
+          CROP_RUN_SECONDS: "510"
+          TRAVIAN_SERVER_URL: "https://ts8.x1.asia.travian.com"
+        run: python crop_poll.py
+      - name: Restore webhook
+        if: always() && inputs.action != 'restore_webhook'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.CROP_TELEGRAM_TOKEN }}
+          CROP_WEBHOOK_URL: ${{ secrets.CROP_WEBHOOK_URL }}
+        run: |
+          python - <<'PY'
+          import os,requests
+          r=requests.post(f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/setWebhook",json={"url":os.environ["CROP_WEBHOOK_URL"],"allowed_updates":["message","callback_query"]},timeout=40)
+          print(r.status_code,r.text)
+          PY
