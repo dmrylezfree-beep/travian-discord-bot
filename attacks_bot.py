@@ -27,14 +27,14 @@ TELEGRAM_THREAD_ID = 76303
 # которые работают с ботом в личных сообщениях.
 TELEGRAM_GROUP_CHAT_ID = int(os.environ.get("TELEGRAM_GROUP_CHAT_ID", "0") or 0)
 
-SERVER_NAME = "Азия 7 TEST"
-SERVER_URL = "https://ts7.x1.asia.travian.com"
+SERVER_NAME = "Азия 8"
+SERVER_URL = "https://ts8.x1.asia.travian.com"
 
-ENEMY_ALLIANCE_NAME = "Hero"
-ENEMY_ALLIANCE_ID = 5
+ENEMY_ALLIANCE_NAME = "?"
+ENEMY_ALLIANCE_ID = None  # ? — заполним после старта Азии 8
 
 # ID нашего альянса.
-OUR_ALLIANCE_ID = 9
+OUR_ALLIANCE_ID = None  # ? — заполним после старта Азии 8
 
 # Атаки с прибытием в пределах +/- 30 минут
 # относятся к одной операции.
@@ -59,33 +59,7 @@ ARENA_ESTIMATION_TOLERANCE_SECONDS = 30
 # ВРАЖЕСКИЕ ОФФЕРЫ
 # ============================================================
 
-ENEMY_OFFERS = [
-    {
-        "id": "offer_1",
-        "x": 42,
-        "y": 33,
-    },
-    {
-        "id": "offer_2",
-        "x": 139,
-        "y": 187,
-    },
-    {
-        "id": "offer_3",
-        "x": -8,
-        "y": 69,
-    },
-    {
-        "id": "offer_4",
-        "x": 16,
-        "y": 29,
-    },
-    {
-        "id": "offer_5",
-        "x": 15,
-        "y": 33,
-    },
-]
+ENEMY_OFFERS = []
 
 
 # ============================================================
@@ -3435,7 +3409,7 @@ def start_attack_report(
     session["flow"] = "attack"
     session["step"] = "player"
 
-    if OUR_ALLIANCE_ID == 0:
+    if not OUR_ALLIANCE_ID:
 
         send_message(
             chat_id,
