@@ -58,6 +58,7 @@ def answer_callback(callback_id, text=None):
 def main_keyboard():
     return {"inline_keyboard": [
         [{"text": "🔎 Поиск кропок", "callback_data": "crop:search"}],
+        [{"text": "✅ Проверить доступность", "callback_data": "crop:check"}],
         [{"text": "📌 Забронировать кропку", "callback_data": "crop:reserve"}],
         [{"text": "📋 Моя бронь", "callback_data": "crop:mine"}],
     ]}
@@ -195,11 +196,29 @@ def process_message(msg):
             send(chat_id, "Введите координаты через пробел, например: <code>55 46</code>", thread, force_reply=True); return
         state["origin"] = coords; state["step"] = "type"
         send(chat_id, "Какую кропку ищем?", thread, {"inline_keyboard":[[{"text":"15c","callback_data":"crop:type:15"},{"text":"9c","callback_data":"crop:type:9"}]]})
+    elif state["step"] == "check_coords":
+        coords = parse_coords(text)
+        if not coords:
+            send(chat_id, "Введите координаты через пробел, например: <code>196 195</code>", thread, force_reply=True); return
+        check_availability(chat_id, thread, user, *coords)
     elif state["step"] == "reserve_coords":
         coords = parse_coords(text)
         if not coords:
             send(chat_id, "Введите координаты через пробел, например: <code>196 195</code>", thread, force_reply=True); return
         reserve(chat_id, thread, user, *coords)
+
+
+def check_availability(chat_id, thread, user, x, y):
+    crop = next((c for c in load_crops().get("crop_fields", []) if int(c["x"]) == x and int(c["y"]) == y), None)
+    if not crop:
+        send(chat_id, f"❌ <b>{x} {y}</b> — этой кропки нет в базе.", thread, main_keyboard())
+    elif (x, y) in latest_snapshot_occupied():
+        send(chat_id, f"❌ <b>{x} {y}</b> — кропка уже занята на последнем снимке карты.", thread, main_keyboard())
+    elif any(int(r["x"]) == x and int(r["y"]) == y for r in load_reservations()):
+        send(chat_id, f"📌 <b>{x} {y}</b> — кропка уже забронирована.", thread, main_keyboard())
+    else:
+        send(chat_id, f'✅ <b>{x} {y}</b> — кропка свободна и доступна для бронирования.\nТип: <b>{crop.get("crop_fields", "?")}c</b>, бонус: <b>+{crop.get("crop_bonus", 0)}%</b> 🌾', thread, main_keyboard())
+    SESSIONS.pop(user.get("id"), None)
 
 
 def reserve(chat_id, thread, user, x, y):
@@ -239,6 +258,9 @@ def process_callback(q):
     elif data=="crop:search":
         SESSIONS[uid]={"step":"origin"}
         send(chat_id,"Введите координаты вашей деревни через пробел.\nНапример: <code>55 46</code>",thread,force_reply=True)
+    elif data=="crop:check":
+        SESSIONS[uid]={"step":"check_coords"}
+        send(chat_id,"Введите координаты кропки, доступность которой хотите проверить.\nНапример: <code>196 195</code>",thread,force_reply=True)
     elif data=="crop:reserve":
         SESSIONS[uid]={"step":"reserve_coords"}
         send(chat_id,"⚠️ <b>Бронируйте кропку только тогда, когда до готовности очков культуры и поселенцев осталось не более 2 часов.</b>\n\nВведите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
