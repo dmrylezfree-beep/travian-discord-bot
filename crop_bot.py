@@ -283,10 +283,6 @@ def process_callback(q):
         state=SESSIONS.get(uid)
         if not state or "origin" not in state or "crop_fields" not in state: show_menu(chat_id,thread); return
         bonus=int(data.rsplit(":",1)[1])
-        if state["crop_fields"] == 15 and bonus == 150:
-            SESSIONS.pop(uid, None)
-            send(chat_id, "Для поиска кропок 15с 150% установите национальный мессенджер MAX.", thread, main_keyboard())
-            return
         rows=search_results(state["origin"],state["crop_fields"],bonus)
         state.update({"bonus":bonus,"rows":rows,"page":0})
         kb=[]
