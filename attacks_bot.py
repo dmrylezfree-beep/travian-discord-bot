@@ -30,11 +30,11 @@ TELEGRAM_GROUP_CHAT_ID = int(os.environ.get("TELEGRAM_GROUP_CHAT_ID", "0") or 0)
 SERVER_NAME = "Азия 8"
 SERVER_URL = "https://ts8.x1.asia.travian.com"
 
-ENEMY_ALLIANCE_NAME = "?"
-ENEMY_ALLIANCE_ID = None  # ? — заполним после старта Азии 8
+ENEMY_ALLIANCE_NAME = "Вражеские альянсы"
+ENEMY_ALLIANCE_IDS = {12, 4}
 
-# ID нашего альянса.
-OUR_ALLIANCE_ID = None  # ? — заполним после старта Азии 8
+# ID наших альянсов.
+OUR_ALLIANCE_IDS = {8, 2, 11}
 
 # Атаки с прибытием в пределах +/- 30 минут
 # относятся к одной операции.
@@ -567,7 +567,7 @@ def get_world_village_by_coords(x, y):
 
 def save_scout_village(x, y, arena):
     village = get_world_village_by_coords(x, y)
-    if not village or village.get("alliance_id") != OUR_ALLIANCE_ID:
+    if not village or village.get("alliance_id") not in OUR_ALLIANCE_IDS:
         return None, "Координаты не относятся к деревне нашего альянса."
 
     tribe_id = village.get("tribe_id")
@@ -707,7 +707,7 @@ def load_alliance_villages():
 
         alliance_id = safe_int(row[8])
 
-        if alliance_id != OUR_ALLIANCE_ID:
+        if alliance_id not in OUR_ALLIANCE_IDS:
 
             continue
 
@@ -3409,14 +3409,14 @@ def start_attack_report(
     session["flow"] = "attack"
     session["step"] = "player"
 
-    if not OUR_ALLIANCE_ID:
+    if not OUR_ALLIANCE_IDS:
 
         send_message(
             chat_id,
             (
                 "📥 <b>Отчёт об атаке</b>\n\n"
                 "⚠️ В настройках бота не указан "
-                "<code>OUR_ALLIANCE_ID</code>.\n\n"
+                "<code>OUR_ALLIANCE_IDS</code>.\n\n"
                 "Введите координаты вашей деревни вручную.\n"
                 "Формат: <code>46 -62</code>"
             ),
