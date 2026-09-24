@@ -29,14 +29,14 @@ POP_DROP_THRESHOLD = 50
 DELETED_PLAYER_MIN_POP = 100
 
 # ID нашего альянса
-OUR_ALLIANCE_IDS = set()  # ? — заполним после старта Азии 8
+OUR_ALLIANCE_IDS = {8, 2, 11}
 
 
 # ============================================================
 # ВРАЖЕСКИЙ АЛЬЯНС
 # ============================================================
 
-ENEMY_ALLIANCE_ID = None  # ? — заполним после старта Азии 8
+ENEMY_ALLIANCE_IDSS = {12, 4}
 
 # Тема Telegram
 THREAD_ID = 75792
@@ -949,13 +949,13 @@ def find_enemy_alliance_activity(
         "\n=== ПРОВЕРКА ВРАЖЕСКОГО АЛЬЯНСА ==="
     )
 
-    if ENEMY_ALLIANCE_ID is None:
+    if not ENEMY_ALLIANCE_IDSS:
         print("ID вражеского альянса пока не настроен — проверка пропущена.")
         return None
 
     print(
         f"Искомый alliance_id: "
-        f"{ENEMY_ALLIANCE_ID}"
+        f"{sorted(ENEMY_ALLIANCE_IDS)}"
     )
 
     v_today, _ = parse_map_data(
@@ -978,7 +978,7 @@ def find_enemy_alliance_activity(
 
         if (
             village["alliance_id"]
-            == ENEMY_ALLIANCE_ID
+            in ENEMY_ALLIANCE_IDSS
         ):
 
             enemy_villages_today.append(
@@ -997,7 +997,7 @@ def find_enemy_alliance_activity(
 
             if (
                 village["alliance_id"]
-                == ENEMY_ALLIANCE_ID
+                in ENEMY_ALLIANCE_IDSS
             ):
 
                 alliance_name = (
@@ -1009,7 +1009,7 @@ def find_enemy_alliance_activity(
     if not alliance_name:
 
         alliance_name = (
-            f"ID {ENEMY_ALLIANCE_ID}"
+            f"ID {sorted(ENEMY_ALLIANCE_IDS)}"
         )
 
     founded = []
@@ -1026,7 +1026,7 @@ def find_enemy_alliance_activity(
 
             if (
                 today["alliance_id"]
-                == ENEMY_ALLIANCE_ID
+                in ENEMY_ALLIANCE_IDSS
             ):
 
                 founded.append(
@@ -1051,9 +1051,9 @@ def find_enemy_alliance_activity(
 
             if (
                 today["alliance_id"]
-                == ENEMY_ALLIANCE_ID
+                in ENEMY_ALLIANCE_IDSS
                 and previous["alliance_id"]
-                != ENEMY_ALLIANCE_ID
+                not in ENEMY_ALLIANCE_IDSS
             ):
 
                 captured.append(
@@ -1081,9 +1081,9 @@ def find_enemy_alliance_activity(
 
             if (
                 previous["alliance_id"]
-                == ENEMY_ALLIANCE_ID
+                in ENEMY_ALLIANCE_IDSS
                 and today["alliance_id"]
-                != ENEMY_ALLIANCE_ID
+                not in ENEMY_ALLIANCE_IDSS
             ):
 
                 lost.append(
@@ -1151,7 +1151,7 @@ def find_enemy_alliance_activity(
         print(
             f"ВНИМАНИЕ: в сегодняшнем map.sql "
             f"не найдено деревень с alliance_id "
-            f"{ENEMY_ALLIANCE_ID}."
+            f"{ENEMY_ALLIANCE_IDS}."
         )
 
     print(
@@ -1159,7 +1159,7 @@ def find_enemy_alliance_activity(
     )
 
     return {
-        "alliance_id": ENEMY_ALLIANCE_ID,
+        "alliance_id": ", ".join(str(x) for x in sorted(ENEMY_ALLIANCE_IDS)),
         "alliance": alliance_name,
         "founded": founded,
         "captured": captured,
