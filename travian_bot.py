@@ -36,7 +36,7 @@ OUR_ALLIANCE_IDS = {8, 2, 11}
 # ВРАЖЕСКИЙ АЛЬЯНС
 # ============================================================
 
-ENEMY_ALLIANCE_IDSS = {12, 4}
+ENEMY_ALLIANCE_IDS = {12, 4}
 
 # Тема Telegram
 THREAD_ID = 75792
@@ -949,7 +949,7 @@ def find_enemy_alliance_activity(
         "\n=== ПРОВЕРКА ВРАЖЕСКОГО АЛЬЯНСА ==="
     )
 
-    if not ENEMY_ALLIANCE_IDSS:
+    if not ENEMY_ALLIANCE_IDS:
         print("ID вражеского альянса пока не настроен — проверка пропущена.")
         return None
 
@@ -978,7 +978,7 @@ def find_enemy_alliance_activity(
 
         if (
             village["alliance_id"]
-            in ENEMY_ALLIANCE_IDSS
+            in ENEMY_ALLIANCE_IDS
         ):
 
             enemy_villages_today.append(
@@ -997,7 +997,7 @@ def find_enemy_alliance_activity(
 
             if (
                 village["alliance_id"]
-                in ENEMY_ALLIANCE_IDSS
+                in ENEMY_ALLIANCE_IDS
             ):
 
                 alliance_name = (
@@ -1026,7 +1026,7 @@ def find_enemy_alliance_activity(
 
             if (
                 today["alliance_id"]
-                in ENEMY_ALLIANCE_IDSS
+                in ENEMY_ALLIANCE_IDS
             ):
 
                 founded.append(
@@ -1051,9 +1051,9 @@ def find_enemy_alliance_activity(
 
             if (
                 today["alliance_id"]
-                in ENEMY_ALLIANCE_IDSS
+                in ENEMY_ALLIANCE_IDS
                 and previous["alliance_id"]
-                not in ENEMY_ALLIANCE_IDSS
+                not in ENEMY_ALLIANCE_IDS
             ):
 
                 captured.append(
@@ -1081,9 +1081,9 @@ def find_enemy_alliance_activity(
 
             if (
                 previous["alliance_id"]
-                in ENEMY_ALLIANCE_IDSS
+                in ENEMY_ALLIANCE_IDS
                 and today["alliance_id"]
-                not in ENEMY_ALLIANCE_IDSS
+                not in ENEMY_ALLIANCE_IDS
             ):
 
                 lost.append(
