@@ -15,7 +15,7 @@ permissions:
   contents: write
 concurrency:
   group: crop-bot
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   crop:
     runs-on: ubuntu-latest
