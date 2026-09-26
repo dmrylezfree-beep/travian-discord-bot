@@ -224,9 +224,6 @@ def check_availability(chat_id, thread, user, x, y):
 def reserve(chat_id, thread, user, x, y):
     rows = load_reservations()
     uid = user.get("id")
-    mine = next((r for r in rows if r.get("user_id") == uid), None)
-    if mine:
-        send(chat_id, f'У вас уже есть бронь: <b>{mine["x"]} {mine["y"]}</b>. Сначала отмените её.', thread); return
     crop = next((c for c in load_crops().get("crop_fields", []) if int(c["x"])==x and int(c["y"])==y), None)
     if not crop:
         send(chat_id, "Этой кропки нет в базе.", thread); return
@@ -242,11 +239,17 @@ def reserve(chat_id, thread, user, x, y):
 
 def show_mine(chat_id, thread, user):
     uid = user.get("id")
-    r = next((x for x in load_reservations() if x.get("user_id")==uid), None)
-    if not r:
-        send(chat_id, "У вас нет забронированной кропки.", thread, main_keyboard()); return
-    send(chat_id, f'📌 Ваша бронь: <b>{r["x"]} {r["y"]}</b>', thread,
-         {"inline_keyboard":[[{"text":"❌ Отменить бронь","callback_data":"crop:cancel"}],[{"text":"⬅️ Меню","callback_data":"crop:menu"}]]})
+    mine = [r for r in load_reservations() if r.get("user_id") == uid]
+    if not mine:
+        send(chat_id, "У вас нет забронированных кропок.", thread, main_keyboard()); return
+    lines = ["📌 <b>Ваши брони:</b>"]
+    buttons = []
+    for r in mine:
+        x, y = int(r["x"]), int(r["y"])
+        lines.append(f"• <b>{x} {y}</b>")
+        buttons.append([{"text": f"❌ Отменить {x} {y}", "callback_data": f"crop:cancel:{x}:{y}"}])
+    buttons.append([{"text":"⬅️ Меню","callback_data":"crop:menu"}])
+    send(chat_id, "\n".join(lines), thread, {"inline_keyboard": buttons})
 
 
 def process_callback(q):
@@ -265,15 +268,21 @@ def process_callback(q):
         SESSIONS[uid]={"step":"reserve_coords"}
         send(chat_id,"⚠️ <b>Бронируйте кропку только тогда, когда до готовности очков культуры и поселенцев осталось не более 2 часов.</b>\n\nВведите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
     elif data=="crop:mine": show_mine(chat_id,thread,user)
-    elif data=="crop:cancel":
+    elif data.startswith("crop:cancel:"):
         rows = load_reservations()
-        mine = next((r for r in rows if r.get("user_id") == uid), None)
-        if not mine:
-            answer_callback(q.get("id"), "У вас нет активной брони.")
+        try:
+            _, _, sx, sy = data.split(":")
+            x, y = int(sx), int(sy)
+        except (ValueError, TypeError):
+            answer_callback(q.get("id"), "Некорректная бронь.")
             return
-        rows = [r for r in rows if r.get("user_id") != uid]
+        mine = next((r for r in rows if r.get("user_id") == uid and int(r["x"]) == x and int(r["y"]) == y), None)
+        if not mine:
+            answer_callback(q.get("id"), "Эта бронь уже отсутствует.")
+            return
+        rows = [r for r in rows if not (r.get("user_id") == uid and int(r["x"]) == x and int(r["y"]) == y)]
         save_reservations(rows)
-        send(chat_id, "Бронь отменена.", thread, main_keyboard())
+        send(chat_id, f"Бронь <b>{x} {y}</b> отменена.", thread, main_keyboard())
     elif data.startswith("crop:type:"):
         state=SESSIONS.setdefault(uid,{})
         state["crop_fields"]=int(data.rsplit(":",1)[1]); state["step"]="bonus"
