@@ -61,6 +61,7 @@ def main_keyboard():
         [{"text": "✅ Проверить доступность", "callback_data": "crop:check"}],
         [{"text": "📌 Забронировать кропку", "callback_data": "crop:reserve"}],
         [{"text": "📋 Моя бронь", "callback_data": "crop:mine"}],
+        [{"text": "👥 Все брони", "callback_data": "crop:all"}],
     ]}
 
 
@@ -252,6 +253,28 @@ def show_mine(chat_id, thread, user):
     send(chat_id, "\n".join(lines), thread, {"inline_keyboard": buttons})
 
 
+def show_all_reservations(chat_id, thread):
+    rows = load_reservations()
+    if not rows:
+        send(chat_id, "Сейчас нет забронированных кропок.", thread, main_keyboard())
+        return
+    lines = ["👥 <b>Все брони:</b>", ""]
+    for r in rows:
+        x, y = int(r["x"]), int(r["y"])
+        name = (r.get("name") or "").strip()
+        username = (r.get("username") or "").strip()
+        if username:
+            who = f"@{html.escape(username)}"
+            if name:
+                who = f"{html.escape(name)} ({who})"
+        elif name:
+            who = html.escape(name)
+        else:
+            who = f"ID {r.get('user_id', '?')}"
+        lines.append(f"• <b>{x} {y}</b> — {who}")
+    send(chat_id, "\n".join(lines), thread, {"inline_keyboard": [[{"text":"⬅️ Меню","callback_data":"crop:menu"}]]})
+
+
 def process_callback(q):
     answer_callback(q.get("id"))
     msg=q.get("message") or {}; chat=msg.get("chat") or {}; chat_id=chat.get("id")
@@ -268,6 +291,7 @@ def process_callback(q):
         SESSIONS[uid]={"step":"reserve_coords"}
         send(chat_id,"⚠️ <b>Бронируйте кропку только тогда, когда до готовности очков культуры и поселенцев осталось не более 2 часов.</b>\n\nВведите координаты кропки для бронирования через пробел.\nНапример: <code>196 195</code>",thread,force_reply=True)
     elif data=="crop:mine": show_mine(chat_id,thread,user)
+    elif data=="crop:all": show_all_reservations(chat_id,thread)
     elif data.startswith("crop:cancel:"):
         rows = load_reservations()
         try:
