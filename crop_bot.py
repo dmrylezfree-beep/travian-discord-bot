@@ -43,7 +43,9 @@ def send(chat_id, text, thread_id=None, keyboard=None, force_reply=False):
         payload["message_thread_id"] = thread_id
     if keyboard is not None:
         payload["reply_markup"] = keyboard
-    elif force_reply:
+    elif force_reply and thread_id is None:
+        # ForceReply only in private chat. In forum topics it can open a reply UI
+        # for other members who are currently reading a different topic.
         payload["reply_markup"] = {"force_reply": True}
     return telegram("sendMessage", **payload)
 
