@@ -1,4 +1,3 @@
-
 name: Travian Feeders Bot
 
 on:
@@ -6,35 +5,10 @@ on:
     inputs:
       action:
         description: "Action"
-        required: true
-        default: "command"
-
-      chat_id:
-        description: "Telegram chat ID"
-        required: true
-
-      message_id:
-        description: "Telegram message ID"
         required: false
-        default: ""
-
-      thread_id:
-        description: "Telegram thread ID"
-        required: false
-        default: "75984"
-
-      origin_spec:
-        description: "Origin villages/players"
-        required: false
-        default: ""
-
-      page:
-        description: "Page number"
-        required: false
-        default: "0"
-
-      callback_id:
-        description: "Telegram callback query ID"
+        default: "message"
+      update_json:
+        description: "Initial Telegram update"
         required: false
         default: ""
 
@@ -45,10 +19,15 @@ jobs:
     permissions:
       contents: read
 
+    concurrency:
+      group: feeders-bot
+      cancel-in-progress: false
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Set up Python
@@ -61,19 +40,70 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Run feeders bot
+      - name: Restore webhook only
+        if: inputs.action == 'restore_webhook'
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-
-          ACTION: ${{ inputs.action }}
-          CHAT_ID: ${{ inputs.chat_id }}
-          MESSAGE_ID: ${{ inputs.message_id }}
-          THREAD_ID: ${{ inputs.thread_id }}
-          ORIGIN_SPEC: ${{ inputs.origin_spec }}
-          PAGE: ${{ inputs.page }}
-          CALLBACK_ID: ${{ inputs.callback_id }}
-
-          TRAVIAN_MAP_SIZE: "401"
-
+          FEEDERS_WEBHOOK_URL: ${{ secrets.FEEDERS_WEBHOOK_URL }}
         run: |
-          python telegram_bot.py
+          python - <<'PY'
+          import os, requests
+          r = requests.post(
+              f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/setWebhook",
+              json={
+                  "url": os.environ["FEEDERS_WEBHOOK_URL"],
+                  "allowed_updates": ["message", "callback_query"],
+              },
+              timeout=40,
+          )
+          print(r.status_code, r.text)
+          r.raise_for_status()
+          PY
+
+      - name: Switch to polling
+        if: inputs.action != 'restore_webhook'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, requests
+          r = requests.post(
+              f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/deleteWebhook",
+              json={"drop_pending_updates": False},
+              timeout=40,
+          )
+          print(r.status_code, r.text)
+          r.raise_for_status()
+          PY
+
+      - name: Run feeders bot
+        if: inputs.action != 'restore_webhook'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          FEEDERS_INITIAL_UPDATE_JSON: ${{ inputs.update_json }}
+          FEEDERS_RUN_SECONDS: "510"
+          TRAVIAN_MAP_SIZE: "401"
+        run: python feeders_poll.py
+
+      - name: Restore webhook
+        if: always() && inputs.action != 'restore_webhook'
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          FEEDERS_WEBHOOK_URL: ${{ secrets.FEEDERS_WEBHOOK_URL }}
+        run: |
+          python - <<'PY'
+          import os, requests
+          url = os.environ.get("FEEDERS_WEBHOOK_URL", "").strip()
+          if not url:
+              raise RuntimeError("FEEDERS_WEBHOOK_URL secret is not configured")
+          r = requests.post(
+              f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/setWebhook",
+              json={
+                  "url": url,
+                  "allowed_updates": ["message", "callback_query"],
+              },
+              timeout=40,
+          )
+          print(r.status_code, r.text)
+          r.raise_for_status()
+          PY
