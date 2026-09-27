@@ -395,19 +395,6 @@ export default {
       // Проверяем тему.
 
       if (
-        message.is_topic_message !== true
-      ) {
-
-        console.log(
-          "CALLBACK ОТФИЛЬТРОВАН: " +
-          "это не topic message."
-        );
-
-        return new Response("OK");
-      }
-
-
-      if (
         Number(message.message_thread_id)
         !== THREAD_ID
       ) {
@@ -588,24 +575,6 @@ export default {
     // ========================================================
     // ПРОВЕРКА ТЕМЫ
     // ========================================================
-
-    if (
-      message.is_topic_message !== true
-    ) {
-
-      console.log(
-        "СООБЩЕНИЕ ОТФИЛЬТРОВАНО: " +
-        "message.is_topic_message !== true"
-      );
-
-      return new Response("OK");
-    }
-
-
-    console.log(
-      "Проверка is_topic_message: OK"
-    );
-
 
     if (
       Number(message.message_thread_id)
