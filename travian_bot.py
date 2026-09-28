@@ -40,6 +40,7 @@ ENEMY_ALLIANCE_IDS = {1, 12, 29, 34}
 
 # Тема Telegram
 THREAD_ID = 75792
+JAPANESE_THREAD_ID = 79936
 
 
 # ============================================================
@@ -494,8 +495,44 @@ def find_previous_snapshot(date_string):
 # TELEGRAM
 # ============================================================
 
-def send_to_telegram(message, thread_id=None):
+JAPANESE_REPLACEMENTS = [
+    ("НОВЫЕ ЧУЖИЕ ДЕРЕВНИ В СЕКТОРЕ (+,+)", "セクター (+,+) の新しい他勢力の村"),
+    ("Кого катали за прошедшие сутки", "過去24時間に人口が減少した村"),
+    ("Неактивны за последние 24 часа", "過去24時間の非アクティブプレイヤー"),
+    ("Удаленные аккаунты", "削除されたアカウント"),
+    ("Удалённые аккаунты", "削除されたアカウント"),
+    ("Захваченные деревни", "占領された村"),
+    ("Активность альянса", "敵同盟の活動"),
+    ("Новые деревни", "新しい村"),
+    ("Захваченные деревни", "占領した村"),
+    ("Потерянные деревни", "失った村"),
+    ("Данные об альянсе не получены.", "同盟データを取得できませんでした。"),
+    ("Нет игроков, которые были неактивны только сегодня и вчера.", "該当する非アクティブプレイヤーはいません。"),
+    ("Нет изменений за период.", "この期間に変更はありません。"),
+    ("Нет новых деревень.", "新しい村はありません。"),
+    ("Нет захваченных деревень.", "占領した村はありません。"),
+    ("Нет потерянных деревень.", "失った村はありません。"),
+    ("без альянса", "同盟なし"),
+    ("население", "人口"),
+    ("сейчас", "現在"),
+    ("захватил у", "から占領"),
+    ("основана игроком", "建設したプレイヤー"),
+    ("захвачена игроком", "占領したプレイヤー"),
+    ("потеряна игроком", "失ったプレイヤー"),
+    ("в пользу", "→"),
+    ("Деревня", "村"),
+    ("игрока", "プレイヤー"),
+]
 
+
+def japanese_report(message):
+    result = str(message)
+    for source, target in JAPANESE_REPLACEMENTS:
+        result = result.replace(source, target)
+    return result
+
+
+def _send_telegram_once(message, thread_id=None):
     if not message.strip():
         return
 
@@ -521,49 +558,36 @@ def send_to_telegram(message, thread_id=None):
         payload["message_thread_id"] = thread_id
 
     try:
-
-        response = requests.post(
-            url,
-            json=payload,
-            timeout=30
-        )
-
+        response = requests.post(url, json=payload, timeout=30)
         try:
             result = response.json()
         except ValueError:
-            result = {
-                "raw_response": response.text
-            }
+            result = {"raw_response": response.text}
 
         if not response.ok or not result.get("ok"):
             fail(
                 "Telegram API вернул ошибку "
                 f"HTTP {response.status_code}: {result}"
             )
-
     except requests.RequestException as exc:
-
         response_text = ""
-
         if getattr(exc, "response", None) is not None:
-
             try:
                 response_text = exc.response.text
             except Exception:
                 response_text = ""
-
-        details = (
-            f"; ответ Telegram: {response_text}"
-            if response_text
-            else ""
-        )
-
-        fail(
-            "Не удалось отправить сообщение "
-            f"в Telegram: {exc}{details}"
-        )
+        details = f"; ответ Telegram: {response_text}" if response_text else ""
+        fail(f"Не удалось отправить сообщение в Telegram: {exc}{details}")
 
 
+def send_to_telegram(message, thread_id=None):
+    _send_telegram_once(message, thread_id)
+
+    # Every daily Russian report from the main report topic is duplicated
+    # into the Japanese topic. Dynamic names, alliances, coordinates and
+    # numbers stay unchanged; only report/interface wording is translated.
+    if thread_id == THREAD_ID and JAPANESE_THREAD_ID != THREAD_ID:
+        _send_telegram_once(japanese_report(message), JAPANESE_THREAD_ID)
 def html_escape(text):
     """Безопасно экранирует динамический текст для Telegram HTML."""
 
