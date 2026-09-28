@@ -9,6 +9,7 @@ from pathlib import Path
 import requests
 
 THREAD_ID = 20
+JAPANESE_THREAD_ID = 79936
 TOKEN = os.environ.get("CROP_TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_GROUP_CHAT_ID")
 CROPS = Path("data/crop_fields/crop_fields.json")
@@ -128,12 +129,36 @@ def main():
             )
 
     if TOKEN and CHAT_ID:
+        russian_text = "\n".join(lines)
         r = requests.post(
             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
             json={
                 "chat_id": CHAT_ID,
                 "message_thread_id": THREAD_ID,
-                "text": "\n".join(lines),
+                "text": russian_text,
+                "parse_mode": "HTML",
+            },
+            timeout=40,
+        )
+        print(r.status_code, r.text)
+        r.raise_for_status()
+
+        japanese_text = russian_text
+        for source, target in [
+            ("🌾 Изменения по кропкам", "🌾 クロップ村の変更"),
+            ("Освободились:", "空きになったクロップ村:"),
+            ("🏘 Заселены игроками:", "🏘 プレイヤーが入植したクロップ村:"),
+            ("🏴 Теперь заняты Натарами:", "🏴 ナタールが占領したクロップ村:"),
+            ("без альянса", "同盟なし"),
+        ]:
+            japanese_text = japanese_text.replace(source, target)
+
+        r = requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+            json={
+                "chat_id": CHAT_ID,
+                "message_thread_id": JAPANESE_THREAD_ID,
+                "text": japanese_text,
                 "parse_mode": "HTML",
             },
             timeout=40,
