@@ -57,5 +57,21 @@
     "villages": [],
     "substitutes": [],
     "state": null
+  },
+  "1276571063": {
+    "telegram_id": 1276571063,
+    "username": "GabrielAAR",
+    "first_name": "Gabriel",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 1276571063,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
