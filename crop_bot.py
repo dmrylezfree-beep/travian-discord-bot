@@ -8,6 +8,8 @@ from pathlib import Path
 
 import requests
 
+from bot_i18n import get_language, set_language, language_keyboard, language_text, saved_text
+
 TELEGRAM_TOKEN = os.environ.get("CROP_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_THREAD_ID = 20
 SERVER_URL = os.environ.get("TRAVIAN_SERVER_URL", "https://ts8.x1.asia.travian.com").rstrip("/")
@@ -64,6 +66,7 @@ def main_keyboard():
         [{"text": "📌 Забронировать кропку", "callback_data": "crop:reserve"}],
         [{"text": "📋 Моя бронь", "callback_data": "crop:mine"}],
         [{"text": "👥 Все брони", "callback_data": "crop:all"}],
+        [{"text": "🌐 Язык / Language", "callback_data": "crop:language"}],
     ]}
 
 
@@ -282,7 +285,13 @@ def process_callback(q):
     msg=q.get("message") or {}; chat=msg.get("chat") or {}; chat_id=chat.get("id")
     thread=msg.get("message_thread_id"); user=q.get("from") or {}; uid=user.get("id"); data=q.get("data") or ""
     if chat.get("type") != "private" and thread != TELEGRAM_THREAD_ID: return
-    if data=="crop:menu": SESSIONS.pop(uid,None); show_menu(chat_id,thread)
+    if data=="crop:language" and chat.get("type") == "private":
+        send(chat_id, language_text(uid), None, language_keyboard("crop:lang")); return
+    elif data.startswith("crop:lang:") and chat.get("type") == "private":
+        lang=data.rsplit(":",1)[1]
+        if set_language(uid,lang): send(chat_id,saved_text(lang),None)
+        show_menu(chat_id,None); return
+    elif data=="crop:menu": SESSIONS.pop(uid,None); show_menu(chat_id,thread)
     elif data=="crop:search":
         SESSIONS[uid]={"step":"origin"}
         send(chat_id,"Введите координаты вашей деревни через пробел.\nНапример: <code>55 46</code>",thread,force_reply=True)
