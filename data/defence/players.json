@@ -1,63 +1,4 @@
 {
-  "246406753": {
-    "telegram_id": 246406753,
-    "username": "alex_8010",
-    "first_name": "Алишер",
-    "race": null,
-    "villages": [],
-    "substitutes": [],
-    "state": null,
-    "private_chat_id": null,
-    "private_notifications": true,
-    "hero_inventory": {
-      "standards": [],
-      "boots": [],
-      "maps": []
-    }
-  },
-  "317595036": {
-    "telegram_id": 317595036,
-    "username": "dmrylez",
-    "first_name": "Дмитрий",
-    "villages": [],
-    "substitutes": [],
-    "state": null,
-    "race": null,
-    "private_chat_id": 317595036,
-    "private_notifications": true,
-    "hero_inventory": {
-      "standards": [],
-      "boots": [],
-      "maps": []
-    }
-  },
-  "545074834": {
-    "telegram_id": 545074834,
-    "username": "Yaroslav9728",
-    "first_name": "Yaroslav(OneWayTicket)",
-    "race": null,
-    "villages": [],
-    "substitutes": [],
-    "state": null
-  },
-  "972118673": {
-    "telegram_id": 972118673,
-    "username": "Oleg118790",
-    "first_name": "Олег",
-    "race": null,
-    "villages": [],
-    "substitutes": [],
-    "state": null
-  },
-  "8940235277": {
-    "telegram_id": 8940235277,
-    "username": "SokolDefBot",
-    "first_name": "Sokol Def Bot",
-    "race": null,
-    "villages": [],
-    "substitutes": [],
-    "state": null
-  },
   "1276571063": {
     "telegram_id": 1276571063,
     "username": "GabrielAAR",
@@ -65,8 +6,8 @@
     "race": null,
     "villages": [],
     "substitutes": [],
-    "state": null,
-    "private_chat_id": 1276571063,
+    "state": "add_village_coords",
+    "private_chat_id": null,
     "private_notifications": true,
     "hero_inventory": {
       "standards": [],
