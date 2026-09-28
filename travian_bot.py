@@ -36,7 +36,7 @@ OUR_ALLIANCE_IDS = {8, 2, 11}
 # ВРАЖЕСКИЙ АЛЬЯНС
 # ============================================================
 
-ENEMY_ALLIANCE_IDS = {12, 4}
+ENEMY_ALLIANCE_IDS = {1, 12, 29, 34}
 
 # Тема Telegram
 THREAD_ID = 75792
