@@ -51,6 +51,12 @@ def crop_label(crop_by_coord, coord):
     return f"{fields}c" if fields in (9, 15) else "?c"
 
 
+def crop_bonus(crop_by_coord, coord):
+    row = crop_by_coord.get(coord, {})
+    bonus = row.get("crop_bonus")
+    return f"{bonus}%" if isinstance(bonus, (int, float)) else "?%"
+
+
 def main():
     if not CROPS.exists():
         return
@@ -109,6 +115,7 @@ def main():
             alliance = html.escape(row["alliance"] or "без альянса")
             lines.append(
                 f"• <b>{x} {y}</b> — {crop_label(crop_by_coord, coord)}"
+                f" | 🌾 {crop_bonus(crop_by_coord, coord)}"
                 f" | 👤 {player} | 🛡 {alliance}"
             )
 
