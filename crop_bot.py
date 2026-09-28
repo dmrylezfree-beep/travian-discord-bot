@@ -8,7 +8,7 @@ from pathlib import Path
 
 import requests
 
-from bot_i18n import get_language, set_language, language_keyboard, language_text, saved_text
+from bot_i18n import get_language, set_language, language_keyboard, language_text, saved_text, tr_crop_text, localize_keyboard
 
 TELEGRAM_TOKEN = os.environ.get("CROP_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_THREAD_ID = 20
@@ -40,6 +40,10 @@ def telegram(method, **kwargs):
 
 
 def send(chat_id, text, thread_id=None, keyboard=None, force_reply=False):
+    if thread_id is None:
+        text = tr_crop_text(text, chat_id)
+        if keyboard is not None:
+            keyboard = localize_keyboard(keyboard, chat_id)
     payload = dict(chat_id=chat_id, text=text, parse_mode="HTML", disable_web_page_preview=True)
     if thread_id is not None:
         payload["message_thread_id"] = thread_id
