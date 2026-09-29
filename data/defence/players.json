@@ -37,10 +37,13 @@
     "telegram_id": 599282480,
     "username": "Jim_Reynor",
     "first_name": "Konstantin",
-    "race": null,
+    "race": "roman",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "40 26"
+    },
     "private_chat_id": 599282480,
     "private_notifications": true,
     "hero_inventory": {
