@@ -103,10 +103,7 @@
     "race": "gaul",
     "villages": [],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "12 43"
-    },
+    "state": "add_village_coords",
     "private_chat_id": 5428460123,
     "private_notifications": true,
     "hero_inventory": {
