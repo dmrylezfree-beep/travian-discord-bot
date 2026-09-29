@@ -92,5 +92,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "5428460123": {
+    "telegram_id": 5428460123,
+    "username": "",
+    "first_name": "Vd",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 5428460123,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
