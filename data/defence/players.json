@@ -32,5 +32,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "599282480": {
+    "telegram_id": 599282480,
+    "username": "Jim_Reynor",
+    "first_name": "Konstantin",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 599282480,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
