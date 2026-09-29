@@ -81,10 +81,13 @@
     "telegram_id": 5465220029,
     "username": "",
     "first_name": "Максим",
-    "race": null,
+    "race": "gaul",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "46 31"
+    },
     "private_chat_id": 5465220029,
     "private_notifications": true,
     "hero_inventory": {
