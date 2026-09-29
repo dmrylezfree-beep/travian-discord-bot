@@ -137,10 +137,13 @@
     "telegram_id": 14175563,
     "username": "ZHSA1987",
     "first_name": "Сергей",
-    "race": null,
+    "race": "teuton",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "52 23"
+    },
     "private_chat_id": 14175563,
     "private_notifications": true,
     "hero_inventory": {
