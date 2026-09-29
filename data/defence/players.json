@@ -122,7 +122,11 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "unit_amount",
+      "index": 0,
+      "unit": "phalanx"
+    },
     "private_chat_id": 5428460123,
     "private_notifications": true,
     "hero_inventory": {
