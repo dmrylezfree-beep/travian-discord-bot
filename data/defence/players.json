@@ -60,5 +60,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "2127770760": {
+    "telegram_id": 2127770760,
+    "username": "",
+    "first_name": "Сергей",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 2127770760,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
