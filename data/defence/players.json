@@ -44,7 +44,7 @@
         "arena": 0,
         "troops": {},
         "hero": {
-          "present": false
+          "present": true
         }
       }
     ],
