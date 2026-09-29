@@ -14,5 +14,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "317595036": {
+    "telegram_id": 317595036,
+    "username": "dmrylez",
+    "first_name": "Дмитрий",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": null,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
