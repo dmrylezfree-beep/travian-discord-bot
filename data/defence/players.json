@@ -49,7 +49,10 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "coords",
+      "index": 0
+    },
     "private_chat_id": 599282480,
     "private_notifications": true,
     "hero_inventory": {
