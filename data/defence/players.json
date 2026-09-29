@@ -138,12 +138,18 @@
     "username": "ZHSA1987",
     "first_name": "Сергей",
     "race": "teuton",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "52 23",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "52 23"
-    },
+    "state": null,
     "private_chat_id": 14175563,
     "private_notifications": true,
     "hero_inventory": {
