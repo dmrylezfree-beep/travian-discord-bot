@@ -82,12 +82,18 @@
     "username": "",
     "first_name": "Максим",
     "race": "gaul",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "46 31",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "46 31"
-    },
+    "state": null,
     "private_chat_id": 5465220029,
     "private_notifications": true,
     "hero_inventory": {
