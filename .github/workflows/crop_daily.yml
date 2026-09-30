@@ -1,7 +1,7 @@
 name: Crop Daily Report
 on:
   schedule:
-    - cron: "35 5 * * *"
+    - cron: "35 3 * * *"
   workflow_dispatch:
 jobs:
   crop-daily:
