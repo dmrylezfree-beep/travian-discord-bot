@@ -263,9 +263,13 @@ def show_mine(chat_id, thread, user):
 
 
 def show_all_reservations(chat_id, thread):
-    rows = load_reservations()
+    occupied = latest_snapshot_occupied()
+    rows = [
+        r for r in load_reservations()
+        if (int(r["x"]), int(r["y"])) not in occupied
+    ]
     if not rows:
-        send(chat_id, "Сейчас нет забронированных кропок.", thread, main_keyboard())
+        send(chat_id, "Сейчас нет забронированных свободных кропок.", thread, main_keyboard())
         return
     lines = ["👥 <b>Все брони:</b>", ""]
     for r in rows:
