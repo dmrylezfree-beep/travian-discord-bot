@@ -197,7 +197,9 @@
     "race": null,
     "villages": [],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "request_target_coords"
+    },
     "private_chat_id": 926175327,
     "private_notifications": true,
     "hero_inventory": {
