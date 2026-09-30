@@ -189,5 +189,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "926175327": {
+    "telegram_id": 926175327,
+    "username": "dlmnch",
+    "first_name": "Ігор ДЛМ",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 926175327,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
