@@ -2,7 +2,7 @@ name: Daily Travian Report
 
 on:
   schedule:
-    - cron: '15 5 * * *'  # 08:15 МСК (05:15 UTC)
+    - cron: '15 3 * * *'  # 06:15 МСК (03:15 UTC)
   workflow_dispatch:
 
 jobs:
