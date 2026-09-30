@@ -36,9 +36,30 @@ jobs:
           CROP_WEBHOOK_URL: ${{ secrets.CROP_WEBHOOK_URL }}
         run: |
           python - <<'PY'
-          import os, requests
-          r=requests.post(f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/setWebhook",json={"url":os.environ["CROP_WEBHOOK_URL"],"allowed_updates":["message","callback_query"]},timeout=40)
-          print(r.status_code,r.text); r.raise_for_status()
+          import os, time, requests
+          token = os.environ["TELEGRAM_TOKEN"]
+          url = os.environ["CROP_WEBHOOK_URL"]
+          last = None
+          for attempt in range(1, 13):
+              try:
+                  r = requests.post(
+                      f"https://api.telegram.org/bot{token}/setWebhook",
+                      json={"url": url, "allowed_updates": ["message", "callback_query"]},
+                      timeout=40,
+                  )
+                  print(f"setWebhook attempt {attempt}/12:", r.status_code, r.text, flush=True)
+                  if r.ok:
+                      data = r.json()
+                      if data.get("ok"):
+                          break
+                  last = RuntimeError(f"Telegram setWebhook failed: {r.status_code} {r.text}")
+              except Exception as exc:
+                  last = exc
+                  print(f"setWebhook attempt {attempt}/12 exception: {exc!r}", flush=True)
+              if attempt < 12:
+                  time.sleep(15)
+          else:
+              raise last or RuntimeError("Unable to restore crop webhook")
           PY
       - name: Switch to polling
         if: inputs.action != 'restore_webhook'
@@ -65,7 +86,28 @@ jobs:
           CROP_WEBHOOK_URL: ${{ secrets.CROP_WEBHOOK_URL }}
         run: |
           python - <<'PY'
-          import os,requests
-          r=requests.post(f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/setWebhook",json={"url":os.environ["CROP_WEBHOOK_URL"],"allowed_updates":["message","callback_query"]},timeout=40)
-          print(r.status_code,r.text)
+          import os, time, requests
+          token = os.environ["TELEGRAM_TOKEN"]
+          url = os.environ["CROP_WEBHOOK_URL"]
+          last = None
+          for attempt in range(1, 13):
+              try:
+                  r = requests.post(
+                      f"https://api.telegram.org/bot{token}/setWebhook",
+                      json={"url": url, "allowed_updates": ["message", "callback_query"]},
+                      timeout=40,
+                  )
+                  print(f"setWebhook attempt {attempt}/12:", r.status_code, r.text, flush=True)
+                  if r.ok:
+                      data = r.json()
+                      if data.get("ok"):
+                          break
+                  last = RuntimeError(f"Telegram setWebhook failed: {r.status_code} {r.text}")
+              except Exception as exc:
+                  last = exc
+                  print(f"setWebhook attempt {attempt}/12 exception: {exc!r}", flush=True)
+              if attempt < 12:
+                  time.sleep(15)
+          else:
+              raise last or RuntimeError("Unable to restore crop webhook")
           PY
