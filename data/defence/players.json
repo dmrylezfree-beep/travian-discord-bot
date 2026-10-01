@@ -221,5 +221,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "374099244": {
+    "telegram_id": 374099244,
+    "username": "pol_ss",
+    "first_name": "Sergey",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 374099244,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
