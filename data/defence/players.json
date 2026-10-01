@@ -23,7 +23,11 @@
     "villages": [],
     "substitutes": [],
     "state": {
-      "type": "request_target_coords"
+      "type": "request_attack_date",
+      "target_coords": "64 65",
+      "target_x": 64,
+      "target_y": 65,
+      "target_player": "Uljanovsky"
     },
     "private_chat_id": 317595036,
     "private_notifications": true,
