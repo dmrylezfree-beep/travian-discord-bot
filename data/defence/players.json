@@ -226,10 +226,13 @@
     "telegram_id": 374099244,
     "username": "pol_ss",
     "first_name": "Sergey",
-    "race": null,
+    "race": "roman",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "39 39"
+    },
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
