@@ -23,7 +23,7 @@
     "villages": [],
     "substitutes": [],
     "state": {
-      "type": "request_def_amount",
+      "type": "request_confirm",
       "target_coords": "64 65",
       "target_x": 64,
       "target_y": 65,
@@ -31,7 +31,8 @@
       "attack_date": "2026-10-02",
       "attack_date_display": "02.10.2026",
       "attack_time": "2026-10-02 22:00:00",
-      "attack_time_display": "02.10.2026 22:00:00"
+      "attack_time_display": "02.10.2026 22:00:00",
+      "required_def": 500
     },
     "private_chat_id": 317595036,
     "private_notifications": true,
