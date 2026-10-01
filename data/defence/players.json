@@ -238,7 +238,7 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": "add_village_coords",
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
