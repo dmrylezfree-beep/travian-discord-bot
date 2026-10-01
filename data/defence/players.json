@@ -238,7 +238,10 @@
       }
     ],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "49 37"
+    },
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
