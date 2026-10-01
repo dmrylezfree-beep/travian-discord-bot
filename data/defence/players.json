@@ -227,12 +227,18 @@
     "username": "pol_ss",
     "first_name": "Sergey",
     "race": "roman",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "39 39",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "39 39"
-    },
+    "state": null,
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
