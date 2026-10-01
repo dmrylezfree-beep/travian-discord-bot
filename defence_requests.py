@@ -633,12 +633,13 @@ def send_def_plan_text(player, req):
 
 
 def send_def_plan_keyboard(player, req):
-    rows = []
-    if best_source_options(player, req):
-        rows.append([{
-            "text": "🛡 Отправить деф",
-            "callback_data": f"send_amount:{req['id']}",
-        }])
+    # A player may pledge defence even when troop settings are empty or stale.
+    # Settings are advisory: they are used for travel-time calculations and
+    # notifications, never as a prerequisite for declaring an actual send.
+    rows = [[{
+        "text": "🛡 Отправить деф",
+        "callback_data": f"send_amount:{req['id']}",
+    }]]
     rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
     return bot.kb(rows)
 
@@ -1204,6 +1205,65 @@ def process_text(message):
         return _original_process_text(message)
 
     typ = state.get("type")
+    if typ == "send_total_amount":
+        amount = bot.to_int(text)
+        req_id = int(state.get("request_id", 0) or 0)
+        if amount is None or amount <= 0:
+            bot.send(chat_id, "Введите положительное количество очков дефа.", force_reply=True)
+            return
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
+        if req is None or request_closed(req):
+            player["state"] = None
+            bot.save_players(data)
+            bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
+            return
+
+        options = village_send_options(player, req)
+        if options:
+            player["state"] = {
+                "type": "send_draft",
+                "request_id": req_id,
+                "draft": [],
+                "pending_amount": amount,
+            }
+            bot.save_players(data)
+            bot.send(
+                chat_id,
+                f"<b>🛡 Указано: {amount} очков дефа</b>\n\n"
+                "Теперь выберите деревню отправки. Настройки используются только "
+                "для расчёта времени отправки:",
+                send_village_keyboard(player, req),
+            )
+            return
+
+        # No usable troop settings: still accept the player's real pledge.
+        # We cannot calculate a departure deadline without a configured source
+        # village/unit speed, so save the contribution without a timing plan.
+        contribution = {
+            "telegram_id": int(user.get("id", 0)),
+            "username": user.get("username", ""),
+            "first_name": user.get("first_name", ""),
+            "def_points": amount,
+            "plan": [],
+            "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        req.setdefault("contributions", []).append(contribution)
+        req["collected_def"] = sum(int(x.get("def_points", 0) or 0) for x in req.get("contributions", []))
+        player["state"] = None
+        bot.save_players(data)
+        bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.persist_data()
+        refresh_optimal_plans(chat_id=chat_id)
+        refresh_center(chat_id=chat_id, create_if_missing=True)
+        bot.send(
+            chat_id,
+            f"✅ Принято: <b>{amount}</b> очков дефа в заявку #{req_id}.\n\n"
+            "⏱ Время отправки не рассчитано, потому что в настройках нет подходящих данных о дефе.",
+            request_menu(),
+        )
+        return
+
     if typ == "send_village_amount":
         amount = bot.to_int(text)
         req_id = int(state.get("request_id", 0) or 0)
@@ -1526,13 +1586,17 @@ def callback_query(q):
         if req is None or request_closed(req):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
-        options = village_send_options(player, req)
-        if not options:
-            bot.edit(chat_id, msg_id, "🔴 Подходящих деревень для этой заявки сейчас нет.", request_menu())
-            return
-        player["state"] = {"type": "send_draft", "request_id": req_id, "draft": []}
+        player["state"] = {"type": "send_total_amount", "request_id": req_id}
         bot.save_players(data)
-        bot.edit(chat_id, msg_id, "<b>🏘 Выберите деревню, из которой отправите деф:</b>", send_village_keyboard(player, req))
+        bot.send(
+            chat_id,
+            f"<b>🛡 ОТПРАВИТЬ ДЕФ #{req_id}</b>\n\n"
+            f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
+            f"🛡 Осталось закрыть: <b>{request_remaining(req)}</b> очков\n\n"
+            "Сколько дефа вы фактически отправите?\n"
+            "Введите количество очков дефа, например: <code>10000</code>",
+            force_reply=True,
+        )
         return
 
     if action.startswith("send_village:"):
@@ -1546,6 +1610,25 @@ def callback_query(q):
             return
         old = player.get("state") if isinstance(player.get("state"), dict) else {}
         draft = old.get("draft", []) if int(old.get("request_id", 0) or 0) == req_id else []
+        pending_amount = int(old.get("pending_amount", 0) or 0)
+        if pending_amount > 0:
+            player["state"] = {
+                "type": "send_village_amount",
+                "request_id": req_id,
+                "village_idx": village_idx,
+                "draft": draft,
+                "pending_amount": pending_amount,
+            }
+            bot.save_players(data)
+            bot.edit(
+                chat_id,
+                msg_id,
+                f"<b>🚨 Когда отправлять</b>\n\n"
+                f"🏘 <b>{option['village'].get('coordinates', '?')}</b> → 🎯 <b>{req['target_x']} {req['target_y']}</b>\n"
+                f"🛡 <b>{pending_amount}</b> очков\n\nВыбери вариант:",
+                speed_variant_keyboard(req_id, village_idx, list(option["variants"])),
+            )
+            return
         player["state"] = {"type": "send_village_amount", "request_id": req_id, "village_idx": village_idx, "draft": draft}
         bot.save_players(data)
         bot.send(
