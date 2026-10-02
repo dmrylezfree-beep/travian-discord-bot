@@ -250,7 +250,10 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "send_total_amount",
+      "request_id": 1
+    },
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
