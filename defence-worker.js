@@ -57,8 +57,8 @@ const DISCORD_PLAYERS_PATH = "data/defence/discord_players.json";
 const TELEGRAM_PLAYERS_PATH = "data/defence/players.json";
 const TRAVIAN_MAP_URL = "https://ts8.x1.asia.travian.com/map.sql";
 const DTXT = {
- en:{choose:"Choose your language",reg:"Register",wait:"You are not registered yet.",title:"WORLD Defence registration",coord:"Village coordinates",hint:"Example: 22 63",bad:"❌ Enter coordinates as **22 63**.",miss:"❌ Village not found on the current Travian map.",world:"❌ This village does not belong to **WORLD**.",dup:"❌ This Travian account is already registered in Defence Bot.",done:"✅ **Registration complete**",account:"Travian account",village:"Village",tribe:"Tribe",active:"Active defence requests",none:"No active defence requests.",err:"❌ Internal error. Please try again."},
- ja:{choose:"言語を選択してください",reg:"登録する",wait:"まだ登録されていません。",title:"WORLD Defence 登録",coord:"村の座標",hint:"例: 22 63",bad:"❌ 座標を **22 63** の形式で入力してください。",miss:"❌ 現在のTravianマップで村が見つかりません。",world:"❌ この村は **WORLD** 同盟に所属していません。",dup:"❌ このTravianアカウントは既にDefence Botに登録されています。",done:"✅ **登録が完了しました**",account:"Travianアカウント",village:"村",tribe:"種族",active:"防衛要請",none:"現在、防衛要請はありません。",err:"❌ 内部エラーが発生しました。"}
+ en:{choose:"Choose your language",reg:"Register",wait:"You are not registered yet.",title:"WORLD Defence registration",coord:"Village coordinates",hint:"Example: 22 63",bad:"❌ Enter coordinates as **22 63**.",miss:"❌ Village not found on the current Travian map.",world:"❌ This village does not belong to **WORLD**.",dup:"❌ This Travian account is already registered in Defence Bot.",done:"✅ **Registration complete**",account:"Travian account",village:"Village",tribe:"Tribe",active:"Active defence requests",none:"No active defence requests.",settings:"My settings",addVillage:"Add village",troops:"Troops",changeLang:"Language",arena:"Tournament Square",saved:"Saved",notYours:"❌ This village belongs to another Travian account.",err:"❌ Internal error. Please try again."},
+ ja:{choose:"言語を選択してください",reg:"登録する",wait:"まだ登録されていません。",title:"WORLD Defence 登録",coord:"村の座標",hint:"例: 22 63",bad:"❌ 座標を **22 63** の形式で入力してください。",miss:"❌ 現在のTravianマップで村が見つかりません。",world:"❌ この村は **WORLD** 同盟に所属していません。",dup:"❌ このTravianアカウントは既にDefence Botに登録されています。",done:"✅ **登録が完了しました**",account:"Travianアカウント",village:"村",tribe:"種族",active:"防衛要請",none:"現在、防衛要請はありません。",settings:"設定",addVillage:"村を追加",troops:"兵士",changeLang:"言語",arena:"闘技場",saved:"保存しました",notYours:"❌ この村は別のTravianアカウントに所属しています。",err:"❌ 内部エラーが発生しました。"}
 };
 function dReply(content,components=[]){return Response.json({type:4,data:{content,components,flags:64}});}
 function dUser(i){return String(i.member?.user?.id||i.user?.id||"");}
@@ -75,6 +75,16 @@ function tribeName(n,l){const a=l==="ja"?{1:"ローマン",2:"チュートン",3
 async function uidUsed(env,uid,dp,myId,map){for(const [id,p] of Object.entries(dp))if(id!==myId&&Number(p?.travian_uid)===uid)return true;const tp=(await ghJson(env,TELEGRAM_PLAYERS_PATH)).data||{};for(const p of Object.values(tp)){if(Number(p?.travian_uid)===uid)return true;for(const v of p?.villages||[]){const m=String(v.coordinates||"").match(/^\s*(-?\d+)\s+(-?\d+)\s*$/);if(m&&mapVillage(map,+m[1],+m[2])?.uid===uid)return true;}}return false;}
 async function centre(env,p){const l=p.language==="ja"?"ja":"en",t=DTXT[l];let rs=[];try{rs=await loadActiveRequests(env);}catch{}let a=["🛡 **WORLD Defence**","","👤 **"+t.account+":** "+p.player_name,"🏘 **"+t.village+":** "+(p.villages?.[0]?.coordinates||"—"),"⚔️ **"+t.tribe+":** "+tribeName(p.tribe,l),"","**"+t.active+":**"];if(!rs.length)a.push(t.none);for(const q of rs)a.push("🟢 **#"+q.id+"** — "+q.target_x+"|"+q.target_y+" — 🛡 "+Number(q.collected_def||0).toLocaleString()+"/"+Number(q.required_def||0).toLocaleString()+" — ⚔️ "+(q.attack_time_display||q.attack_time));return a.join("\n");}
 
+
+const DEF_UNITS={
+ roman:[["legionnaire","Legionnaire","レジョネア"],["praetorian","Praetorian","プレトリアン"],["equites_caesaris","Equites Caesaris","エクイーツ・カエザリス"]],
+ teuton:[["spearman","Spearman","スピアマン"],["paladin","Paladin","パラディン"]],
+ gaul:[["phalanx","Phalanx","ファランクス"],["druidrider","Druidrider","ドルイドライダー"],["haeduan","Haeduan","ヘジュアン"]]
+};
+function settingsButtons(l){const t=DTXT[l];return [{type:1,components:[{type:2,style:1,custom_id:"def_add_"+l,label:t.addVillage,emoji:{name:"🏘️"}},{type:2,style:1,custom_id:"def_troops_"+l,label:t.troops,emoji:{name:"🛡️"}}]},{type:1,components:[{type:2,style:2,custom_id:"def_language",label:t.changeLang,emoji:{name:"🌐"}}]}];}
+function villageButtons(p,l){return (p.villages||[]).slice(0,5).map((v,n)=>({type:1,components:[{type:2,style:1,custom_id:"def_village_"+n+"_"+l,label:(v.name||("Village "+(n+1)))+" ("+String(v.coordinates).replace(" ","|")+")"}]}));}
+function unitButtons(p,idx,l){const us=DEF_UNITS[p.race]||[];return us.map(u=>({type:1,components:[{type:2,style:1,custom_id:"def_unit_"+idx+"_"+u[0]+"_"+l,label:(l==="ja"?u[2]:u[1])+" — "+Number(p.villages?.[idx]?.troops?.[u[0]]||0)}]}));}
+
 async function handleDiscord(request, env) {
  const raw=await request.text();
  if(!(await verifyDiscordRequest(request,raw)))return new Response("Invalid request signature",{status:401});
@@ -85,9 +95,30 @@ async function handleDiscord(request, env) {
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
   if(i.type===2&&i.data?.name==="def"){
-   if(p?.travian_uid)return dReply(await centre(env,p));
+   if(p?.travian_uid)return dReply(await centre(env,p),settingsButtons(p.language==="ja"?"ja":"en"));
    return dReply("🛡 **WORLD Defence**\n\n🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
   }
+  
+  if(i.type===3&&i.data?.custom_id==="def_language")return dReply("🌐 🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
+  if(i.type===3&&/^def_add_(en|ja)$/.test(i.data?.custom_id||"")){
+   const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l];
+   return Response.json({type:9,data:{custom_id:"def_addcoords_"+l,title:t.addVillage,components:[{type:1,components:[{type:4,custom_id:"coords",style:1,label:t.coord,placeholder:t.hint,required:true,min_length:3,max_length:9}]}]}});
+  }
+  if(i.type===5&&/^def_addcoords_(en|ja)$/.test(i.data?.custom_id||"")){
+   const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l],rawc=i.data.components?.[0]?.components?.[0]?.value||"",m=String(rawc).trim().match(/^(-?\d{1,3})\s+(-?\d{1,3})$/);
+   if(!m)return dReply(t.bad);const x=+m[1],y=+m[2];if(x< -200||x>200||y< -200||y>200)return dReply(t.bad);
+   const map=await getMap(),v=mapVillage(map,x,y);if(!v)return dReply(t.miss);if(v.aid!==WORLD_ALLIANCE_ID)return dReply(t.world);if(Number(v.uid)!==Number(p.travian_uid))return dReply(t.notYours);
+   if(!(p.villages||[]).some(z=>z.coordinates===x+" "+y))p.villages.push({coordinates:x+" "+y,name:v.name,arena:0,troops:{},hero:{present:false}});
+   p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Add WORLD Discord village "+v.name);
+   return dReply("✅ "+t.saved+"\n\n🏘 **"+v.name+"** ("+x+"|"+y+")",settingsButtons(l));
+  }
+  if(i.type===3&&/^def_troops_(en|ja)$/.test(i.data?.custom_id||"")){const l=i.data.custom_id.endsWith("_ja")?"ja":"en";return dReply("🛡 **"+DTXT[l].troops+"**",villageButtons(p,l));}
+  if(i.type===3&&/^def_village_(\d+)_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[3]==="ja"?"ja":"en";return dReply("🏘 **"+(p.villages?.[idx]?.name||"Village")+"**\n🛡 "+DTXT[l].troops+"\n🏟 "+DTXT[l].arena+": "+Number(p.villages?.[idx]?.arena||0),unitButtons(p,idx,l).concat([{type:1,components:[{type:2,style:2,custom_id:"def_arena_"+idx+"_"+l,label:"🏟 "+DTXT[l].arena+" — "+Number(p.villages?.[idx]?.arena||0)}]}]));}
+  if(i.type===3&&/^def_unit_(\d+)_[a-z_]+_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[a.length-1],unit=a.slice(3,-1).join("_"),u=(DEF_UNITS[p.race]||[]).find(z=>z[0]===unit),label=l==="ja"?(u?.[2]||unit):(u?.[1]||unit);return Response.json({type:9,data:{custom_id:"def_amount_"+idx+"_"+unit+"_"+l,title:label,components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"兵士数":"Troop amount",placeholder:"0",required:true,min_length:1,max_length:8}]}]}});}
+  if(i.type===5&&/^def_amount_(\d+)_[a-z_]+_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[a.length-1],unit=a.slice(3,-1).join("_"),rawa=i.data.components?.[0]?.components?.[0]?.value||"",n=Number(rawa);if(!Number.isInteger(n)||n<0||n>99999999)return dReply(l==="ja"?"❌ 0以上の整数を入力してください。":"❌ Enter a whole number of 0 or more.");p.villages[idx].troops[unit]=n;p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Update WORLD Discord troops");return dReply("✅ "+DTXT[l].saved+"\n\n🛡 "+n,unitButtons(p,idx,l));}
+  if(i.type===3&&/^def_arena_(\d+)_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[3];return Response.json({type:9,data:{custom_id:"def_arenaval_"+idx+"_"+l,title:DTXT[l].arena,components:[{type:1,components:[{type:4,custom_id:"arena",style:1,label:l==="ja"?"闘技場レベル (0-20)":"Tournament Square level (0-20)",placeholder:"0",required:true,min_length:1,max_length:2}]}]}});}
+  if(i.type===5&&/^def_arenaval_(\d+)_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[3],n=Number(i.data.components?.[0]?.components?.[0]?.value||"");if(!Number.isInteger(n)||n<0||n>20)return dReply(l==="ja"?"❌ 0〜20を入力してください。":"❌ Enter a level from 0 to 20.");p.villages[idx].arena=n;p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Update WORLD Discord arena");return dReply("✅ "+DTXT[l].saved+"\n\n🏟 "+DTXT[l].arena+": "+n,unitButtons(p,idx,l));}
+
   if(i.type===3&&/^def_lang_(en|ja)$/.test(i.data?.custom_id||"")){const l=i.data.custom_id.endsWith("_ja")?"ja":"en";return dReply("🛡 **WORLD Defence**\n\n"+DTXT[l].wait,regButton(l));}
   if(i.type===3&&/^def_register_(en|ja)$/.test(i.data?.custom_id||"")){
    const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l];
