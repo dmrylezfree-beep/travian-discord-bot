@@ -20,12 +20,18 @@
     "username": "dmrylez",
     "first_name": "Дмитрий",
     "race": "roman",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "22 63",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "22 63"
-    },
+    "state": null,
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
