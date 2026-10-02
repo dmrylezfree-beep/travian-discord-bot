@@ -65,6 +65,10 @@ function dUser(i){return String(i.member?.user?.id||i.user?.id||"");}
 function langButtons(){return [{type:1,components:[{type:2,style:1,custom_id:"def_lang_en",label:"English",emoji:{name:"🇬🇧"}},{type:2,style:1,custom_id:"def_lang_ja",label:"日本語",emoji:{name:"🇯🇵"}}]}];}
 function regButton(l){return [{type:1,components:[{type:2,style:3,custom_id:"def_register_"+l,label:DTXT[l].reg,emoji:{name:"🛡️"}}]}];}
 function sendDefButtons(requests,l){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_send_"+q.id+"_"+l,label:(l==="ja"?"防衛兵を送る #":"Send Defence #")+q.id,emoji:{name:"🛡️"}}]}));}
+function publicCentreButtons(requests){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る #"+q.id}]}));}
+function publicCentreText(requests){const a=["🛡 **WORLD Defence**",""];if(!(requests||[]).length)a.push("No active defence requests / 現在、防衛要請はありません。");for(const q of requests||[]){a.push("🟢 **#"+q.id+"**  **"+q.target_x+"|"+q.target_y+"**","⚔️ "+(q.attack_time_display||q.attack_time),"🛡 "+Number(q.collected_def||0).toLocaleString()+" / "+Number(q.required_def||0).toLocaleString(),"");}return a.join("\n");}
+async function discordApi(env,path,method="GET",body=null){if(!env.DISCORD_BOT_TOKEN)throw new Error("Cloudflare: DISCORD_BOT_TOKEN is not set");const r=await fetch("https://discord.com/api/v10"+path,{method,headers:{"Authorization":"Bot "+env.DISCORD_BOT_TOKEN,"Content-Type":"application/json"},body:body===null?null:JSON.stringify(body)});const txt=await r.text();if(!r.ok)throw new Error("Discord API "+method+" "+path+" "+r.status+": "+txt);return txt?JSON.parse(txt):{};}
+async function refreshDiscordCentre(env){const requests=await loadActiveRequests(env);const body={content:publicCentreText(requests),components:publicCentreButtons(requests),allowed_mentions:{parse:[]}};let pins=[];try{pins=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins");}catch(e){console.error("Discord pins read failed",e);}let centre=(pins||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **WORLD Defence**"));if(centre){await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages/"+centre.id,"PATCH",body);return centre.id;}const m=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",body);await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+m.id,"PUT",{});return m.id;}
 function ghDecode(s){const b=atob(String(s||"").replace(/\s/g,""));return new TextDecoder().decode(Uint8Array.from(b,x=>x.charCodeAt(0)));}
 function ghEncode(s){const a=new TextEncoder().encode(s);let b="";for(let i=0;i<a.length;i+=32768)b+=String.fromCharCode(...a.subarray(i,i+32768));return btoa(b);}
 async function ghJson(env,path){const u="https://api.github.com/repos/"+GITHUB_OWNER+"/"+GITHUB_REPO+"/contents/"+path+"?ref="+GITHUB_REF;const r=await fetch(u,{headers:{Authorization:"Bearer "+env.GITHUB_TOKEN,Accept:"application/vnd.github+json","User-Agent":"travian-defence"}});if(!r.ok)throw new Error("GitHub "+path+" "+r.status);const p=await r.json();return {data:JSON.parse(ghDecode(p.content)),sha:p.sha};}
@@ -96,11 +100,16 @@ async function handleDiscord(request, env) {
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
   if(i.type===2&&i.data?.name==="def"){
-   if(p?.travian_uid){const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}
+   if(p?.travian_uid){await refreshDiscordCentre(env);const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}
    return dReply("🛡 **WORLD Defence**\n\n🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
   }
   
   
+  if(i.type===3&&/^def_public_send_\d+$/.test(i.data?.custom_id||"")){
+   if(!p?.travian_uid)return dReply("❌ Please register first with **/def**.\n❌ まず **/def** で登録してください。");
+   const rid=Number(i.data.custom_id.split("_")[3]),l=p.language==="ja"?"ja":"en";
+   return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:l==="ja"?"防衛兵を送る":"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"防衛ポイント":"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
+  }
   if(i.type===3&&/^def_send_\d+_(en|ja)$/.test(i.data?.custom_id||"")){
    const a=i.data.custom_id.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en";
    return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:l==="ja"?"防衛兵を送る":"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"防衛ポイント":"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
@@ -116,6 +125,7 @@ async function handleDiscord(request, env) {
    q.collected_def=q.contributions.reduce((s,z)=>s+Number(z.def_points||0),0);
    await ghSave(env,"data/defence/requests.json",list,rq.sha,"Add WORLD Discord defence contribution");
    await dispatchDiscordSync(env);
+   await refreshDiscordCentre(env);
    return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+amount+"**\n🎯 **"+q.target_x+"|"+q.target_y+"**\n📊 "+q.collected_def+" / "+q.required_def);
   }
 
