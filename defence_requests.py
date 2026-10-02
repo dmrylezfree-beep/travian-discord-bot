@@ -98,7 +98,13 @@ def request_menu():
 
 def latest_snapshot():
     global _snapshot_cache_path, _snapshot_cache
-    paths = sorted(SNAPSHOT_DIR.glob("*/**/map_*.sql"), key=lambda p: p.name, reverse=True)
+    # Snapshot files live under data/snapshots/YYYY/MM. Sort by the date
+    # encoded in the filename, with the full path as a deterministic fallback.
+    paths = sorted(
+        SNAPSHOT_DIR.rglob("map_*.sql"),
+        key=lambda p: (p.stem.removeprefix("map_"), str(p)),
+        reverse=True,
+    )
     if not paths:
         return None, None
     path = paths[0]
