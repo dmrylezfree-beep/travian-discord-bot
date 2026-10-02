@@ -375,5 +375,23 @@
       "boots": [],
       "maps": []
     }
+  },
+  "1741139004": {
+    "telegram_id": 1741139004,
+    "username": "evgen1814",
+    "first_name": "Smailik",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": {
+      "type": "request_target_coords"
+    },
+    "private_chat_id": null,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
