@@ -251,8 +251,10 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "send_total_amount",
-      "request_id": 1
+      "type": "send_draft",
+      "request_id": 1,
+      "draft": [],
+      "pending_amount": 45
     },
     "private_chat_id": 374099244,
     "private_notifications": true,
