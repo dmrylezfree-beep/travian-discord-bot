@@ -115,6 +115,7 @@ async function handleDiscord(request, env) {
    q.contributions.push({platform:"discord",user_id:id,player_name:p.player_name,def_points:amount,plan:[],created_at:londonNowText()});
    q.collected_def=q.contributions.reduce((s,z)=>s+Number(z.def_points||0),0);
    await ghSave(env,"data/defence/requests.json",list,rq.sha,"Add WORLD Discord defence contribution");
+   await dispatchDiscordSync(env);
    return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+amount+"**\n🎯 **"+q.target_x+"|"+q.target_y+"**\n📊 "+q.collected_def+" / "+q.required_def);
   }
 
@@ -402,6 +403,24 @@ async function dispatch(env, update = null, workflow = GITHUB_WORKFLOW) {
     const details = await response.text();
     throw new Error(`GitHub API ${response.status}: ${details.slice(0, 1500)}`);
   }
+}
+
+async function dispatchDiscordSync(env) {
+  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/workflows/${GITHUB_WORKFLOW}/dispatches`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
+      "Accept": "application/vnd.github+json",
+      "Content-Type": "application/json",
+      "User-Agent": "travian-defence"
+    },
+    body: JSON.stringify({
+      ref: GITHUB_REF,
+      inputs: { action: "discord_sync", thread_id: String(THREAD_ID), update_json: "" }
+    })
+  });
+  if (!response.ok) throw new Error(`Discord sync dispatch ${response.status}: ${await response.text()}`);
 }
 
 function getUpdateThreadId(update) {
