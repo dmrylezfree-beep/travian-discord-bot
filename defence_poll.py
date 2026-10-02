@@ -85,8 +85,10 @@ def normalize_date_time_message(message):
     except Exception:
         return message
 
-    state = player.get("state") or {}
-    if state.get("type") != "request_attack_time":
+    state = player.get("state")
+    # Legacy settings flows store state as a plain string, while request
+    # flows use a dict. Only the latter can contain request_attack_time.
+    if not isinstance(state, dict) or state.get("type") != "request_attack_time":
         return message
 
     try:
