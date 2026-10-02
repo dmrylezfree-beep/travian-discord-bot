@@ -309,12 +309,18 @@
     "username": "",
     "first_name": "Татьяна",
     "race": "gaul",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "37 50",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "37 50"
-    },
+    "state": null,
     "private_chat_id": 916527950,
     "private_notifications": true,
     "hero_inventory": {
