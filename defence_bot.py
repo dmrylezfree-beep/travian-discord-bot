@@ -70,11 +70,11 @@ def persist_data():
         subprocess.run(["git", "commit", "-m", "Update defence bot data"], check=False, capture_output=True)
         subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=False, capture_output=True)
         push = subprocess.run(["git", "push", "origin", "HEAD:main"], check=False, capture_output=True, text=True)
-        if push.returncode == 0 and requests_changed and TOKEN:
+        if push.returncode == 0 and requests_changed and TELEGRAM_TOKEN:
             try:
                 response = requests.post(
                     "https://travian-defence.dmrylezfree.workers.dev/discord/refresh",
-                    headers={"Authorization": f"Bearer {TOKEN}"},
+                    headers={"Authorization": f"Bearer {TELEGRAM_TOKEN}"},
                     timeout=40,
                 )
                 if not response.ok:
