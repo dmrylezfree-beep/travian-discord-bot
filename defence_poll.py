@@ -131,9 +131,11 @@ def process_update(update):
 def poll():
     delete_webhook()
 
-    # Refresh once when the worker starts, which also expires old requests.
-    defence.refresh_center(create_if_missing=False)
-
+    # Do not refresh the group Defence Centre merely because a polling
+    # session was started. A private-chat action can start this workflow too;
+    # group centre updates are performed only by actions that actually change
+    # shared defence requests (or by /def in the defence topic).
+    
     # When the webhook is active, Telegram delivers the triggering update to
     # Cloudflare and it is no longer available to getUpdates. The Worker passes
     # that exact update to this workflow, so process it before starting the
