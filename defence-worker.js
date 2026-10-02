@@ -269,11 +269,18 @@ async function handleDiscord(request, env, ctx) {
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
   if(i.type===2&&i.data?.name==="def"){
    if(p?.travian_uid){
-     // /def must answer Discord immediately. Centre/thread refresh is maintenance
-     // work and must never block the interaction response.
-     ctx.waitUntil(refreshDiscordCentre(env).catch(e=>console.error("Deferred /def centre refresh failed:",e)));
-     const l=p.language==="ja"?"ja":"en";
-     return dReply(l==="ja"?"🛡 **WORLD Defence**\n\n公開の固定メッセージで現在の防衛要請を確認できます。":"🛡 **WORLD Defence**\n\nCurrent defence requests are shown in the pinned public centre.",settingsButtons(l));
+     // The profile is already loaded at this point. Acknowledge /def immediately,
+     // then build the personal centre (including active requests) in background.
+     const l=p.language==="ja"?"ja":"en",token=i.token,appId=i.application_id;
+     ctx.waitUntil((async()=>{try{
+       const cd=await centreData(env,p);
+       await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{
+         method:"PATCH",headers:{"content-type":"application/json"},
+         body:JSON.stringify({content:cd.text,components:[...sendDefButtons(cd.requests,cd.lang),...settingsButtons(cd.lang)],flags:64})
+       });
+       await refreshDiscordCentre(env);
+     }catch(e){console.error("Deferred /def centre failed:",e);}})());
+     return Response.json({type:5,data:{flags:64}});
    }
    return dReply("🛡 **WORLD Defence**\n\n🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
   }
