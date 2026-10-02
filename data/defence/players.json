@@ -274,5 +274,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "1476387203": {
+    "telegram_id": 1476387203,
+    "username": "",
+    "first_name": "jakub",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 1476387203,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
