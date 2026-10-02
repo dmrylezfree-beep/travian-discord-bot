@@ -1162,12 +1162,21 @@ def refresh_center(chat_id=None, create_if_missing=False):
     if center_message_id:
         try:
             bot.edit(center_chat_id, center_message_id, text, request_menu())
+            # Editing a message does not restore its pinned state if somebody
+            # unpinned it manually, so always ensure the centre is pinned.
+            try:
+                bot.tg("pinChatMessage", chat_id=center_chat_id, message_id=center_message_id, disable_notification=True)
+            except Exception as pin_exc:
+                print(f"Centre re-pin failed for {center_message_id}: {pin_exc}", flush=True)
             return True
         except Exception as exc:
             print(f"Centre edit failed, will recreate: {exc}", flush=True)
-            # If the old centre cannot be edited, it must be unpinned before
-            # creating a replacement, otherwise /def can accumulate pins.
+            # If the saved centre is gone/uneditable, discard the stale id and
+            # create a fresh authoritative centre even during automatic refresh.
             unpin_center(center_chat_id, center_message_id)
+            state["center_message_id"] = None
+            save_state(state)
+            create_if_missing = True
 
     if not create_if_missing:
         return False
