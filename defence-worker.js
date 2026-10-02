@@ -310,12 +310,14 @@ export default {
 
     if (privateChat) {
       try {
-        // All personal settings are handled by the short private workflow.
-        // This keeps private configuration isolated from the alliance thread.
+        // Start the same long-polling Defence Bot session used by the alliance
+        // thread. The triggering private update is passed into the session;
+        // after the workflow disables the webhook, subsequent private clicks
+        // and messages are handled immediately by the already-running poller.
         if (callback?.id) {
           await answerCallback(env, callback.id);
         }
-        await dispatch(env, update, "defence_register.yml");
+        await dispatch(env, update);
       } catch (error) {
         console.error(error instanceof Error ? error.message : String(error));
       }
