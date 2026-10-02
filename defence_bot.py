@@ -726,8 +726,8 @@ def callback_query(q):
         elif action == "def_rank":
             edit(chat_id, msg_id, defence_rank_text(), defence_rank_kb())
         else:
-            telegram_id = int(action.split(":", 1)[1])
-            edit(chat_id, msg_id, defence_player_text(telegram_id), kb([[{"text": "⬅️ Рейтинг", "callback_data": "def_rank"}]]))
+            profile_id = action.split(":", 1)[1]
+            edit(chat_id, msg_id, defence_player_text(profile_id), kb([[{"text": "⬅️ Рейтинг", "callback_data": "def_rank"}]]))
     elif action == "hero_menu":
         edit(chat_id, msg_id, hero_menu_text(player), hero_menu_keyboard(player))
     elif action.startswith("hero_loc:"):
