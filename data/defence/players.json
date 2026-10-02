@@ -250,24 +250,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "send_draft",
-      "request_id": 1,
-      "draft": [
-        {
-          "village_idx": 0,
-          "village": "39 39",
-          "def_points": 45,
-          "speed_mode": "normal",
-          "gear_label": "⚡ Без героя",
-          "deadline_at": "2026-10-02 15:59:18",
-          "deadline": "15:59:18",
-          "reminder_at": "2026-10-02 15:54:18",
-          "reminder_time": "15:54:18",
-          "reminder_sent": false
-        }
-      ]
-    },
+    "state": null,
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
