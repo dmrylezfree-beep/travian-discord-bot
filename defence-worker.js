@@ -232,25 +232,33 @@ async function handleDiscord(request, env, ctx) {
    return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:l==="ja"?"防衛兵を送る":"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"防衛ポイント":"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
   }
   if(i.type===5&&/^def_sendamount_\d+_(en|ja)$/.test(i.data?.custom_id||"")){
-   // Use the already-loaded active requests from the public interaction flow
-   // instead of a second GitHub round-trip. This keeps the modal response fast
-   // while restoring the normal village/timing choice.
    const a=i.data.custom_id.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en",n=Number(i.data.components?.[0]?.components?.[0]?.value||"");
    if(!Number.isInteger(n)||n<=0||n>99999999)return dReply(l==="ja"?"❌ 1以上の整数を入力してください。":"❌ Enter a whole number greater than 0.");
-   let q=null;
-   try{
-     const rs=await loadActiveRequests(env);
-     q=(rs||[]).find(x=>Number(x.id)===rid)||null;
-   }catch(e){console.error("Discord amount request lookup failed:",e);}
-   if(!q){
-     return dReply(l==="ja"?"❌ 防衛要請を読み込めませんでした。もう一度ボタンを押してください。":"❌ Could not load the defence request. Please press Send Defence again.");
-   }
-   const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));
-   if(remaining<=0)return dReply(l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.");
-   const amount=Math.min(n,remaining);
-   return dReply(sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**",sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))})));
+   // Modal submit must be acknowledged before any GitHub request. Build the
+   // village choice asynchronously and edit the deferred ephemeral response.
+   const token=i.token,appId=i.application_id;
+   ctx.waitUntil((async()=>{try{
+     const rs=await loadActiveRequests(env),q=(rs||[]).find(x=>Number(x.id)===rid)||null;
+     let content,components=[];
+     if(!q){
+       content=l==="ja"?"❌ 防衛要請を読み込めませんでした。もう一度ボタンを押してください。":"❌ Could not load the defence request. Please press Send Defence again.";
+     }else{
+       const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));
+       if(remaining<=0) content=l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.";
+       else{
+         const amount=Math.min(n,remaining);
+         content=sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**";
+         components=sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))}));
+       }
+     }
+     await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components})});
+   }catch(e){
+     console.error("Deferred Discord amount handling failed:",e);
+     try{await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content:l==="ja"?"❌ 防衛要請を読み込めませんでした。もう一度お試しください。":"❌ Could not load the defence request. Please try again.",components:[]})});}catch(_){}
+   }})());
+   return Response.json({type:5,data:{flags:64}});
   }
-  if(i.type===3&&/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
+    if(i.type===3&&/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
    const m=i.data.custom_id.match(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],idx=+m[2],l=m[3],n=+m[4],res=await saveDiscordPledge(env,p,id,rid,l,n,idx);if(res.error)return dReply(res.error);const leg=res.plan[0];return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
   }
   if(i.type===3&&/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
