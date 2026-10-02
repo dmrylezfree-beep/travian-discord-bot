@@ -44,6 +44,18 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Sync Discord contribution to Telegram
+        if: inputs.action == 'discord_sync'
+        env:
+          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
+        run: |
+          python - <<'PY'
+          import defence_requests as defence
+          defence.refresh_center(create_if_missing=True)
+          defence.refresh_optimal_plans(force=True)
+          print("Discord contribution synced to Telegram.", flush=True)
+          PY
+
       - name: Restore Telegram webhook only
         if: inputs.action == 'restore_webhook'
         env:
@@ -91,7 +103,7 @@ jobs:
           PY
 
       - name: Switch Telegram from webhook to polling
-        if: inputs.action != 'restore_webhook'
+        if: inputs.action != 'restore_webhook' && inputs.action != 'discord_sync'
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
         run: |
@@ -115,7 +127,7 @@ jobs:
           PY
 
       - name: Run defence bot
-        if: inputs.action != 'restore_webhook'
+        if: inputs.action != 'restore_webhook' && inputs.action != 'discord_sync'
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
           DEFENCE_RUN_SECONDS: "510"
@@ -124,7 +136,7 @@ jobs:
         run: python defence_poll.py
 
       - name: Restore Telegram webhook
-        if: always() && inputs.action != 'restore_webhook'
+        if: always() && inputs.action != 'restore_webhook' && inputs.action != 'discord_sync'
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
         run: |
