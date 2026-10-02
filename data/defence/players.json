@@ -24,18 +24,16 @@
       {
         "coordinates": "22 63",
         "arena": 0,
-        "troops": {},
+        "troops": {
+          "praetorian": 10
+        },
         "hero": {
           "present": false
         }
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "unit_amount",
-      "index": 0,
-      "unit": "praetorian"
-    },
+    "state": null,
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
