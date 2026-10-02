@@ -384,11 +384,13 @@
     "villages": [],
     "substitutes": [],
     "state": {
-      "type": "request_attack_date",
+      "type": "request_attack_time",
       "target_coords": "11 49",
       "target_x": 11,
       "target_y": 49,
-      "target_player": "Smailik"
+      "target_player": "Smailik",
+      "attack_date": "2026-10-02",
+      "attack_date_display": "02.10.2026"
     },
     "private_chat_id": null,
     "private_notifications": true,
