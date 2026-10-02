@@ -109,11 +109,16 @@ async function syncDefenceThreads(env,requests,allRequests=[]){
   if(!thread)continue;
   try{
    const messages=await discordApi(env,"/channels/"+thread.id+"/messages?limit=50");
-   const card=(messages||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **DEFENCE REQUEST #"+q.id));
+   const cards=(messages||[]).filter(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **DEFENCE REQUEST #"+q.id));
+   const card=cards[0];
    const status=Number(q.collected_def||0)>=Number(q.required_def||0)?"✅ COVERED / 防衛完了":q.status!=="active"?"⛔ CLOSED / 終了":"⌛ EXPIRED / 期限切れ";
    const body={content:defenceThreadText(q)+"\n\n"+status,components:[],allowed_mentions:{parse:[]}};
    if(card)await discordApi(env,"/channels/"+thread.id+"/messages/"+card.id,"PATCH",body);
    else await discordApi(env,"/channels/"+thread.id+"/messages","POST",body);
+   for(const duplicate of cards.slice(1)){
+    try{await discordApi(env,"/channels/"+thread.id+"/messages/"+duplicate.id,"DELETE");}
+    catch(e){console.error("Duplicate defence card delete failed #"+q.id+":",e);}
+   }
    await discordApi(env,"/channels/"+thread.id,"PATCH",{archived:true});
   }catch(e){console.error("Defence thread close failed #"+q.id+":",e);}
  }
@@ -135,10 +140,15 @@ async function syncDefenceThreads(env,requests,allRequests=[]){
   try{
    if(thread.thread_metadata?.archived)await discordApi(env,"/channels/"+thread.id,"PATCH",{archived:false});
    const messages=await discordApi(env,"/channels/"+thread.id+"/messages?limit=50");
-   let card=(messages||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **DEFENCE REQUEST #"+q.id));
+   const cards=(messages||[]).filter(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **DEFENCE REQUEST #"+q.id));
+   const card=cards[0];
    const body={content:defenceThreadText(q),components:defenceThreadComponents(q),allowed_mentions:{parse:[]}};
    if(card)await discordApi(env,"/channels/"+thread.id+"/messages/"+card.id,"PATCH",body);
    else await discordApi(env,"/channels/"+thread.id+"/messages","POST",body);
+   for(const duplicate of cards.slice(1)){
+    try{await discordApi(env,"/channels/"+thread.id+"/messages/"+duplicate.id,"DELETE");}
+    catch(e){console.error("Duplicate defence card delete failed #"+q.id+":",e);}
+   }
   }catch(e){console.error("Defence thread sync failed #"+q.id+":",e);}
  }
 }
