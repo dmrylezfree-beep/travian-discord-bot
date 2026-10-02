@@ -1,0 +1,108 @@
+name: Crop Webhook Watchdog
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check and repair crop webhook
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TELEGRAM_TOKEN: ${{ secrets.CROP_TELEGRAM_TOKEN }}
+          CROP_WEBHOOK_URL: ${{ secrets.CROP_WEBHOOK_URL }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.parse
+          import urllib.request
+
+          repo = os.environ["REPOSITORY"]
+          gh_token = os.environ["GH_TOKEN"]
+          tg_token = os.environ["TELEGRAM_TOKEN"]
+          expected = os.environ["CROP_WEBHOOK_URL"].rstrip("/")
+
+          def request_json(url, *, method="GET", headers=None, body=None, timeout=40):
+              req = urllib.request.Request(
+                  url,
+                  data=None if body is None else json.dumps(body).encode(),
+                  method=method,
+                  headers=headers or {},
+              )
+              with urllib.request.urlopen(req, timeout=timeout) as response:
+                  return response.status, json.loads(response.read().decode())
+
+          # Do not interfere while Crop Bot intentionally disabled the webhook
+          # and is using getUpdates polling.
+          gh_headers = {
+              "Authorization": f"Bearer {gh_token}",
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "crop-webhook-watchdog",
+          }
+          api = f"https://api.github.com/repos/{repo}/actions/workflows/crop_bot.yml/runs?per_page=20"
+          _, runs_data = request_json(api, headers=gh_headers)
+          active = [
+              r for r in runs_data.get("workflow_runs", [])
+              if r.get("status") in {"queued", "in_progress", "pending", "waiting", "requested"}
+          ]
+          if active:
+              print("Crop Bot has an active run; watchdog will not touch the webhook.")
+              for r in active:
+                  print(r.get("id"), r.get("status"), r.get("event"))
+              raise SystemExit(0)
+
+          tg_base = f"https://api.telegram.org/bot{tg_token}"
+          _, info = request_json(f"{tg_base}/getWebhookInfo")
+          result = info.get("result") or {}
+          current = (result.get("url") or "").rstrip("/")
+          last_error = result.get("last_error_message")
+          print("Current webhook:", current or "<empty>")
+          print("Expected webhook:", expected)
+          if last_error:
+              print("Telegram last webhook error:", last_error)
+
+          if current == expected:
+              print("Webhook is configured correctly.")
+              raise SystemExit(0)
+
+          print("Webhook is missing or incorrect. Restoring it...")
+          last_exc = None
+          for attempt in range(1, 13):
+              try:
+                  status, data = request_json(
+                      f"{tg_base}/setWebhook",
+                      method="POST",
+                      headers={"Content-Type": "application/json"},
+                      body={
+                          "url": os.environ["CROP_WEBHOOK_URL"],
+                          "allowed_updates": ["message", "callback_query"],
+                      },
+                  )
+                  print(f"setWebhook attempt {attempt}/12:", status, data)
+                  if data.get("ok"):
+                      _, verify = request_json(f"{tg_base}/getWebhookInfo")
+                      actual = ((verify.get("result") or {}).get("url") or "").rstrip("/")
+                      if actual == expected:
+                          print("Webhook restored and verified.")
+                          break
+                      last_exc = RuntimeError(f"Verification failed: {actual!r}")
+                  else:
+                      last_exc = RuntimeError(str(data))
+              except Exception as exc:
+                  last_exc = exc
+                  print(f"setWebhook attempt {attempt}/12 failed: {exc!r}")
+              if attempt < 12:
+                  time.sleep(15)
+          else:
+              raise last_exc or RuntimeError("Unable to restore crop webhook")
+          PY
