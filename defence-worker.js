@@ -67,6 +67,60 @@ function regButton(l){return [{type:1,components:[{type:2,style:3,custom_id:"def
 function sendDefButtons(requests,l){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_send_"+q.id+"_"+l,label:(l==="ja"?"防衛兵を送る #":"Send Defence #")+q.id,emoji:{name:"🛡️"}}]}));}
 function publicCentreButtons(requests){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る #"+q.id}]}));}
 function publicCentreText(requests){const a=["🛡 **WORLD Defence**",""];if(!(requests||[]).length)a.push("No active defence requests / 現在、防衛要請はありません。");for(const q of requests||[]){a.push("🟢 **#"+q.id+"**  **"+q.target_x+"|"+q.target_y+"**","⚔️ "+(q.attack_time_display||q.attack_time),"🛡 "+Number(q.collected_def||0).toLocaleString()+" / "+Number(q.required_def||0).toLocaleString(),"");}return a.join("\n");}
+function defenceThreadName(q){return ("🛡 DEF #"+q.id+" — "+q.target_x+"|"+q.target_y).slice(0,100);}
+function defenceThreadText(q){
+ const required=Number(q.required_def||0),collected=Number(q.collected_def||0),missing=Math.max(0,required-collected);
+ return [
+  "🛡 **DEFENCE REQUEST #"+q.id+" / 防衛要請 #"+q.id+"**","",
+  "🎯 **"+q.target_x+"|"+q.target_y+"**",
+  "⚔️ **Attack / 攻撃:** "+(q.attack_time_display||q.attack_time),
+  "",
+  "🛡 **Required / 必要:** "+required.toLocaleString(),
+  "✅ **Pledged / 登録済み:** "+collected.toLocaleString(),
+  "🔴 **Missing / 不足:** "+missing.toLocaleString()
+ ].join("\n");
+}
+function defenceThreadComponents(q){
+ if(q.status!=="active"||Number(q.collected_def||0)>=Number(q.required_def||0))return [];
+ return [{type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る"}]}];
+}
+async function defenderRole(env){
+ const roles=await discordApi(env,"/guilds/"+DISCORD_GUILD_ID+"/roles");
+ return (roles||[]).find(r=>String(r.name||"").toLowerCase()==="defender")||null;
+}
+async function findDefenceThread(env,q){
+ try{
+  const active=await discordApi(env,"/guilds/"+DISCORD_GUILD_ID+"/threads/active");
+  let t=(active?.threads||[]).find(x=>String(x.name||"")===defenceThreadName(q));
+  if(t)return t;
+ }catch(e){console.error("Discord active threads read failed:",e);}
+ try{
+  const archived=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/threads/archived/public?limit=100");
+  return (archived?.threads||[]).find(x=>String(x.name||"")===defenceThreadName(q))||null;
+ }catch(e){console.error("Discord archived threads read failed:",e);return null;}
+}
+async function syncDefenceThreads(env,requests){
+ const role=await defenderRole(env).catch(e=>{console.error("Defender role lookup failed:",e);return null;});
+ for(const q of requests||[]){
+  let thread=await findDefenceThread(env,q);
+  if(!thread){
+   const starter=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",{
+    content:(role?"<@&"+role.id+">\n":"")+"🛡 **New defence request / 新しい防衛要請**\n🎯 **"+q.target_x+"|"+q.target_y+"**",
+    allowed_mentions:role?{roles:[role.id]}:{parse:[]}
+   });
+   thread=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages/"+starter.id+"/threads","POST",{name:defenceThreadName(q),auto_archive_duration:1440});
+  }
+  try{
+   if(thread.thread_metadata?.archived)await discordApi(env,"/channels/"+thread.id,"PATCH",{archived:false});
+   const messages=await discordApi(env,"/channels/"+thread.id+"/messages?limit=50");
+   let card=(messages||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **DEFENCE REQUEST #"+q.id));
+   const body={content:defenceThreadText(q),components:defenceThreadComponents(q),allowed_mentions:{parse:[]}};
+   if(card)await discordApi(env,"/channels/"+thread.id+"/messages/"+card.id,"PATCH",body);
+   else await discordApi(env,"/channels/"+thread.id+"/messages","POST",body);
+  }catch(e){console.error("Defence thread sync failed #"+q.id+":",e);}
+ }
+}
+
 async function discordApi(env,path,method="GET",body=null){if(!env.DISCORD_BOT_TOKEN)throw new Error("Cloudflare: DISCORD_BOT_TOKEN is not set");const opts={method,headers:{"Authorization":"Bot "+env.DISCORD_BOT_TOKEN}};if(body!==null){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(body);}const r=await fetch("https://discord.com/api/v10"+path,opts);const txt=await r.text();if(!r.ok)throw new Error("Discord API "+method+" "+path+" "+r.status+": "+txt);return txt?JSON.parse(txt):{};}
 async function findDiscordCentre(env){
  let pins=[];
@@ -84,6 +138,7 @@ async function findDiscordCentre(env){
 }
 async function refreshDiscordCentre(env){
  const requests=await loadActiveRequests(env);
+ await syncDefenceThreads(env,requests);
  const body={content:publicCentreText(requests),components:publicCentreButtons(requests),allowed_mentions:{parse:[]}};
  const centre=await findDiscordCentre(env);
  if(centre){
