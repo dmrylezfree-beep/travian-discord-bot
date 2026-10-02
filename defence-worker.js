@@ -195,9 +195,16 @@ async function handleDiscord(request, env) {
  // created under it. Discord reports the thread ID as channel_id, so rejecting
  // every ID except the parent channel broke Send Defence inside request threads.
  if(String(i.channel_id||"")!==DISCORD_DEFENCE_CHANNEL_ID){
-   let interactionChannel=null;
-   try{interactionChannel=await discordApi(env,"/channels/"+String(i.channel_id||""));}catch(e){console.error("Discord interaction channel lookup failed:",e);}
-   if(String(interactionChannel?.parent_id||"")!==DISCORD_DEFENCE_CHANNEL_ID)
+   // Interaction payloads from a thread normally already contain parent_id.
+   // Avoid an extra Discord REST round-trip: modal submissions must be
+   // acknowledged within Discord's short interaction deadline.
+   let parentId=String(i.channel?.parent_id||"");
+   if(!parentId){
+     let interactionChannel=null;
+     try{interactionChannel=await discordApi(env,"/channels/"+String(i.channel_id||""));}catch(e){console.error("Discord interaction channel lookup failed:",e);}
+     parentId=String(interactionChannel?.parent_id||"");
+   }
+   if(parentId!==DISCORD_DEFENCE_CHANNEL_ID)
      return dReply("❌ WORLD Defence is available only in the designated defence channel and its request threads.\n❌ WORLD Defenceは指定された防衛チャンネルとその防衛スレッドでのみ利用できます。");
  }
  const id=dUser(i);
