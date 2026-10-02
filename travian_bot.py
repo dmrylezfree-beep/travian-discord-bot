@@ -193,7 +193,7 @@ def extract_value_rows(raw_data):
     # each x_world INSERT on one line, while semicolons inside values are safe.
     statements = []
     insert_re = re.compile(
-        r"^\\s*INSERT\\s+INTO\\s+`x_world`\\s+VALUES\\s*(.*?)\\s*;?\\s*$",
+        r"^\s*INSERT\s+INTO\s+`?x_world`?\s+VALUES\s*(.*?)\s*;?\s*$",
         flags=re.IGNORECASE,
     )
 
