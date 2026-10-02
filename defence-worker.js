@@ -161,20 +161,25 @@ async function findDiscordCentre(env){
 async function refreshDiscordCentre(env){
  const requests=await loadActiveRequests(env);
  let allRequests=[];try{const rq=await ghJson(env,"data/defence/requests.json");allRequests=Array.isArray(rq.data)?rq.data:[];}catch(e){console.error("All defence requests load failed:",e);}
- await syncDefenceThreads(env,requests,allRequests);
+ // Restore the public centre first. Thread creation is secondary and must not
+ // prevent the visible centre from recovering after Discord messages are deleted.
  const body={content:publicCentreText(requests),components:publicCentreButtons(requests),allowed_mentions:{parse:[]}};
  const centre=await findDiscordCentre(env);
+ let messageId;
  if(centre){
   const updated=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages/"+centre.id,"PATCH",body);
   try{await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+centre.id,"PUT");}catch(e){console.error("Discord centre re-pin failed:",e);}
+  messageId=updated?.id||centre.id;
   console.log("Discord defence centre refreshed:",centre.id);
-  return updated?.id||centre.id;
+ }else{
+  const m=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",body);
+  if(!m?.id)throw new Error("Discord centre message was not created");
+  messageId=m.id;
+  try{await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+m.id,"PUT");}catch(e){console.error("Discord centre pin failed:",e);}
+  console.log("Discord defence centre created:",m.id);
  }
- const m=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",body);
- if(!m?.id)throw new Error("Discord centre message was not created");
- await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+m.id,"PUT");
- console.log("Discord defence centre created:",m.id);
- return m.id;
+ try{await syncDefenceThreads(env,requests,allRequests);}catch(e){console.error("Discord thread rebuild failed:",e);}
+ return messageId;
 }
 function ghDecode(s){const b=atob(String(s||"").replace(/\s/g,""));return new TextDecoder().decode(Uint8Array.from(b,x=>x.charCodeAt(0)));}
 function ghEncode(s){const a=new TextEncoder().encode(s);let b="";for(let i=0;i<a.length;i+=32768)b+=String.fromCharCode(...a.subarray(i,i+32768));return btoa(b);}
