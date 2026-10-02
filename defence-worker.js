@@ -49,14 +49,12 @@ async function sendPrivateReminder(env, item) {
     ? "\n\n❗ Не забудь добавить <b>1 таран</b>."
     : item.speed_mode === "catapult"
       ? "\n\n❗ Не забудь добавить <b>1 катапульту</b>." : "";
-  // Travian map id on the 401x401 wrapped map (-200..200):
-  // id = (y + 200) * 401 + (x + 200) + 1.
-  // Example: 41 0 -> 80442.
+  // Travian officially supports opening Rally Point with x/y directly.
+  // Using coordinates avoids targetMapId conversion mistakes (especially Y sign).
   const tx = Number(item.target_x);
   const ty = Number(item.target_y);
-  const targetMapId = (ty + 200) * 401 + (tx + 200) + 1;
   const sendDefUrl =
-    `https://ts8.x1.asia.travian.com/build.php?gid=16&tt=2&eventType=5&targetMapId=${targetMapId}`;
+    `https://ts8.x1.asia.travian.com/build.php?id=39&tt=2&x=${encodeURIComponent(tx)}&y=${encodeURIComponent(ty)}`;
 
   const text =
     "<b>🚨 ПОРА ОТПРАВЛЯТЬ ДЕФ</b>\n\n" +
