@@ -466,12 +466,33 @@ def process_text(message):
             return
         try:
             from defence_requests import find_target, race_from_village
-            village, _ = find_target(coords)
+            village, snapshot_path = find_target(coords)
             detected_race = race_from_village(village) if village else None
-        except Exception:
-            detected_race = None
+        except Exception as exc:
+            print(f"Defence village lookup failed for {coords}: {exc!r}", flush=True)
+            send(
+                chat_id,
+                "❌ Не удалось прочитать последний слепок map.sql. Попробуйте ещё раз чуть позже.",
+                force_reply=True,
+            )
+            return
+        if village is None:
+            snapshot_name = snapshot_path.name if snapshot_path else "не найден"
+            send(
+                chat_id,
+                f"❌ Деревня <code>{html.escape(coords)}</code> не найдена в последнем слепке "
+                f"<code>{html.escape(snapshot_name)}</code>. Проверьте координаты.",
+                force_reply=True,
+            )
+            return
         if detected_race is None:
-            send(chat_id, "❌ Не удалось определить расу по этой деревне в последнем слепке map.sql. Проверьте координаты.", force_reply=True)
+            tribe_id = village.get("tribe_id")
+            send(
+                chat_id,
+                f"❌ Деревня найдена, но её раса не поддерживается ботом "
+                f"(tribe_id=<code>{html.escape(str(tribe_id))}</code>).",
+                force_reply=True,
+            )
             return
         current_race = player.get("race")
         if current_race and current_race != detected_race:
