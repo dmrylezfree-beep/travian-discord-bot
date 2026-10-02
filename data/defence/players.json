@@ -359,18 +359,16 @@
       {
         "coordinates": "40 4",
         "arena": 0,
-        "troops": {},
+        "troops": {
+          "druidrider": 12
+        },
         "hero": {
           "present": false
         }
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "unit_amount",
-      "index": 0,
-      "unit": "druidrider"
-    },
+    "state": null,
     "private_chat_id": 450280886,
     "private_notifications": true,
     "hero_inventory": {
