@@ -313,18 +313,16 @@
       {
         "coordinates": "37 50",
         "arena": 0,
-        "troops": {},
+        "troops": {
+          "phalanx": 10
+        },
         "hero": {
           "present": false
         }
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "unit_amount",
-      "index": 0,
-      "unit": "phalanx"
-    },
+    "state": null,
     "private_chat_id": 916527950,
     "private_notifications": true,
     "hero_inventory": {
