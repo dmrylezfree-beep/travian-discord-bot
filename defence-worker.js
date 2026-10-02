@@ -152,7 +152,7 @@ async function handleDiscord(request, env) {
    return dReply(t.done+"\n\n👤 **"+t.account+":** "+v.player+"\n🏘 **"+t.village+":** "+v.name+" ("+x+"|"+y+")\n⚔️ **"+t.tribe+":** "+tribeName(v.tribe,l));
   }
   if(p){const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}return dReply("Use /def.");
- }catch(e){console.error("Discord Defence error:",e);const l=i.data?.custom_id?.endsWith("_ja")?"ja":"en";const msg=String(e?.message||e||"unknown error").slice(0,500);return dReply(DTXT[l].err+"\n`"+msg.replace(/`/g,"")+"`");}
+ }catch(e){console.error("Discord Defence error:",e);const l=i.data?.custom_id?.endsWith("_ja")?"ja":"en";const msg=String(e?.message||e||"unknown error").slice(0,500).replace(/`/g,"");return dReply((l==="ja"?"❌ エラー":"❌ Error")+": `"+msg+"`");}
 }
 
 const MAX_QUEUE_DELAY_SECONDS = 86400;
