@@ -1,1 +1,29 @@
-{}
+{
+  "561474480439033867": {
+    "discord_id": "561474480439033867",
+    "discord_username": "rylezfree",
+    "discord_global_name": "RyLeZ",
+    "language": "en",
+    "travian_uid": 918,
+    "player_name": "DEAN",
+    "race": "roman",
+    "tribe": 1,
+    "villages": [
+      {
+        "coordinates": "47 33",
+        "name": "DEAN",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    },
+    "state": null
+  }
+}
