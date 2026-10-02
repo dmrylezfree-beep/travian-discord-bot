@@ -139,24 +139,17 @@ def poll():
     if initial_update_json:
         try:
             initial_update = __import__("json").loads(initial_update_json)
-            if process_private_start(initial_update):
-                print(
-                    f"Processed initial private Telegram update "
-                    f"{initial_update.get('update_id')}",
-                    flush=True,
-                )
-            else:
-                initial_message = initial_update.get("message") or initial_update.get("edited_message") or {}
-                initial_callback_message = (initial_update.get("callback_query") or {}).get("message") or {}
-                initial_chat = initial_message.get("chat") or initial_callback_message.get("chat") or {}
-                thread_id = update_thread_id(initial_update)
-                if initial_chat.get("type") == "private" or thread_id == bot.THREAD_ID:
-                    if process_update(initial_update):
-                        print(
-                            f"Processed initial Telegram update "
-                            f"{initial_update.get('update_id')}",
-                            flush=True,
-                        )
+            initial_message = initial_update.get("message") or initial_update.get("edited_message") or {}
+            initial_callback_message = (initial_update.get("callback_query") or {}).get("message") or {}
+            initial_chat = initial_message.get("chat") or initial_callback_message.get("chat") or {}
+            thread_id = update_thread_id(initial_update)
+            if initial_chat.get("type") == "private" or thread_id == bot.THREAD_ID:
+                if process_update(initial_update):
+                    print(
+                        f"Processed initial Telegram update "
+                        f"{initial_update.get('update_id')}",
+                        flush=True,
+                    )
         except Exception as exc:
             print(f"Initial Telegram update failed: {exc}", flush=True)
 
@@ -186,9 +179,6 @@ def poll():
             update_id = update.get("update_id")
             if isinstance(update_id, int):
                 offset = update_id + 1
-
-            if process_private_start(update):
-                continue
 
             # While this workflow is polling, the webhook is disabled. Private
             # messages and callbacks therefore arrive here too and must not be
