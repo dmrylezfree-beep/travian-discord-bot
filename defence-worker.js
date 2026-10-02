@@ -208,6 +208,57 @@ async function handleDiscord(request, env, ctx) {
      return dReply("❌ WORLD Defence is available only in the designated defence channel and its request threads.\n❌ WORLD Defenceは指定された防衛チャンネルとその防衛スレッドでのみ利用できます。");
  }
  const id=dUser(i);
+
+ // Fast path for the whole defence-send flow. Never wait for GitHub before
+ // acknowledging a Discord interaction.
+ const cid=String(i.data?.custom_id||"");
+ if(i.type===3&&/^def_public_send_\d+$/.test(cid)){
+   const rid=Number(cid.split("_")[3]),l="en";
+   return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
+ }
+ if(i.type===3&&/^def_send_\d+_(en|ja)$/.test(cid)){
+   const a=cid.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en";
+   return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:l==="ja"?"防衛兵を送る":"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"防衛ポイント":"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
+ }
+ if(i.type===5&&/^def_sendamount_\d+_(en|ja)$/.test(cid)){
+   const a=cid.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en",n=Number(i.data.components?.[0]?.components?.[0]?.value||""),token=i.token,appId=i.application_id;
+   if(!Number.isInteger(n)||n<=0||n>99999999)return dReply(l==="ja"?"❌ 1以上の整数を入力してください。":"❌ Enter a whole number greater than 0.");
+   ctx.waitUntil((async()=>{try{
+     const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),p=(loaded.data||{})[id];
+     let content,components=[];
+     if(!p?.travian_uid) content=l==="ja"?"❌ まず **/def** で登録してください。":"❌ Please register first with **/def**.";
+     else {
+       const rs=await loadActiveRequests(env),q=(rs||[]).find(x=>Number(x.id)===rid)||null;
+       if(!q) content=l==="ja"?"❌ 防衛要請を読み込めませんでした。":"❌ Could not load the defence request.";
+       else {
+         const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));
+         if(remaining<=0) content=l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.";
+         else {const amount=Math.min(n,remaining);content=sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**";components=sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))}));}
+       }
+     }
+     await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components})});
+   }catch(e){console.error("Fast-path amount handling failed:",e);}})());
+   return Response.json({type:5,data:{flags:64}});
+ }
+ if(i.type===3&&(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/.test(cid)||/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/.test(cid))){
+   const withVillage=cid.startsWith("def_src_")&&!cid.startsWith("def_srcskip_");
+   const m=withVillage?cid.match(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/):cid.match(/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/);
+   const rid=+m[1],idx=withVillage?+m[2]:null,l=withVillage?m[3]:m[2],n=+(withVillage?m[4]:m[3]),token=i.token,appId=i.application_id;
+   ctx.waitUntil((async()=>{try{
+     const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),p=(loaded.data||{})[id];
+     let content;
+     if(!p?.travian_uid) content=l==="ja"?"❌ まず **/def** で登録してください。":"❌ Please register first with **/def**.";
+     else {
+       const res=await saveDiscordPledge(env,p,id,rid,l,n,idx);
+       if(res.error) content=res.error;
+       else if(withVillage){const leg=res.plan[0];content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;}
+       else content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;
+     }
+     await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
+   }catch(e){console.error("Fast-path pledge failed:",e);}})());
+   return Response.json({type:5,data:{flags:64}});
+ }
+
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
   if(i.type===2&&i.data?.name==="def"){
