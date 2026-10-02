@@ -298,7 +298,7 @@
     "race": null,
     "villages": [],
     "substitutes": [],
-    "state": null,
+    "state": "add_village_coords",
     "private_chat_id": 916527950,
     "private_notifications": true,
     "hero_inventory": {
