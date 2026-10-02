@@ -4,6 +4,55 @@ const GITHUB_REPO = "travian-discord-bot";
 const GITHUB_WORKFLOW = "defence_bot.yml";
 const GITHUB_REF = "main";
 
+// Discord WORLD Defence interface.
+const DISCORD_APPLICATION_ID = "1555623257724682402";
+const DISCORD_PUBLIC_KEY = "d1aa28732f54e287d78d859a69f21699794ba52da41c3b8f7da931aede02ce21";
+const DISCORD_GUILD_ID = "1430982178074005507";
+const DISCORD_DEFENCE_CHANNEL_ID = "1430982180401578153";
+const WORLD_ALLIANCE_ID = 2;
+
+function hexToBytes(hex) {
+  if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) throw new Error("Invalid hex");
+  return Uint8Array.from(hex.match(/.{2}/g).map(x => parseInt(x, 16)));
+}
+
+async function verifyDiscordRequest(request, rawBody) {
+  const signature = request.headers.get("X-Signature-Ed25519");
+  const timestamp = request.headers.get("X-Signature-Timestamp");
+  if (!signature || !timestamp) return false;
+  try {
+    const key = await crypto.subtle.importKey("raw", hexToBytes(DISCORD_PUBLIC_KEY), { name: "Ed25519" }, false, ["verify"]);
+    const data = new TextEncoder().encode(timestamp + rawBody);
+    return await crypto.subtle.verify("Ed25519", key, hexToBytes(signature), data);
+  } catch (error) {
+    console.error("Discord signature verification failed:", error);
+    return false;
+  }
+}
+
+async function handleDiscord(request, env) {
+  const rawBody = await request.text();
+  if (!(await verifyDiscordRequest(request, rawBody))) return new Response("Invalid request signature", { status: 401 });
+  let interaction;
+  try { interaction = JSON.parse(rawBody); } catch { return new Response("Bad Request", { status: 400 }); }
+
+  // Discord requires an immediate PONG when validating the Interactions Endpoint URL.
+  if (interaction.type === 1) return Response.json({ type: 1 });
+
+  // First smoke-test command. Registration and shared requests are added next.
+  if (interaction.type === 2 && interaction.data?.name === "def") {
+    if (String(interaction.guild_id || "") !== DISCORD_GUILD_ID || String(interaction.channel_id || "") !== DISCORD_DEFENCE_CHANNEL_ID) {
+      return Response.json({ type: 4, data: { content: "❌ Defence Bot доступен только в канале WORLD Defence.", flags: 64 } });
+    }
+    return Response.json({
+      type: 4,
+      data: { content: "🛡 **Travian Defence — WORLD**\\n\\nDiscord подключён к Defence Bot. Регистрация игроков WORLD будет следующим этапом.", flags: 64 }
+    });
+  }
+  return Response.json({ type: 4, data: { content: "Команда пока не поддерживается.", flags: 64 } });
+}
+
+
 const MAX_QUEUE_DELAY_SECONDS = 86400;
 
 function londonNowText() {
@@ -272,6 +321,10 @@ function isDefCommand(message) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/discord") {
+      return handleDiscord(request, env);
+    }
 
     if (request.method === "POST" && url.pathname === "/schedule-reminders") {
       const auth = request.headers.get("Authorization") || "";
