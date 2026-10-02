@@ -349,5 +349,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "450280886": {
+    "telegram_id": 450280886,
+    "username": "",
+    "first_name": "Антон",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": 450280886,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
