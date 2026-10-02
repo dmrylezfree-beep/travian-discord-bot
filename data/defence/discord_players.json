@@ -13,7 +13,9 @@
         "coordinates": "47 33",
         "name": "DEAN",
         "arena": 0,
-        "troops": {},
+        "troops": {
+          "legionnaire": 10
+        },
         "hero": {
           "present": false
         }
