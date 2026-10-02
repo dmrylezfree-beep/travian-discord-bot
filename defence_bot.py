@@ -534,12 +534,59 @@ def process_text(message):
                 force_reply=True,
             )
             return
+        travian_uid = int(village.get("uid", 0) or 0)
+        if travian_uid <= 0:
+            send(chat_id, "❌ Не удалось определить владельца этой деревни в map.sql.", force_reply=True)
+            return
+
+        current_uid = int(player.get("travian_uid", 0) or 0)
+        if current_uid and current_uid != travian_uid:
+            send(
+                chat_id,
+                "❌ Эта деревня принадлежит другому Travian-аккаунту. "
+                "В одном профиле Defence Bot можно хранить деревни только одного игрового аккаунта.",
+                force_reply=True,
+            )
+            return
+
+        # One Travian account may belong to only one Defence Bot profile.
+        # Check the stable Travian UID, not Telegram nickname or village name.
+        for other_key, other_player in data.items():
+            if other_player is player or not isinstance(other_player, dict):
+                continue
+            other_uid = int(other_player.get("travian_uid", 0) or 0)
+            if not other_uid:
+                # Backfill legacy profiles from any already saved village.
+                for saved_village in other_player.get("villages", []):
+                    saved_coords = saved_village.get("coordinates")
+                    if not saved_coords:
+                        continue
+                    try:
+                        saved_map_village, _ = find_target(saved_coords)
+                    except Exception:
+                        saved_map_village = None
+                    if saved_map_village:
+                        other_uid = int(saved_map_village.get("uid", 0) or 0)
+                        if other_uid:
+                            other_player["travian_uid"] = other_uid
+                            break
+            if other_uid == travian_uid:
+                save_players(data)
+                send(
+                    chat_id,
+                    "❌ Этот Travian-аккаунт уже зарегистрирован в Defence Bot.\n\n"
+                    "Один игровой аккаунт может использовать только один профиль бота.",
+                    force_reply=True,
+                )
+                return
+
         current_race = player.get("race")
         if current_race and current_race != detected_race:
             send(chat_id, "❌ Координаты этой деревни принадлежат другой расе. Проверьте координаты.", force_reply=True)
             return
         player["race"] = detected_race
-        player["state"] = {"type": "add_village_arena", "coordinates": coords}
+        player["travian_uid"] = travian_uid
+        player["state"] = {"type": "add_village_arena", "coordinates": coords, "travian_uid": travian_uid}
         save_players(data)
         send(chat_id, "Введите уровень Арены (0–20):", force_reply=True)
         return
