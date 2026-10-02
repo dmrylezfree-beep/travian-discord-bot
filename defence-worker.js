@@ -775,13 +775,15 @@ export default {
       if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) {
         return new Response("Unauthorized", { status: 401 });
       }
-      try {
-        const messageId = await refreshDiscordCentre(env);
-        return Response.json({ ok: true, message_id: messageId });
-      } catch (error) {
-        console.error("Discord centre refresh failed:", error instanceof Error ? error.message : String(error));
-        return Response.json({ ok: false, error: String(error) }, { status: 500 });
-      }
+      // A full Discord rebuild may need several API calls (threads, pins,
+      // cards and role lookup). Acknowledge Telegram immediately and finish
+      // the rebuild in the Worker's execution context.
+      ctx.waitUntil(
+        refreshDiscordCentre(env).catch(error => {
+          console.error("Discord centre refresh failed:", error instanceof Error ? error.message : String(error));
+        })
+      );
+      return Response.json({ ok: true, queued: true });
     }
 
     if (request.method === "POST" && url.pathname === "/schedule-reminders") {
