@@ -185,7 +185,7 @@ function settingsButtons(l){const t=DTXT[l];return [{type:1,components:[{type:2,
 function villageButtons(p,l){return (p.villages||[]).slice(0,5).map((v,n)=>({type:1,components:[{type:2,style:1,custom_id:"def_village_"+n+"_"+l,label:(v.name||("Village "+(n+1)))+" ("+String(v.coordinates).replace(" ","|")+")"}]}));}
 function unitButtons(p,idx,l){const us=DEF_UNITS[p.race]||[];return us.map(u=>({type:1,components:[{type:2,style:1,custom_id:"def_unit_"+idx+"_"+u[0]+"_"+l,label:(l==="ja"?u[2]:u[1])+" — "+Number(p.villages?.[idx]?.troops?.[u[0]]||0)}]}));}
 
-async function handleDiscord(request, env) {
+async function handleDiscord(request, env, ctx) {
  const raw=await request.text();
  if(!(await verifyDiscordRequest(request,raw)))return new Response("Invalid request signature",{status:401});
  let i;try{i=JSON.parse(raw);}catch{return new Response("Bad Request",{status:400});}
@@ -248,7 +248,14 @@ async function handleDiscord(request, env) {
    const m=i.data.custom_id.match(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],idx=+m[2],l=m[3],n=+m[4],res=await saveDiscordPledge(env,p,id,rid,l,n,idx);if(res.error)return dReply(res.error);const leg=res.plan[0];return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
   }
   if(i.type===3&&/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
-   const m=i.data.custom_id.match(/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],l=m[2],n=+m[3],res=await saveDiscordPledge(env,p,id,rid,l,n,null);if(res.error)return dReply(res.error);return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
+   // Acknowledge immediately; GitHub save + centre refresh continue in background.
+   const m=i.data.custom_id.match(/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],l=m[2],n=+m[3],token=i.token,appId=i.application_id;
+   ctx.waitUntil((async()=>{try{
+     const res=await saveDiscordPledge(env,p,id,rid,l,n,null);
+     const content=res.error||((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
+     await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
+   }catch(e){console.error("Deferred Discord pledge failed:",e);}})());
+   return Response.json({type:5,data:{flags:64}});
   }
 
   if(i.type===3&&i.data?.custom_id==="def_language")return dReply("🌐 🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
@@ -585,7 +592,7 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/discord") {
-      return handleDiscord(request, env);
+      return handleDiscord(request, env, ctx);
     }
 
     if (request.method === "POST" && url.pathname === "/discord/refresh") {
