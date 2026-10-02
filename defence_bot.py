@@ -62,10 +62,27 @@ def persist_data():
         status = subprocess.run(["git", "status", "--porcelain", "data/defence"], text=True, capture_output=True)
         if not status.stdout.strip():
             return
+        requests_changed = any(
+            line.strip().endswith("data/defence/requests.json")
+            for line in status.stdout.splitlines()
+        )
         subprocess.run(["git", "add", "data/defence"], check=True)
         subprocess.run(["git", "commit", "-m", "Update defence bot data"], check=False, capture_output=True)
         subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=False, capture_output=True)
-        subprocess.run(["git", "push", "origin", "HEAD:main"], check=False, capture_output=True)
+        push = subprocess.run(["git", "push", "origin", "HEAD:main"], check=False, capture_output=True, text=True)
+        if push.returncode == 0 and requests_changed and TOKEN:
+            try:
+                response = requests.post(
+                    "https://travian-defence.dmrylezfree.workers.dev/discord/refresh",
+                    headers={"Authorization": f"Bearer {TOKEN}"},
+                    timeout=40,
+                )
+                if not response.ok:
+                    print("Discord centre refresh failed:", response.status_code, response.text[:1000], flush=True)
+                else:
+                    print("Discord centre refreshed after requests.json change.", flush=True)
+            except Exception as sync_exc:
+                print("Discord centre refresh error:", sync_exc, flush=True)
     except Exception as exc:
         print("Git persistence error:", exc, flush=True)
 
