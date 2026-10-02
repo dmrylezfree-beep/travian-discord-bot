@@ -19,10 +19,13 @@
     "telegram_id": 317595036,
     "username": "dmrylez",
     "first_name": "Дмитрий",
-    "race": null,
+    "race": "roman",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "22 63"
+    },
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
