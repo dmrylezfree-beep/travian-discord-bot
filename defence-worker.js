@@ -652,7 +652,7 @@ function isDefCommand(message) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/discord/register") {
