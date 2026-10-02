@@ -251,8 +251,9 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "send_draft",
+      "type": "send_village_amount",
       "request_id": 1,
+      "village_idx": 0,
       "draft": [],
       "pending_amount": 45
     },
