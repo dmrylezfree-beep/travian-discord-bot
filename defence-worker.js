@@ -68,7 +68,36 @@ function sendDefButtons(requests,l){return (requests||[]).slice(0,5).map(q=>({ty
 function publicCentreButtons(requests){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る #"+q.id}]}));}
 function publicCentreText(requests){const a=["🛡 **WORLD Defence**",""];if(!(requests||[]).length)a.push("No active defence requests / 現在、防衛要請はありません。");for(const q of requests||[]){a.push("🟢 **#"+q.id+"**  **"+q.target_x+"|"+q.target_y+"**","⚔️ "+(q.attack_time_display||q.attack_time),"🛡 "+Number(q.collected_def||0).toLocaleString()+" / "+Number(q.required_def||0).toLocaleString(),"");}return a.join("\n");}
 async function discordApi(env,path,method="GET",body=null){if(!env.DISCORD_BOT_TOKEN)throw new Error("Cloudflare: DISCORD_BOT_TOKEN is not set");const opts={method,headers:{"Authorization":"Bot "+env.DISCORD_BOT_TOKEN}};if(body!==null){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(body);}const r=await fetch("https://discord.com/api/v10"+path,opts);const txt=await r.text();if(!r.ok)throw new Error("Discord API "+method+" "+path+" "+r.status+": "+txt);return txt?JSON.parse(txt):{};}
-async function refreshDiscordCentre(env){const requests=await loadActiveRequests(env);const body={content:publicCentreText(requests),components:publicCentreButtons(requests),allowed_mentions:{parse:[]}};let pins=[];try{pins=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins");}catch(e){console.error("Discord pins read failed",e);}let centre=(pins||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **WORLD Defence**"));if(centre){await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages/"+centre.id,"PATCH",body);return centre.id;}const m=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",body);if(!m?.id)throw new Error("Discord centre message was not created");try{await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+m.id,"PUT");}catch(e){console.error("Discord centre pin failed:",e);throw e;}return m.id;}
+async function findDiscordCentre(env){
+ let pins=[];
+ try{pins=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins");}catch(e){console.error("Discord pins read failed",e);}
+ let centre=(pins||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **WORLD Defence**"));
+ if(centre)return centre;
+ // Discord's pins response can be stale/changed across API versions. Fall back
+ // to recent channel messages so /def edits the existing centre instead of
+ // silently creating or missing it.
+ try{
+  const recent=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages?limit=50");
+  centre=(recent||[]).find(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **WORLD Defence**"));
+ }catch(e){console.error("Discord centre history read failed",e);}
+ return centre||null;
+}
+async function refreshDiscordCentre(env){
+ const requests=await loadActiveRequests(env);
+ const body={content:publicCentreText(requests),components:publicCentreButtons(requests),allowed_mentions:{parse:[]}};
+ const centre=await findDiscordCentre(env);
+ if(centre){
+  const updated=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages/"+centre.id,"PATCH",body);
+  try{await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+centre.id,"PUT");}catch(e){console.error("Discord centre re-pin failed:",e);}
+  console.log("Discord defence centre refreshed:",centre.id);
+  return updated?.id||centre.id;
+ }
+ const m=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",body);
+ if(!m?.id)throw new Error("Discord centre message was not created");
+ await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+m.id,"PUT");
+ console.log("Discord defence centre created:",m.id);
+ return m.id;
+}
 function ghDecode(s){const b=atob(String(s||"").replace(/\s/g,""));return new TextDecoder().decode(Uint8Array.from(b,x=>x.charCodeAt(0)));}
 function ghEncode(s){const a=new TextEncoder().encode(s);let b="";for(let i=0;i<a.length;i+=32768)b+=String.fromCharCode(...a.subarray(i,i+32768));return btoa(b);}
 async function ghJson(env,path){const u="https://api.github.com/repos/"+GITHUB_OWNER+"/"+GITHUB_REPO+"/contents/"+path+"?ref="+GITHUB_REF;const r=await fetch(u,{headers:{Authorization:"Bearer "+env.GITHUB_TOKEN,Accept:"application/vnd.github+json","User-Agent":"travian-defence"}});if(!r.ok)throw new Error("GitHub "+path+" "+r.status);const p=await r.json();return {data:JSON.parse(ghDecode(p.content)),sha:p.sha};}
