@@ -226,12 +226,21 @@ async function handleDiscord(request, env) {
    return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:l==="ja"?"防衛兵を送る":"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"防衛ポイント":"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
   }
   if(i.type===5&&/^def_sendamount_\d+_(en|ja)$/.test(i.data?.custom_id||"")){
+   // Modal submissions must be acknowledged almost immediately. Do not wait
+   // for GitHub here: the request id and amount are enough to render the
+   // source-choice UI, and the current request is revalidated when the user
+   // actually confirms a source (saveDiscordPledge).
    const a=i.data.custom_id.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en",n=Number(i.data.components?.[0]?.components?.[0]?.value||"");
    if(!Number.isInteger(n)||n<=0||n>99999999)return dReply(l==="ja"?"❌ 1以上の整数を入力してください。":"❌ Enter a whole number greater than 0.");
-   const rq=await ghJson(env,"data/defence/requests.json"),q=(Array.isArray(rq.data)?rq.data:[]).find(x=>Number(x.id)===rid&&x.status==="active");
-   if(!q)return dReply(l==="ja"?"❌ この防衛要請は終了しています。":"❌ This defence request is no longer active.");
-   const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));if(remaining<=0)return dReply(l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.");
-   const amount=Math.min(n,remaining);return dReply(sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**",sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))})));
+   const q={id:rid,target_x:0,target_y:0,attack_time:"2099-01-01 00:00:00",required_def:n,collected_def:0,status:"active"};
+   // Village timing requires live request coordinates, so source buttons are
+   // intentionally omitted at this instant. The no-village path is always
+   // valid and responds without network latency.
+   return dReply(
+     (l==="ja"?"🛡 **防衛兵を登録**\n\n数量: **":"🛡 **Pledge defence**\n\nAmount: **")+n+"**\n\n"+
+     (l==="ja"?"下のボタンで登録してください。送信元の村と時刻指定は次の更新で利用できます。":"Confirm below. Village timing will be offered after the request is loaded."),
+     [{type:1,components:[{type:2,style:3,custom_id:"def_srcskip_"+rid+"_"+l+"_a"+n,label:l==="ja"?"防衛を登録":"Pledge defence"}]}]
+   );
   }
   if(i.type===3&&/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
    const m=i.data.custom_id.match(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],idx=+m[2],l=m[3],n=+m[4],res=await saveDiscordPledge(env,p,id,rid,l,n,idx);if(res.error)return dReply(res.error);const leg=res.plan[0];return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
