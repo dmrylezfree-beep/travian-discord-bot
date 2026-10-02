@@ -211,7 +211,13 @@ async function handleDiscord(request, env, ctx) {
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
   if(i.type===2&&i.data?.name==="def"){
-   if(p?.travian_uid){await refreshDiscordCentre(env);const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}
+   if(p?.travian_uid){
+     // /def must answer Discord immediately. Centre/thread refresh is maintenance
+     // work and must never block the interaction response.
+     ctx.waitUntil(refreshDiscordCentre(env).catch(e=>console.error("Deferred /def centre refresh failed:",e)));
+     const l=p.language==="ja"?"ja":"en";
+     return dReply(l==="ja"?"🛡 **WORLD Defence**\n\n公開の固定メッセージで現在の防衛要請を確認できます。":"🛡 **WORLD Defence**\n\nCurrent defence requests are shown in the pinned public centre.",settingsButtons(l));
+   }
    return dReply("🛡 **WORLD Defence**\n\n🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
   }
   
