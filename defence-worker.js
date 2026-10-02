@@ -64,6 +64,7 @@ function dReply(content,components=[]){return Response.json({type:4,data:{conten
 function dUser(i){return String(i.member?.user?.id||i.user?.id||"");}
 function langButtons(){return [{type:1,components:[{type:2,style:1,custom_id:"def_lang_en",label:"English",emoji:{name:"🇬🇧"}},{type:2,style:1,custom_id:"def_lang_ja",label:"日本語",emoji:{name:"🇯🇵"}}]}];}
 function regButton(l){return [{type:1,components:[{type:2,style:3,custom_id:"def_register_"+l,label:DTXT[l].reg,emoji:{name:"🛡️"}}]}];}
+function sendDefButtons(requests,l){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_send_"+q.id+"_"+l,label:(l==="ja"?"防衛兵を送る #":"Send Defence #")+q.id,emoji:{name:"🛡️"}}]}));}
 function ghDecode(s){const b=atob(String(s||"").replace(/\s/g,""));return new TextDecoder().decode(Uint8Array.from(b,x=>x.charCodeAt(0)));}
 function ghEncode(s){const a=new TextEncoder().encode(s);let b="";for(let i=0;i<a.length;i+=32768)b+=String.fromCharCode(...a.subarray(i,i+32768));return btoa(b);}
 async function ghJson(env,path){const u="https://api.github.com/repos/"+GITHUB_OWNER+"/"+GITHUB_REPO+"/contents/"+path+"?ref="+GITHUB_REF;const r=await fetch(u,{headers:{Authorization:"Bearer "+env.GITHUB_TOKEN,Accept:"application/vnd.github+json","User-Agent":"travian-defence"}});if(!r.ok)throw new Error("GitHub "+path+" "+r.status);const p=await r.json();return {data:JSON.parse(ghDecode(p.content)),sha:p.sha};}
@@ -73,7 +74,7 @@ function mapVillage(text,x,y){const rows=text.match(/\([^;\n]*?\)(?=,|;|\s*$)/g)
 async function getMap(){const r=await fetch(TRAVIAN_MAP_URL,{headers:{"User-Agent":"travian-defence"}});if(!r.ok)throw new Error("map.sql "+r.status);return r.text();}
 function tribeName(n,l){const a=l==="ja"?{1:"ローマン",2:"チュートン",3:"ガウル",6:"エジプト",7:"フン",8:"スパルタ"}:{1:"Romans",2:"Teutons",3:"Gauls",6:"Egyptians",7:"Huns",8:"Spartans"};return a[n]||String(n);}
 async function uidUsed(env,uid,dp,myId,map){for(const [id,p] of Object.entries(dp))if(id!==myId&&Number(p?.travian_uid)===uid)return true;const tp=(await ghJson(env,TELEGRAM_PLAYERS_PATH)).data||{};for(const p of Object.values(tp)){if(Number(p?.travian_uid)===uid)return true;for(const v of p?.villages||[]){const m=String(v.coordinates||"").match(/^\s*(-?\d+)\s+(-?\d+)\s*$/);if(m&&mapVillage(map,+m[1],+m[2])?.uid===uid)return true;}}return false;}
-async function centre(env,p){const l=p.language==="ja"?"ja":"en",t=DTXT[l];let rs=[];try{rs=await loadActiveRequests(env);}catch{}let a=["🛡 **WORLD Defence**","","👤 **"+t.account+":** "+p.player_name,"🏘 **"+t.village+":** "+(p.villages?.[0]?.coordinates||"—"),"⚔️ **"+t.tribe+":** "+tribeName(p.tribe,l),"","**"+t.active+":**"];if(!rs.length)a.push(t.none);for(const q of rs)a.push("🟢 **#"+q.id+"** — "+q.target_x+"|"+q.target_y+" — 🛡 "+Number(q.collected_def||0).toLocaleString()+"/"+Number(q.required_def||0).toLocaleString()+" — ⚔️ "+(q.attack_time_display||q.attack_time));return a.join("\n");}
+async function centreData(env,p){const l=p.language==="ja"?"ja":"en",t=DTXT[l];let rs=[];try{rs=await loadActiveRequests(env);}catch{}let a=["🛡 **WORLD Defence**","","👤 **"+t.account+":** "+p.player_name,"🏘 **"+t.village+":** "+(p.villages?.[0]?.coordinates||"—"),"⚔️ **"+t.tribe+":** "+tribeName(p.tribe,l),"","**"+t.active+":**"];if(!rs.length)a.push(t.none);for(const q of rs)a.push("🟢 **#"+q.id+"** — "+q.target_x+"|"+q.target_y+" — 🛡 "+Number(q.collected_def||0).toLocaleString()+"/"+Number(q.required_def||0).toLocaleString()+" — ⚔️ "+(q.attack_time_display||q.attack_time));return a.join("\n");}
 
 
 const DEF_UNITS={
@@ -95,10 +96,28 @@ async function handleDiscord(request, env) {
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
   if(i.type===2&&i.data?.name==="def"){
-   if(p?.travian_uid)return dReply(await centre(env,p),settingsButtons(p.language==="ja"?"ja":"en"));
+   if(p?.travian_uid){const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}
    return dReply("🛡 **WORLD Defence**\n\n🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
   }
   
+  
+  if(i.type===3&&/^def_send_\d+_(en|ja)$/.test(i.data?.custom_id||"")){
+   const a=i.data.custom_id.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en";
+   return Response.json({type:9,data:{custom_id:"def_sendamount_"+rid+"_"+l,title:l==="ja"?"防衛兵を送る":"Send Defence",components:[{type:1,components:[{type:4,custom_id:"amount",style:1,label:l==="ja"?"防衛ポイント":"Defence points",placeholder:"1000",required:true,min_length:1,max_length:8}]}]}});
+  }
+  if(i.type===5&&/^def_sendamount_\d+_(en|ja)$/.test(i.data?.custom_id||"")){
+   const a=i.data.custom_id.split("_"),rid=Number(a[2]),l=a[3]==="ja"?"ja":"en",n=Number(i.data.components?.[0]?.components?.[0]?.value||"");
+   if(!Number.isInteger(n)||n<=0||n>99999999)return dReply(l==="ja"?"❌ 1以上の整数を入力してください。":"❌ Enter a whole number greater than 0.");
+   const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],q=list.find(x=>Number(x.id)===rid);
+   if(!q||q.status!=="active")return dReply(l==="ja"?"❌ この防衛要請は終了しています。":"❌ This defence request is no longer active.");
+   const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));if(remaining<=0)return dReply(l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.");
+   const amount=Math.min(n,remaining);q.contributions=Array.isArray(q.contributions)?q.contributions:[];
+   q.contributions.push({platform:"discord",user_id:id,player_name:p.player_name,def_points:amount,plan:[],created_at:londonNowText()});
+   q.collected_def=q.contributions.reduce((s,z)=>s+Number(z.def_points||0),0);
+   await ghSave(env,"data/defence/requests.json",list,rq.sha,"Add WORLD Discord defence contribution");
+   return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+amount+"**\n🎯 **"+q.target_x+"|"+q.target_y+"**\n📊 "+q.collected_def+" / "+q.required_def);
+  }
+
   if(i.type===3&&i.data?.custom_id==="def_language")return dReply("🌐 🇬🇧 "+DTXT.en.choose+"\n🇯🇵 "+DTXT.ja.choose,langButtons());
   if(i.type===3&&/^def_add_(en|ja)$/.test(i.data?.custom_id||"")){
    const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l];
@@ -132,7 +151,7 @@ async function handleDiscord(request, env) {
    await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Register WORLD Discord player "+v.player);
    return dReply(t.done+"\n\n👤 **"+t.account+":** "+v.player+"\n🏘 **"+t.village+":** "+v.name+" ("+x+"|"+y+")\n⚔️ **"+t.tribe+":** "+tribeName(v.tribe,l));
   }
-  return dReply(p?await centre(env,p):"Use /def.");
+  if(p){const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}return dReply("Use /def.");
  }catch(e){console.error("Discord Defence error:",e);const l=i.data?.custom_id?.endsWith("_ja")?"ja":"en";return dReply(DTXT[l].err);}
 }
 
