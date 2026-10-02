@@ -325,7 +325,9 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "subs"
+    },
     "private_chat_id": 916527950,
     "private_notifications": true,
     "hero_inventory": {
