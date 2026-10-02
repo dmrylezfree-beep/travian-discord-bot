@@ -231,7 +231,9 @@
       {
         "coordinates": "39 39",
         "arena": 0,
-        "troops": {},
+        "troops": {
+          "legionnaire": 25
+        },
         "hero": {
           "present": false
         }
@@ -246,11 +248,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "unit_amount",
-      "index": 0,
-      "unit": "legionnaire"
-    },
+    "state": null,
     "private_chat_id": 374099244,
     "private_notifications": true,
     "hero_inventory": {
