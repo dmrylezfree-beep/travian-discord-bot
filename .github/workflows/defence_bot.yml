@@ -22,7 +22,7 @@ permissions:
 # Only one short defence session may run at a time.
 concurrency:
   group: defence-bot
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   run-bot:
