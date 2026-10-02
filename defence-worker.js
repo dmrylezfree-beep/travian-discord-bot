@@ -510,18 +510,12 @@ async function loadActiveRequests(env) {
   const requests = JSON.parse(raw);
   if (!Array.isArray(requests)) return [];
 
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23"
-  }).formatToParts(new Date());
-  const now = Object.fromEntries(parts.map(p => [p.type, p.value]));
-  const nowText = `${now.year}-${now.month}-${now.day} ${now.hour}:${now.minute}:${now.second}`;
+  // Travian Asia server time is UTC. Do not use Europe/London here:
+  // during British Summer Time London is UTC+1 and requests disappear
+  // from Discord one hour too early.
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const nowText = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 
   return requests.filter(req =>
     req && req.status === "active" &&
