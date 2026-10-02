@@ -354,10 +354,13 @@
     "telegram_id": 450280886,
     "username": "",
     "first_name": "Антон",
-    "race": null,
+    "race": "gaul",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "40 4"
+    },
     "private_chat_id": 450280886,
     "private_notifications": true,
     "hero_inventory": {
