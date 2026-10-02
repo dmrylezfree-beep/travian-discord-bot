@@ -366,7 +366,11 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "unit_amount",
+      "index": 0,
+      "unit": "druidrider"
+    },
     "private_chat_id": 450280886,
     "private_notifications": true,
     "hero_inventory": {
