@@ -308,5 +308,21 @@
       "boots": [],
       "maps": []
     }
+  },
+  "341950808": {
+    "telegram_id": 341950808,
+    "username": "",
+    "first_name": "Александр",
+    "race": null,
+    "villages": [],
+    "substitutes": [],
+    "state": null,
+    "private_chat_id": null,
+    "private_notifications": true,
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    }
   }
 }
