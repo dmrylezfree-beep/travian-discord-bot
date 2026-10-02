@@ -374,7 +374,7 @@ def defence_rank_kb():
 
 def defence_player_text(player_id):
     _, rows, _, units_cfg = defence_stats()
-    row = next((r for r in rows if str(r["id"]) == str(player_id), None)
+    row = next((r for r in rows if str(r["id"]) == str(player_id)), None)
     if not row:
         return "Данные игрока не найдены."
     place = rows.index(row) + 1
