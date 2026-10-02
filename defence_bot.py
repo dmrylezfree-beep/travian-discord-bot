@@ -240,6 +240,7 @@ def is_owner(user):
 def settings_kb(owner=False):
     rows = [
         [{"text": "🏘 Мои деревни", "callback_data": "villages"}],
+        [{"text": "🦸 Герой и инвентарь", "callback_data": "hero_menu"}],
         [{"text": "🆔 Узнать мой Telegram ID", "callback_data": "my_id"}],
         [{"text": "➕ Добавить деревню", "callback_data": "add_village"}],
         [{"text": "✏️ Изменить деревню", "callback_data": "edit_village"}],
@@ -380,8 +381,46 @@ def unit_keyboard(index, player):
             rows.append([{"text": unit["name"], "callback_data": f"unit:{index}:{key}"}])
     rows += [
         [{"text": "✏️ Координаты", "callback_data": f"coords:{index}"}, {"text": "✏️ Арена", "callback_data": f"arena:{index}"}],
-        [{"text": "🦸 Герой и инвентарь", "callback_data": f"hero:{index}"}],
         [{"text": "⬅️ Назад", "callback_data": "villages"}],
+    ]
+    return kb(rows)
+
+
+def hero_menu_text(player):
+    inv = hero_inventory(player)
+    idx = hero_village_index(player)
+    village = player.get("villages", [])[idx] if idx is not None and idx < len(player.get("villages", [])) else None
+    location = village.get("coordinates", "?") if village else "не выбран"
+    return (
+        "<b>🦸 Герой и инвентарь</b>\n\n"
+        f"📍 Герой: <b>{location}</b>\n\n"
+        "<b>🎒 Доступно в инвентаре:</b>\n"
+        f"🚩 Штандарты: <b>{', '.join('+'+str(x)+'%' for x in inv['standards']) or 'нет'}</b>\n"
+        f"🥾 Сапоги: <b>{', '.join('+'+str(x)+'%' for x in inv['boots']) or 'нет'}</b>\n"
+        f"🗺 Карты: <b>{', '.join('+'+str(x)+'%' for x in inv['maps']) or 'нет'}</b>\n\n"
+        "Выберите деревню, где находится герой, или измените инвентарь."
+    )
+
+
+def hero_menu_keyboard(player):
+    inv = hero_inventory(player)
+    def mark(kind, value, icon):
+        return f"{'✅' if value in inv[kind] else '▫️'} {icon} +{value}%"
+    rows = []
+    for idx, village in enumerate(player.get("villages", [])):
+        here = bool((village.get("hero") or {}).get("present"))
+        rows.append([{"text": f"{'📍' if here else '▫️'} {village.get('coordinates', '?')}", "callback_data": f"hero_loc:{idx}"}])
+    rows += [
+        [{"text": mark("standards", 15, "🚩"), "callback_data": "hinv_main:standards:15"},
+         {"text": mark("standards", 20, "🚩"), "callback_data": "hinv_main:standards:20"},
+         {"text": mark("standards", 25, "🚩"), "callback_data": "hinv_main:standards:25"}],
+        [{"text": mark("boots", 25, "🥾"), "callback_data": "hinv_main:boots:25"},
+         {"text": mark("boots", 50, "🥾"), "callback_data": "hinv_main:boots:50"},
+         {"text": mark("boots", 75, "🥾"), "callback_data": "hinv_main:boots:75"}],
+        [{"text": mark("maps", 30, "🗺"), "callback_data": "hinv_main:maps:30"},
+         {"text": mark("maps", 40, "🗺"), "callback_data": "hinv_main:maps:40"},
+         {"text": mark("maps", 50, "🗺"), "callback_data": "hinv_main:maps:50"}],
+        [{"text": "⬅️ Мои настройки", "callback_data": "settings"}],
     ]
     return kb(rows)
 
@@ -601,6 +640,30 @@ def callback_query(q):
         else:
             telegram_id = int(action.split(":", 1)[1])
             edit(chat_id, msg_id, defence_player_text(telegram_id), kb([[{"text": "⬅️ Рейтинг", "callback_data": "def_rank"}]]))
+    elif action == "hero_menu":
+        edit(chat_id, msg_id, hero_menu_text(player), hero_menu_keyboard(player))
+    elif action.startswith("hero_loc:"):
+        idx = int(action.split(":", 1)[1])
+        if 0 <= idx < len(player.get("villages", [])):
+            currently_here = bool((player["villages"][idx].get("hero") or {}).get("present"))
+            for village in player.get("villages", []):
+                village.setdefault("hero", {})["present"] = False
+            if not currently_here:
+                player["villages"][idx].setdefault("hero", {})["present"] = True
+            save_players(data)
+        edit(chat_id, msg_id, hero_menu_text(player), hero_menu_keyboard(player))
+    elif action.startswith("hinv_main:"):
+        _, kind, value = action.split(":", 2)
+        value = int(value)
+        inv = hero_inventory(player)
+        if kind in ("standards", "boots", "maps"):
+            if value in inv[kind]:
+                inv[kind].remove(value)
+            else:
+                inv[kind].append(value)
+                inv[kind].sort()
+            save_players(data)
+        edit(chat_id, msg_id, hero_menu_text(player), hero_menu_keyboard(player))
     elif action == "race_menu":
         edit(chat_id, msg_id, "<b>🧬 Выбор расы</b>\n\nВыберите вашу расу. После смены расы список доступных юнитов во всех ваших деревнях будет автоматически отфильтрован.", race_keyboard())
     elif action.startswith("race:"):
