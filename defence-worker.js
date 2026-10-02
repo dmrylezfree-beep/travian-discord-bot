@@ -259,7 +259,15 @@ async function handleDiscord(request, env, ctx) {
    return Response.json({type:5,data:{flags:64}});
   }
     if(i.type===3&&/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
-   const m=i.data.custom_id.match(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],idx=+m[2],l=m[3],n=+m[4],res=await saveDiscordPledge(env,p,id,rid,l,n,idx);if(res.error)return dReply(res.error);const leg=res.plan[0];return dReply((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
+   const m=i.data.custom_id.match(/^def_src_(\d+)_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],idx=+m[2],l=m[3],n=+m[4],token=i.token,appId=i.application_id;
+   ctx.waitUntil((async()=>{try{
+     const res=await saveDiscordPledge(env,p,id,rid,l,n,idx);
+     let content;
+     if(res.error) content=res.error;
+     else {const leg=res.plan[0];content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence pledged**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;}
+     await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
+   }catch(e){console.error("Deferred Discord village pledge failed:",e);}})());
+   return Response.json({type:5,data:{flags:64}});
   }
   if(i.type===3&&/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/.test(i.data?.custom_id||"")){
    // Acknowledge immediately; GitHub save + centre refresh continue in background.
