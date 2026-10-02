@@ -284,9 +284,11 @@ def defence_stats():
     totals = {key: 0 for key in INFANTRY_UNITS | CAVALRY_UNITS}
     rows = []
     village_count = 0
-    for p in players().values():
+
+    def collect_profile(p, platform):
+        nonlocal village_count
         if not isinstance(p, dict):
-            continue
+            return
         inf = cav = 0
         per_unit = {key: 0 for key in totals}
         player_villages = []
@@ -302,14 +304,36 @@ def defence_stats():
                 totals[key] += amount
                 per_unit[key] += amount
                 if key in INFANTRY_UNITS:
-                    inf += amount; v_inf += amount
+                    inf += amount
+                    v_inf += amount
                 else:
-                    cav += amount; v_cav += amount
+                    cav += amount
+                    v_cav += amount
             if v_inf or v_cav:
                 village_count += 1
                 player_villages.append((v.get("coordinates", "?"), v_inf, v_cav))
-        if inf or cav:
-            rows.append({"id": int(p.get("telegram_id", 0) or 0), "name": player_name(p), "inf": inf, "cav": cav, "score": inf + cav * 2, "units": per_unit, "villages": player_villages})
+        if not (inf or cav):
+            return
+        if platform == "discord":
+            ident = "discord:" + str(p.get("discord_id", ""))
+            name = p.get("player_name") or p.get("discord_global_name") or p.get("discord_username") or ident
+        else:
+            ident = "telegram:" + str(p.get("telegram_id", ""))
+            name = player_name(p)
+        rows.append({
+            "id": ident, "platform": platform, "name": name,
+            "inf": inf, "cav": cav, "score": inf + cav * 2,
+            "units": per_unit, "villages": player_villages,
+        })
+
+    for p in players().values():
+        collect_profile(p, "telegram")
+
+    discord_data = load_json(DATA_DIR / "discord_players.json", {})
+    if isinstance(discord_data, dict):
+        for p in discord_data.values():
+            collect_profile(p, "discord")
+
     rows.sort(key=lambda x: (-x["score"], x["name"].lower()))
     return totals, rows, village_count, units_cfg
 
@@ -348,9 +372,9 @@ def defence_rank_kb():
     return kb(buttons)
 
 
-def defence_player_text(telegram_id):
+def defence_player_text(player_id):
     _, rows, _, units_cfg = defence_stats()
-    row = next((r for r in rows if r["id"] == telegram_id), None)
+    row = next((r for r in rows if str(r["id"]) == str(player_id), None)
     if not row:
         return "Данные игрока не найдены."
     place = rows.index(row) + 1
