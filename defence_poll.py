@@ -1,5 +1,6 @@
 import os
 import time
+import traceback
 from datetime import datetime
 
 import defence_bot as bot
@@ -152,6 +153,7 @@ def poll():
                     )
         except Exception as exc:
             print(f"Initial Telegram update failed: {exc}", flush=True)
+            traceback.print_exc()
 
     offset = None
     deadline = time.monotonic() + RUN_SECONDS
@@ -215,6 +217,7 @@ def poll():
                     f"Telegram update {update.get('update_id')} failed: {exc}",
                     flush=True,
                 )
+                traceback.print_exc()
 
     print(f"Defence bot polling finished; processed {processed} updates", flush=True)
 
