@@ -190,7 +190,16 @@ async function handleDiscord(request, env) {
  if(!(await verifyDiscordRequest(request,raw)))return new Response("Invalid request signature",{status:401});
  let i;try{i=JSON.parse(raw);}catch{return new Response("Bad Request",{status:400});}
  if(i.type===1)return Response.json({type:1});
- if(String(i.guild_id||"")!==DISCORD_GUILD_ID||String(i.channel_id||"")!==DISCORD_DEFENCE_CHANNEL_ID)return dReply("❌ WORLD Defence is available only in the designated defence channel.\n❌ WORLD Defenceは指定された防衛チャンネルでのみ利用できます。");
+ if(String(i.guild_id||"")!==DISCORD_GUILD_ID)return dReply("❌ WORLD Defence is available only in the WORLD server.\n❌ WORLD DefenceはWORLDサーバーでのみ利用できます。");
+ // Interactions are allowed both in the main defence channel and in threads
+ // created under it. Discord reports the thread ID as channel_id, so rejecting
+ // every ID except the parent channel broke Send Defence inside request threads.
+ if(String(i.channel_id||"")!==DISCORD_DEFENCE_CHANNEL_ID){
+   let interactionChannel=null;
+   try{interactionChannel=await discordApi(env,"/channels/"+String(i.channel_id||""));}catch(e){console.error("Discord interaction channel lookup failed:",e);}
+   if(String(interactionChannel?.parent_id||"")!==DISCORD_DEFENCE_CHANNEL_ID)
+     return dReply("❌ WORLD Defence is available only in the designated defence channel and its request threads.\n❌ WORLD Defenceは指定された防衛チャンネルとその防衛スレッドでのみ利用できます。");
+ }
  const id=dUser(i);
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
