@@ -317,7 +317,7 @@
           "phalanx": 10
         },
         "hero": {
-          "present": false
+          "present": true
         }
       }
     ],
