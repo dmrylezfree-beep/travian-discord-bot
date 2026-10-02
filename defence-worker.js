@@ -215,7 +215,7 @@ function heroRoutes(p,v,distance,speed){
  return out;
 }
 function discordVillageOptions(p,q){
- const attack=parseServerTime(q.attack_time),now=parseServerTime(londonNowText());if(!Number.isFinite(attack)||attack<=now)return[];
+ const attack=parseServerTime(q.attack_time),now=parseServerTime(serverNowText());if(!Number.isFinite(attack)||attack<=now)return[];
  const out=[];
  for(let idx=0;idx<(p.villages||[]).length;idx++){
   const v=p.villages[idx],m=String(v.coordinates||"").match(/^\s*(-?\d+)\s+(-?\d+)\s*$/);if(!m)continue;
@@ -248,9 +248,14 @@ function sendSourceText(p,q,l){
  else for(const o of opts.slice(0,8))a.push((o.speed_mode==="hero"?"🦸":"🏘")+" **"+String(o.village.coordinates).replace(" ","|")+"** · "+o.gear_label+" · 🚨 "+timeOnly(o.deadline)+" · 🛡 ≤"+o.maxDef);
  a.push("",l==="ja"?"方法を選ぶか、村を選ばずに確認してください。":"Choose a departure option, or confirm without selecting one.");return a.join("\n");
 }
-async function saveDiscordPledge(env,p,id,rid,l,n,sourceIdx=null,routeIdx=0){const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],q=list.find(x=>Number(x.id)===rid);if(!q||q.status!=="active")return {error:l==="ja"?"❌ この防衛要請は終了しています。":"❌ This defence request is no longer active."};const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));if(remaining<=0)return {error:l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered."};const amount=Math.min(n,remaining),plan=[];if(sourceIdx!==null){const o=discordVillageOptions(p,q).find(x=>x.idx===sourceIdx&&x.routeIdx===routeIdx);if(!o)return {error:l==="ja"?"❌ この村は時間内に到着できません。":"❌ This village can no longer arrive in time."};const reminder=formatServerTime(parseServerTime(o.deadline)-5*60*1000);plan.push({village_idx:o.idx,village:o.village.coordinates,def_points:amount,speed_mode:o.speed_mode,gear_label:o.gear_label,standard:o.standard||0,boots:o.boots||0,map:o.map||0,deadline_at:o.deadline,deadline:timeOnly(o.deadline),reminder_at:reminder,reminder_time:timeOnly(reminder),reminder_sent:false});}q.contributions=Array.isArray(q.contributions)?q.contributions:[];q.contributions.push({platform:"discord",user_id:id,player_name:p.player_name,def_points:amount,plan,created_at:londonNowText()});q.collected_def=q.contributions.reduce((s,z)=>s+Number(z.def_points||0),0);await ghSave(env,"data/defence/requests.json",list,rq.sha,"Add WORLD Discord defence contribution");if(plan.length){await queueReminder(env,{platform:"discord",discord_id:id,language:l,request_id:q.id,target_x:q.target_x,target_y:q.target_y,attack_time:q.attack_time,attack_time_display:q.attack_time_display,village:plan[0].village,def_points:amount,speed_mode:plan[0].speed_mode,gear_label:plan[0].gear_label,deadline:plan[0].deadline,deadline_at:plan[0].deadline_at,reminder_at:plan[0].reminder_at});}await dispatchDiscordSync(env);await refreshDiscordCentre(env);return {q,amount,plan};}
+async function saveDiscordPledge(env,p,id,rid,l,n,sourceIdx=null,routeIdx=0){const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],q=list.find(x=>Number(x.id)===rid);if(!q||q.status!=="active")return {error:l==="ja"?"❌ この防衛要請は終了しています。":"❌ This defence request is no longer active."};const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));if(remaining<=0)return {error:l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered."};const amount=Math.min(n,remaining),plan=[];if(sourceIdx!==null){const o=discordVillageOptions(p,q).find(x=>x.idx===sourceIdx&&x.routeIdx===routeIdx);if(!o)return {error:l==="ja"?"❌ この村は時間内に到着できません。":"❌ This village can no longer arrive in time."};const reminder=formatServerTime(parseServerTime(o.deadline)-5*60*1000);plan.push({village_idx:o.idx,village:o.village.coordinates,def_points:amount,speed_mode:o.speed_mode,gear_label:o.gear_label,standard:o.standard||0,boots:o.boots||0,map:o.map||0,deadline_at:o.deadline,deadline:timeOnly(o.deadline),reminder_at:reminder,reminder_time:timeOnly(reminder),reminder_sent:false});}q.contributions=Array.isArray(q.contributions)?q.contributions:[];q.contributions.push({platform:"discord",user_id:id,player_name:p.player_name,def_points:amount,plan,created_at:serverNowText()});q.collected_def=q.contributions.reduce((s,z)=>s+Number(z.def_points||0),0);await ghSave(env,"data/defence/requests.json",list,rq.sha,"Add WORLD Discord defence contribution");if(plan.length){await queueReminder(env,{platform:"discord",discord_id:id,language:l,request_id:q.id,target_x:q.target_x,target_y:q.target_y,attack_time:q.attack_time,attack_time_display:q.attack_time_display,village:plan[0].village,def_points:amount,speed_mode:plan[0].speed_mode,gear_label:plan[0].gear_label,deadline:plan[0].deadline,deadline_at:plan[0].deadline_at,reminder_at:plan[0].reminder_at});}await dispatchDiscordSync(env);await refreshDiscordCentre(env);return {q,amount,plan};}
 function canCreateDefence(i){try{return (BigInt(String(i.member?.permissions||"0"))&8192n)!==0n;}catch{return false;}}
 function createRequestButton(l){return [{type:1,components:[{type:2,style:3,custom_id:"def_create_"+l,label:l==="ja"?"➕ 防衛要請を作成":"➕ Create defence request"}]}];}
+function personalCentreComponents(requests,l,canCreate=false){
+ const fixed=[...(canCreate?createRequestButton(l):[]),...settingsButtons(l)];
+ const room=Math.max(0,5-fixed.length);
+ return [...(sendDefButtons(requests,l).slice(0,room)),...fixed];
+}
 function settingsButtons(l){const t=DTXT[l];return [{type:1,components:[{type:2,style:1,custom_id:"def_add_"+l,label:t.addVillage,emoji:{name:"🏘️"}},{type:2,style:1,custom_id:"def_troops_"+l,label:t.troops,emoji:{name:"🛡️"}}]},{type:1,components:[{type:2,style:1,custom_id:"def_hero_"+l,label:l==="ja"?"英雄と装備":"Hero & gear",emoji:{name:"🦸"}},{type:2,style:2,custom_id:"def_language",label:t.changeLang,emoji:{name:"🌐"}}]}];}
 function villageButtons(p,l){return (p.villages||[]).slice(0,5).map((v,n)=>({type:1,components:[{type:2,style:1,custom_id:"def_village_"+n+"_"+l,label:(v.name||("Village "+(n+1)))+" ("+String(v.coordinates).replace(" ","|")+")"}]}));}
 function unitButtons(p,idx,l){const us=DEF_UNITS[p.race]||[];return us.map(u=>({type:1,components:[{type:2,style:1,custom_id:"def_unit_"+idx+"_"+u[0]+"_"+l,label:(l==="ja"?u[2]:u[1])+" — "+Number(p.villages?.[idx]?.troops?.[u[0]]||0)}]}));}
@@ -298,14 +303,14 @@ async function handleDiscord(request, env, ctx) {
    const cm=vals.coords?.match(/^(-?\d{1,3})\s+(-?\d{1,3})$/),attack=vals.attack||"",required=Number(vals.required);
    if(!cm||+cm[1]<-200||+cm[1]>200||+cm[2]<-200||+cm[2]>200||!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(attack)||!Number.isInteger(required)||required<=0)
      return dReply(l==="ja"?"❌ 座標、時刻、必要防衛ポイントを確認してください。":"❌ Check coordinates, attack time and required defence points.");
-   const attackMs=parseServerTime(attack);if(!Number.isFinite(attackMs)||attackMs<=parseServerTime(londonNowText()))return dReply(l==="ja"?"❌ 攻撃時刻は未来である必要があります。":"❌ Attack time must be in the future.");
+   const attackMs=parseServerTime(attack);if(!Number.isFinite(attackMs)||attackMs<=parseServerTime(serverNowText()))return dReply(l==="ja"?"❌ 攻撃時刻は未来である必要があります。":"❌ Attack time must be in the future.");
    const token=i.token,appId=i.application_id,x=+cm[1],y=+cm[2],creator=id,uname=i.member?.user?.username||"",gname=i.member?.user?.global_name||"";
    ctx.waitUntil((async()=>{let content;try{
     const map=await getMap(),v=mapVillage(map,x,y);
     if(!v||v.aid!==WORLD_ALLIANCE_ID)content=l==="ja"?"❌ 対象はWORLD同盟の村である必要があります。":"❌ Target must be a WORLD alliance village.";
     else{
      const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],rid=Math.max(0,...list.map(z=>Number(z.id)||0))+1;
-     const q={id:rid,requester_platform:"discord",requester_id:creator,requester_username:uname,requester_first_name:gname,target_x:x,target_y:y,target_player:v.player,attack_time:attack,attack_time_display:attack.replace(/^(\d{4})-(\d{2})-(\d{2}) /,"$3.$2.$1 "),required_def:required,collected_def:0,status:"active",contributions:[],created_at:londonNowText()};
+     const q={id:rid,requester_platform:"discord",requester_id:creator,requester_username:uname,requester_first_name:gname,target_x:x,target_y:y,target_player:v.player,attack_time:attack,attack_time_display:attack.replace(/^(\d{4})-(\d{2})-(\d{2}) /,"$3.$2.$1 "),required_def:required,collected_def:0,status:"active",contributions:[],created_at:serverNowText()};
      await ghSave(env,"data/defence/requests.json",[...list,q],rq.sha,"Create WORLD Discord defence request #"+rid);
      await dispatchDiscordSync(env);await refreshDiscordCentre(env);
      content=(l==="ja"?"✅ **防衛要請を作成しました #":"✅ **Defence request created #")+rid+"**\n🎯 **"+x+"|"+y+"**\n⚔️ "+q.attack_time_display+"\n🛡 "+required.toLocaleString();
@@ -373,7 +378,7 @@ async function handleDiscord(request, env, ctx) {
        const cd=await centreData(env,p);
        await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{
          method:"PATCH",headers:{"content-type":"application/json"},
-         body:JSON.stringify({content:cd.text,components:[...(canCreateDefence(i)?createRequestButton(cd.lang):[]),...sendDefButtons(cd.requests,cd.lang),...settingsButtons(cd.lang)],flags:64})
+         body:JSON.stringify({content:cd.text,components:personalCentreComponents(cd.requests,cd.lang,canCreateDefence(i)),flags:64})
        });
        await refreshDiscordCentre(env);
      }catch(e){console.error("Deferred /def centre failed:",e);}})());
@@ -466,7 +471,7 @@ async function handleDiscord(request, env, ctx) {
   if(i.type===3&&/^def_arena_(\d+)_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[3];return Response.json({type:9,data:{custom_id:"def_arenaval_"+idx+"_"+l,title:DTXT[l].arena,components:[{type:1,components:[{type:4,custom_id:"arena",style:1,label:l==="ja"?"闘技場レベル (0-20)":"Tournament Square level (0-20)",placeholder:"0",required:true,min_length:1,max_length:2}]}]}});}
   if(i.type===5&&/^def_arenaval_(\d+)_(en|ja)$/.test(i.data?.custom_id||"")){const a=i.data.custom_id.split("_"),idx=+a[2],l=a[3],n=Number(i.data.components?.[0]?.components?.[0]?.value||"");if(!Number.isInteger(n)||n<0||n>20)return dReply(l==="ja"?"❌ 0〜20を入力してください。":"❌ Enter a level from 0 to 20.");p.villages[idx].arena=n;p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Update WORLD Discord arena");return dReply("✅ "+DTXT[l].saved+"\n\n🏟 "+DTXT[l].arena+": "+n,unitButtons(p,idx,l));}
 
-  if(i.type===3&&/^def_lang_(en|ja)$/.test(i.data?.custom_id||"")){const l=i.data.custom_id.endsWith("_ja")?"ja":"en";if(p?.travian_uid){p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Update WORLD Discord language");const cd=await centreData(env,p);return dReply("✅ "+DTXT[l].saved+"\n\n"+cd.text,sendDefButtons(cd.requests,l).concat(settingsButtons(l)));}return dReply("🛡 **WORLD Defence**\n\n"+DTXT[l].wait,regButton(l));}
+  if(i.type===3&&/^def_lang_(en|ja)$/.test(i.data?.custom_id||"")){const l=i.data.custom_id.endsWith("_ja")?"ja":"en";if(p?.travian_uid){p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Update WORLD Discord language");const cd=await centreData(env,p);return dReply("✅ "+DTXT[l].saved+"\n\n"+cd.text,personalCentreComponents(cd.requests,l,canCreateDefence(i)));}return dReply("🛡 **WORLD Defence**\n\n"+DTXT[l].wait,regButton(l));}
   if(i.type===3&&/^def_register_(en|ja)$/.test(i.data?.custom_id||"")){
    const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l];
    return Response.json({type:9,data:{custom_id:"def_coords_"+l,title:t.title,components:[{type:1,components:[{type:4,custom_id:"coords",style:1,label:t.coord,placeholder:t.hint,required:true,min_length:3,max_length:9}]}]}});
@@ -479,36 +484,22 @@ async function handleDiscord(request, env, ctx) {
    await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Register WORLD Discord player "+v.player);
    return dReply(t.done+"\n\n👤 **"+t.account+":** "+v.player+"\n🏘 **"+t.village+":** "+v.name+" ("+x+"|"+y+")\n⚔️ **"+t.tribe+":** "+tribeName(v.tribe,l));
   }
-  if(p){const cd=await centreData(env,p);return dReply(cd.text,sendDefButtons(cd.requests,cd.lang).concat(settingsButtons(cd.lang)));}return dReply("Use /def.");
+  if(p){const cd=await centreData(env,p);return dReply(cd.text,personalCentreComponents(cd.requests,cd.lang,canCreateDefence(i)));}return dReply("Use /def.");
  }catch(e){console.error("Discord Defence error:",e);const l=i.data?.custom_id?.endsWith("_ja")?"ja":"en";return dReply(l==="ja"?"❌ 内部エラーが発生しました。もう一度お試しください。":"❌ Internal error. Please try again.");}
 }
 
 const MAX_QUEUE_DELAY_SECONDS = 86400;
 
-function londonNowText() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"
-  }).formatToParts(new Date());
-  const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
+function serverNowText() {
+  const d=new Date(),pad=n=>String(n).padStart(2,"0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
-
-function secondsUntilLondon(localText) {
-  // Convert a Europe/London wall-clock timestamp to a delay without assuming
-  // that the Worker itself runs in the server timezone.
-  const now = new Date();
-  const nowParts = londonNowText();
-  const target = String(localText || "");
-  const parse = s => {
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
-    return m ? Date.UTC(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]) : NaN;
-  };
-  return Math.floor((parse(target) - parse(nowParts)) / 1000);
+function secondsUntilServer(localText) {
+  return Math.floor((parseServerTime(String(localText||""))-Date.now())/1000);
 }
 
 async function queueReminder(env, payload) {
-  const delay = secondsUntilLondon(payload.reminder_at);
+  const delay = secondsUntilServer(payload.reminder_at);
   if (!Number.isFinite(delay)) throw new Error("Invalid reminder_at");
   if (delay <= 0) {
     await env.DEFENCE_REMINDERS.send(payload, { delaySeconds: 0 });
@@ -894,7 +885,7 @@ export default {
     for (const message of batch.messages) {
       try {
         const item = message.body || {};
-        const remaining = secondsUntilLondon(item.reminder_at);
+        const remaining = secondsUntilServer(item.reminder_at);
         if (Number.isFinite(remaining) && remaining > 2) {
           message.retry({ delaySeconds: Math.min(remaining, MAX_QUEUE_DELAY_SECONDS) });
           continue;
