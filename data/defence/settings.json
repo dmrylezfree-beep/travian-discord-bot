@@ -22,14 +22,14 @@
     "legionnaire": {
       "name": "Леги",
       "tribe": "Римляне",
-      "speed": 7,
+      "speed": 6,
       "def_inf": 40,
       "def_cav": 55
     },
     "praetorian": {
       "name": "Преты",
       "tribe": "Римляне",
-      "speed": 6,
+      "speed": 5,
       "def_inf": 65,
       "def_cav": 35
     },
@@ -50,7 +50,7 @@
     "equites_imperatoris": {
       "name": "Конница императора",
       "tribe": "Римляне",
-      "speed": 15,
+      "speed": 14,
       "def_inf": 65,
       "def_cav": 50
     },
@@ -99,7 +99,7 @@
     "swordsman": {
       "name": "Мечник",
       "tribe": "Галлы",
-      "speed": 7,
+      "speed": 6,
       "def_inf": 35,
       "def_cav": 20
     },
