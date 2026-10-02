@@ -186,11 +186,21 @@ def extract_value_rows(raw_data):
 
     rows = []
 
-    statements = re.findall(
-        r"INSERT\s+INTO\s+`x_world`\s+VALUES\s*(.*?);",
-        raw_data,
-        flags=re.IGNORECASE | re.DOTALL,
+    # map.sql can contain HTML entities such as &#39; inside quoted
+    # village names. A regexp ending at the first semicolon treats the
+    # semicolon inside the entity as the end of INSERT and drops the row.
+    # Read INSERT statements line by line instead: Travian map.sql stores
+    # each x_world INSERT on one line, while semicolons inside values are safe.
+    statements = []
+    insert_re = re.compile(
+        r"^\\s*INSERT\\s+INTO\\s+`x_world`\\s+VALUES\\s*(.*?)\\s*;?\\s*$",
+        flags=re.IGNORECASE,
     )
+
+    for source_line in raw_data.splitlines():
+        match = insert_re.match(source_line)
+        if match:
+            statements.append(match.group(1))
 
     for values_part in statements:
 
