@@ -344,9 +344,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === "POST" && url.pathname === "/discord/register") {
-      const auth = request.headers.get("Authorization") || "";
-      if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) return new Response("Unauthorized", { status: 401 });
+    if (request.method === "GET" && url.pathname === "/discord/register") {
       try {
         const commands = await registerDiscordCommands(env);
         return Response.json({ ok: true, commands });
