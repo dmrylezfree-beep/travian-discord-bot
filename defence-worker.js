@@ -477,6 +477,20 @@ export default {
       return handleDiscord(request, env);
     }
 
+    if (request.method === "POST" && url.pathname === "/discord/refresh") {
+      const auth = request.headers.get("Authorization") || "";
+      if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      try {
+        const messageId = await refreshDiscordCentre(env);
+        return Response.json({ ok: true, message_id: messageId });
+      } catch (error) {
+        console.error("Discord centre refresh failed:", error instanceof Error ? error.message : String(error));
+        return Response.json({ ok: false, error: String(error) }, { status: 500 });
+      }
+    }
+
     if (request.method === "POST" && url.pathname === "/schedule-reminders") {
       const auth = request.headers.get("Authorization") || "";
       if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) {
