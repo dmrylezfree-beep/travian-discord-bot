@@ -30,6 +30,28 @@ async function verifyDiscordRequest(request, rawBody) {
   }
 }
 
+async function registerDiscordCommands(env) {
+  if (!env.DISCORD_BOT_TOKEN) throw new Error("Cloudflare: не задан DISCORD_BOT_TOKEN");
+  const endpoint = `https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/guilds/${DISCORD_GUILD_ID}/commands`;
+  const response = await fetch(endpoint, {
+    method: "PUT",
+    headers: {
+      "Authorization": `Bot ${env.DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify([
+      {
+        name: "def",
+        description: "Открыть центр дефа WORLD",
+        type: 1
+      }
+    ])
+  });
+  const details = await response.text();
+  if (!response.ok) throw new Error(`Discord commands ${response.status}: ${details}`);
+  return JSON.parse(details);
+}
+
 async function handleDiscord(request, env) {
   const rawBody = await request.text();
   if (!(await verifyDiscordRequest(request, rawBody))) return new Response("Invalid request signature", { status: 401 });
@@ -321,6 +343,17 @@ function isDefCommand(message) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname === "/discord/register") {
+      const auth = request.headers.get("Authorization") || "";
+      if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) return new Response("Unauthorized", { status: 401 });
+      try {
+        const commands = await registerDiscordCommands(env);
+        return Response.json({ ok: true, commands });
+      } catch (error) {
+        return Response.json({ ok: false, error: String(error) }, { status: 500 });
+      }
+    }
 
     if (request.method === "POST" && url.pathname === "/discord") {
       return handleDiscord(request, env);
