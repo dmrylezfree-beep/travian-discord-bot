@@ -40,7 +40,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 129
   },
   "599282480": {
     "telegram_id": 599282480,
@@ -68,7 +69,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 141
   },
   "2127770760": {
     "telegram_id": 2127770760,
@@ -113,7 +115,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 790
   },
   "5428460123": {
     "telegram_id": 5428460123,
@@ -140,7 +143,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 404
   },
   "14175563": {
     "telegram_id": 14175563,
@@ -165,23 +169,29 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 933
   },
   "500556389": {
     "telegram_id": 500556389,
     "username": "svetlanak2603",
     "first_name": "Svetlana",
-    "race": null,
+    "race": "gaul",
     "villages": [],
     "substitutes": [],
-    "state": "add_village_coords",
+    "state": {
+      "type": "add_village_arena",
+      "coordinates": "45 13",
+      "travian_uid": 476
+    },
     "private_chat_id": 500556389,
     "private_notifications": true,
     "hero_inventory": {
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 476
   },
   "5225395817": {
     "telegram_id": 5225395817,
@@ -268,7 +278,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 770
   },
   "1420483474": {
     "telegram_id": 1420483474,
@@ -331,7 +342,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 1109
   },
   "341950808": {
     "telegram_id": 341950808,
@@ -374,7 +386,8 @@
       "standards": [],
       "boots": [],
       "maps": []
-    }
+    },
+    "travian_uid": 220
   },
   "1741139004": {
     "telegram_id": 1741139004,
