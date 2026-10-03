@@ -327,6 +327,7 @@ async function handleDiscord(request, env, ctx) {
      const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],rid=Math.max(0,...list.map(z=>Number(z.id)||0))+1;
      const q={id:rid,requester_platform:"discord",requester_id:creator,requester_username:uname,requester_first_name:gname,target_x:x,target_y:y,target_player:v.player,attack_time:attack,attack_time_display:attack.replace(/^(\d{4})-(\d{2})-(\d{2}) /,"$3.$2.$1 "),required_def:required,collected_def:0,status:"active",contributions:[],created_at:serverNowText()};
      await ghSave(env,"data/defence/requests.json",[...list,q],rq.sha,"Create WORLD Discord defence request #"+rid);
+     await queueDiscordExpiry(env,q);
      await dispatchDiscordSync(env);await refreshDiscordCentre(env);
      content=(l==="ja"?"✅ **防衛要請を作成しました #":"✅ **Defence request created #")+rid+"**\n🎯 **"+x+"|"+y+"**\n⚔️ "+q.attack_time_display+"\n🛡 "+required.toLocaleString();
     }
@@ -523,6 +524,31 @@ async function queueReminder(env, payload) {
       delaySeconds: Math.min(delay, MAX_QUEUE_DELAY_SECONDS)
     });
   }
+}
+
+async function queueDiscordExpiry(env, requestItem) {
+  const attackAt = String(requestItem.attack_time || "");
+  const attackMs = parseServerTime(attackAt);
+  if (!Number.isFinite(attackMs)) return;
+  await queueReminder(env, {
+    kind: "discord_request_expiry",
+    request_id: Number(requestItem.id),
+    reminder_at: formatServerTime(attackMs + 90 * 1000)
+  });
+}
+
+async function handleDiscordExpiry(env, item) {
+  const rq = await ghJson(env, "data/defence/requests.json");
+  const list = Array.isArray(rq.data) ? rq.data : [];
+  const q = list.find(x => Number(x.id) === Number(item.request_id));
+  if (!q) return;
+  const remaining = secondsUntilServer(q.attack_time);
+  if (Number.isFinite(remaining) && remaining > 0) {
+    item.reminder_at = formatServerTime(parseServerTime(q.attack_time) + 90 * 1000);
+    await queueReminder(env, item);
+    return;
+  }
+  await refreshDiscordCentre(env);
 }
 
 async function sendDiscordReminder(env,item){
@@ -902,6 +928,11 @@ export default {
     for (const message of batch.messages) {
       try {
         const item = message.body || {};
+        if (item.kind === "discord_request_expiry") {
+          await handleDiscordExpiry(env, item);
+          message.ack();
+          continue;
+        }
         const remaining = secondsUntilServer(item.reminder_at);
         if (Number.isFinite(remaining) && remaining > 2) {
           message.retry({ delaySeconds: Math.min(remaining, MAX_QUEUE_DELAY_SECONDS) });
