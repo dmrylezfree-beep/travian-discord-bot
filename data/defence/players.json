@@ -177,13 +177,18 @@
     "username": "svetlanak2603",
     "first_name": "Svetlana",
     "race": "gaul",
-    "villages": [],
+    "villages": [
+      {
+        "coordinates": "45 13",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
     "substitutes": [],
-    "state": {
-      "type": "add_village_arena",
-      "coordinates": "45 13",
-      "travian_uid": 476
-    },
+    "state": null,
     "private_chat_id": 500556389,
     "private_notifications": true,
     "hero_inventory": {
