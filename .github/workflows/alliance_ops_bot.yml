@@ -1,0 +1,32 @@
+name: Alliance Ops Bot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alliance-ops-bot
+  cancel-in-progress: true
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run alliance ops bot
+        env:
+          ALLIANCE_OPS_TELEGRAM_TOKEN: ${{ secrets.ALLIANCE_OPS_TELEGRAM_TOKEN }}
+        run: python alliance_ops_bot.py
