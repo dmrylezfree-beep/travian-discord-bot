@@ -149,7 +149,8 @@ def fmt_offer(o):
 def start(cid,uid):
     if str(uid) not in load(OFFERS):
         state(uid,"reg_coords");send(cid,"⚔️ <b>Регистрация оффера</b>\n\nВведите координаты своей офф-деревни через пробел.\nНапример: <code>55 46</code>");return
-    send(cid,"⚔️ <b>Центр операций альянса</b>\n\nВыберите действие:",menu(uid))
+    o=load(OFFERS).get(str(uid))
+    send(cid,"⚔️ <b>Центр операций альянса</b>\n\n"+fmt_offer(o)+"\n\nВыберите действие:",menu(uid))
 def list_targets(cid):
     ts=load(TARGETS)
     if not ts:send(cid,"🎯 <b>База целей пуста.</b>",[[btn("➕ Добавить цель","targets:add")],[btn("⬅️ Меню","menu")]]);return
