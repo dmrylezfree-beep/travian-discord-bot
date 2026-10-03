@@ -7,7 +7,7 @@ TOKEN=os.environ.get("ALLIANCE_OPS_TELEGRAM_TOKEN")
 COORDINATORS={317595036}
 SNAPSHOTS=Path("data/snapshots")
 DATA=Path("data/alliance_ops")
-OFFERS=DATA/"offers.json"; TARGETS=DATA/"targets.json"; STATES=DATA/"states.json"
+OFFERS=DATA/"offers.json"; TARGETS=DATA/"targets.json"; STATES=DATA/"states.json"; OPERATIONS=DATA/"operations.json"
 TZ=timezone(timedelta(hours=3))
 TRIBES={1:"Римляне",2:"Германцы",3:"Галлы",6:"Египтяне",7:"Гунны",8:"Спартанцы"}
 TROOPS={
@@ -22,7 +22,7 @@ TARGET_TYPES=["Столица","Офф","Деф","Обычная","Не опре
 def now(): return datetime.now(TZ).isoformat(timespec="seconds")
 def ensure():
     DATA.mkdir(parents=True,exist_ok=True)
-    for p in (OFFERS,TARGETS,STATES):
+    for p in (OFFERS,TARGETS,STATES,OPERATIONS):
         if not p.exists(): p.write_text("{}",encoding="utf-8")
 def load(p):
     ensure()
@@ -137,7 +137,7 @@ def parse_army(text,tid):
     return {n:found.get(n,0) for n in names},None
 def menu(uid):
     rows=[[btn("⚔️ Мой офф","offer:view")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
-    if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")]]
+    if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Операции","ops:list"),btn("📝 Создать черновик","ops:new")]]
     return rows
 def fmt_offer(o):
     lines=[f"⚔️ <b>Мой офф</b>","",f"Игрок: <b>{html.escape(o['player'])}</b>",f"Деревня: <b>{html.escape(o['village'])}</b>",f"Координаты: <code>{o['x']}|{o['y']}</code>",f"Раса: <b>{TRIBES.get(o['tribe_id'],'Неизвестно')}</b>",f"Арена: <b>{o['arena']}</b>","","<b>Войска:</b>"]
@@ -161,6 +161,135 @@ def show_target(cid,key):
     if not t:send(cid,"❌ Цель не найдена.");return
     txt=f"🎯 <b>{html.escape(t['village'])}</b>\nКоординаты: <code>{key}</code>\nИгрок: <b>{html.escape(t['player'])}</b>\nАльянс: <b>{html.escape(t.get('alliance') or '—')}</b>\nНаселение: {t.get('population','—')}\nРаса: {TRIBES.get(t.get('tribe_id'),'Неизвестно')}\n\nТип: <b>{t.get('type','Не определено')}</b>\nВажность: <b>{t.get('priority',1)}/5</b>\nКомментарий: {html.escape(t.get('comment') or '—')}"
     send(cid,txt,[[btn("🏷 Тип",f"targettype:{key}"),btn("⭐ Важность",f"targetprio:{key}")],[btn("📝 Комментарий",f"targetcomment:{key}"),btn("🗑 Удалить",f"targetdelete:{key}")],[btn("⬅️ К списку","targets:list")]])
+
+def op_dt(text):
+    for fmt in ("%d.%m.%Y %H:%M:%S","%d.%m.%Y %H:%M"):
+        try:return datetime.strptime(text,fmt).replace(tzinfo=TZ)
+        except ValueError:pass
+    return None
+
+def op_id():
+    return datetime.now(TZ).strftime("%Y%m%d%H%M%S")
+
+def op_attack_defaults(mode,target):
+    if mode=="spam":
+        waves=4 if target.get("type")=="Столица" else 2
+        return {"mode":"spam","waves":waves,"wave_plan":[{"text":"19 любых юнитов + 1 катапульта"} for _ in range(waves)],"comment":""}
+    if mode=="destroy":
+        return {"mode":"destroy","waves":4,"wave_plan":[
+            {"text":"весь офф + все тараны + 220 катапульт"},
+            {"text":"100 пехоты + 220 катапульт"},
+            {"text":"100 пехоты + 220 катапульт"},
+            {"text":"100 пехоты + 220 катапульт"}],"comment":""}
+    return {"mode":"capture","waves":2,"wave_plan":[
+        {"text":"весь офф"},
+        {"text":"вожди + сопровождение + катапульты"}],"comment":""}
+
+def op_mode_name(mode):
+    return {"spam":"🟡 Спам","destroy":"🔥 Уничтожение","capture":"👑 Захват"}.get(mode,mode)
+
+def op_summary(op):
+    return (f"📝 <b>{html.escape(op['name'])}</b>\n"
+            f"Статус: <b>ЧЕРНОВИК</b>\n\n"
+            f"🕐 Базовый приход: <code>{html.escape(op['arrival'])}</code>\n"
+            f"🐎 Базовая скорость: <b>{op['base_speed']}</b>\n"
+            f"👥 Офферов: <b>{len(op['offers'])}</b>\n"
+            f"🎯 Целей: <b>{len(op['targets'])}</b>\n"
+            f"⚔️ Отправок: <b>{len(op['attacks'])}</b>")
+
+def list_ops(cid):
+    ops=load(OPERATIONS)
+    if not ops:
+        send(cid,"⚔️ <b>Операций пока нет.</b>",[[btn("📝 Создать черновик","ops:new")],[btn("⬅️ Меню","menu")]]);return
+    rows=[[btn(f"📝 {v.get('name',k)}",f"op:{k}")] for k,v in reversed(list(ops.items()))]
+    rows += [[btn("📝 Создать черновик","ops:new")],[btn("⬅️ Меню","menu")]]
+    send(cid,f"⚔️ <b>Операции</b>\nВсего: {len(ops)}",rows)
+
+def show_op(cid,oid):
+    op=load(OPERATIONS).get(oid)
+    if not op:send(cid,"❌ Операция не найдена.");return
+    send(cid,op_summary(op),[[btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],[btn("⬅️ Операции","ops:list")]])
+
+def op_targets(cid,oid):
+    op=load(OPERATIONS).get(oid)
+    if not op:return
+    rows=[]
+    for k,t in op["targets"].items():
+        n=sum(1 for a in op["attacks"].values() if a["target_key"]==k)
+        rows.append([btn(f"{op_mode_name(t['mode'])} · {k} · {n}",f"optarget:{oid}:{k}")])
+    rows.append([btn("⬅️ К операции",f"op:{oid}")])
+    send(cid,"🎯 <b>Цели операции</b>",rows)
+
+def op_offers(cid,oid):
+    op=load(OPERATIONS).get(oid)
+    if not op:return
+    rows=[]
+    for uid,o in op["offers"].items():
+        n=sum(1 for a in op["attacks"].values() if a["offer_id"]==uid)
+        off=o.get("offset",0); sign="+" if off>0 else ""
+        rows.append([btn(f"{o['player']} · {sign}{off} сек · {n}",f"opoffer:{oid}:{uid}")])
+    rows.append([btn("⬅️ К операции",f"op:{oid}")])
+    send(cid,"👥 <b>Офферы операции</b>",rows)
+
+def op_target_detail(cid,oid,key):
+    op=load(OPERATIONS).get(oid)
+    if not op or key not in op["targets"]:return
+    t=op["targets"][key]; lines=[f"🎯 <b>{html.escape(t['player'])} — {html.escape(t['village'])}</b>",f"<code>{key}</code> · {op_mode_name(t['mode'])}",""]
+    for a in op["attacks"].values():
+        if a["target_key"]==key:
+            lines.append(f"• {html.escape(a['offer_player'])}: <code>{a['arrival']}</code> · {a['waves']} волн")
+    send(cid,"\n".join(lines),[[btn("⬅️ К целям",f"optargets:{oid}")]])
+
+def op_offer_detail(cid,oid,uid):
+    op=load(OPERATIONS).get(oid)
+    if not op or uid not in op["offers"]:return
+    o=op["offers"][uid]; lines=[f"👤 <b>{html.escape(o['player'])}</b>",f"Смещение: <b>{o['offset']:+d} сек</b>",""]
+    for a in op["attacks"].values():
+        if a["offer_id"]==uid:
+            t=op["targets"][a["target_key"]]
+            lines.append(f"• {op_mode_name(a['mode'])} <code>{a['target_key']}</code> {html.escape(t['player'])} — <code>{a['arrival']}</code> · {a['waves']} волн")
+    send(cid,"\n".join(lines),[[btn("⬅️ К офферам",f"opoffers:{oid}")]])
+
+def op_offer_picker(cid,d):
+    offers=load(OFFERS); selected=set(d.get("offers",[])); rows=[]
+    for uid,o in offers.items():
+        mark="✅" if uid in selected else "⬜"
+        rows.append([btn(f"{mark} {o['player']} {o['x']}|{o['y']}",f"opofftoggle:{uid}")])
+    rows.append([btn(f"➡️ Далее ({len(selected)})","opoffdone")])
+    send(cid,"👥 <b>Выберите офферов операции</b>",rows)
+
+def op_target_picker(cid,d):
+    targets=load(TARGETS); selected=d.get("targets",{}); rows=[]
+    for k,t in targets.items():
+        mode=selected.get(k)
+        mark={"spam":"🟡","destroy":"🔥","capture":"👑"}.get(mode,"⬜")
+        rows.append([btn(f"{mark} {k} · {t.get('player','?')} · {t.get('type','?')}",f"optargetpick:{k}")])
+    rows.append([btn(f"⚙️ Создать черновик ({len(selected)})","opgenerate")])
+    send(cid,"🎯 <b>Цели операции</b>\n\nНажмите цель и выберите тип атаки.",rows)
+
+def generate_op(uid,d):
+    offers_all=load(OFFERS); targets_all=load(TARGETS); oid=op_id()
+    arrival_dt=datetime.fromisoformat(d["arrival_iso"])
+    op={"id":oid,"name":d["name"],"status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
+        "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,
+        "comment":"","offers":{},"targets":{},"attacks":{}}
+    for ouid in d["offers"]:
+        o=offers_all[ouid]
+        op["offers"][ouid]={"player":o["player"],"village":o["village"],"x":o["x"],"y":o["y"],"arena":o["arena"],
+                            "offset":int(d["offsets"].get(ouid,0)),"army_snapshot":o.get("army",{})}
+    for key,mode in d["targets"].items():
+        t=targets_all[key]; op["targets"][key]={**t,"mode":mode}
+    i=0
+    for ouid,o in op["offers"].items():
+        for key,t in op["targets"].items():
+            i+=1; defaults=op_attack_defaults(t["mode"],t)
+            actual=arrival_dt+timedelta(seconds=o["offset"])
+            op["attacks"][str(i)]={"id":str(i),"offer_id":ouid,"offer_player":o["player"],"target_key":key,
+                "mode":defaults["mode"],"waves":defaults["waves"],"wave_plan":defaults["wave_plan"],
+                "comment":"","offset":o["offset"],"arrival":actual.strftime("%d.%m.%Y %H:%M:%S"),
+                "arrival_iso":actual.isoformat(),"speed":d["base_speed"],"arena":o["arena"]}
+    ops=load(OPERATIONS);ops[oid]=op;save(OPERATIONS,ops);persist("Create alliance ops draft")
+    return oid
 
 def handle_message(m):
     uid=m["from"]["id"];cid=m["chat"]["id"];text=m.get("text","").strip()
@@ -193,6 +322,27 @@ def handle_message(m):
     if step=="arena":
         if not text.isdigit() or not 0<=int(text)<=20:send(cid,"❌ Арена должна быть числом 0–20.");return
         os_=load(OFFERS);os_[str(uid)]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena");send(cid,"✅ Арена обновлена.",menu(uid));return
+
+    if step=="op_name":
+        if not text:send(cid,"❌ Введите название.");return
+        d["name"]=text;state(uid,"op_arrival",d);send(cid,"🕐 Введите основное время прихода.\nФормат: <code>05.10.2026 20:00:00</code>");return
+    if step=="op_arrival":
+        dt=op_dt(text)
+        if not dt:send(cid,"❌ Формат: <code>05.10.2026 20:00:00</code>");return
+        d["arrival_iso"]=dt.isoformat();state(uid,"op_speed",d);send(cid,"🐎 Введите базовую скорость для всех отправок (клеток/час), например <code>3</code> или <code>6</code>.");return
+    if step=="op_speed":
+        try:v=float(text.replace(",","."))
+        except:send(cid,"❌ Введите число, например <code>3</code>.");return
+        if v<=0:send(cid,"❌ Скорость должна быть больше нуля.");return
+        d["base_speed"]=v;d["offers"]=[];d["offsets"]={};state(uid,"op_pick_offers",d);op_offer_picker(cid,d);return
+    if step=="op_offset":
+        try:off=int(text)
+        except:send(cid,"❌ Введите целое число секунд: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
+        ouid=d["offset_uid"];d["offsets"][ouid]=off
+        remaining=[x for x in d["offers"] if x not in d["offsets"]]
+        if remaining:
+            nxt=remaining[0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ Смещение для <b>{html.escape(o['player'])}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
+        d.pop("offset_uid",None);d["targets"]={};state(uid,"op_pick_targets",d);op_target_picker(cid,d);return
     if step=="target_comment":
         ts=load(TARGETS);k=d["key"]
         if k in ts:ts[k]["comment"]="" if text=="-" else text;ts[k]["updated_at"]=now();save(TARGETS,ts);persist("Update alliance ops target")
@@ -210,7 +360,43 @@ def callback(c):
         if not o:start(cid,uid);return
         state(uid,"army",{"tribe_id":o["tribe_id"]});send(cid,f"🔄 <b>Обновление войск</b>\n\n<pre>{html.escape(template(o['tribe_id']))}</pre>");return
     if x=="offer:arena":state(uid,"arena");send(cid,"🏟 Введите новый уровень арены 0–20.");return
-    if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
+    if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
+
+    if x=="ops:list":list_ops(cid);return
+    if x=="ops:new":state(uid,"op_name",{});send(cid,"📝 <b>Новая операция</b>\n\nВведите название операции.");return
+    if x.startswith("opofftoggle:"):
+        st=getstate(uid);d=st["data"];ouid=x.split(":",1)[1]
+        if ouid in d["offers"]:d["offers"].remove(ouid);d["offsets"].pop(ouid,None)
+        else:d["offers"].append(ouid)
+        state(uid,"op_pick_offers",d);op_offer_picker(cid,d);return
+    if x=="opoffdone":
+        st=getstate(uid);d=st["data"]
+        if not d.get("offers"):send(cid,"❌ Выберите хотя бы одного оффера.");return
+        nxt=d["offers"][0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ <b>Смещения офферов</b>\n\nВведите смещение для <b>{html.escape(o['player'])}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
+    if x.startswith("optargetpick:"):
+        st=getstate(uid);d=st["data"];key=x.split(":",1)[1];t=load(TARGETS).get(key)
+        if not t:return
+        send(cid,f"🎯 <b>{html.escape(t['player'])} — {html.escape(t['village'])}</b>\n<code>{key}</code>\nТип деревни: <b>{t.get('type','Не определено')}</b>\n\nЧто это за атака?",[
+            [btn("🟡 Спам",f"opmode:{key}:spam")],
+            [btn("🔥 Уничтожение",f"opmode:{key}:destroy")],
+            [btn("👑 Захват",f"opmode:{key}:capture")],
+            [btn("❌ Убрать цель",f"opmode:{key}:remove")]]);return
+    if x.startswith("opmode:"):
+        _,key,mode=x.split(":",2);st=getstate(uid);d=st["data"]
+        if mode=="remove":d["targets"].pop(key,None)
+        else:d["targets"][key]=mode
+        state(uid,"op_pick_targets",d);op_target_picker(cid,d);return
+    if x=="opgenerate":
+        st=getstate(uid);d=st["data"]
+        if not d.get("targets"):send(cid,"❌ Выберите хотя бы одну цель.");return
+        oid=generate_op(uid,d);state(uid);show_op(cid,oid);return
+    if x.startswith("optargets:"):op_targets(cid,x.split(":",1)[1]);return
+    if x.startswith("opoffers:"):op_offers(cid,x.split(":",1)[1]);return
+    if x.startswith("optarget:"):
+        _,oid,key=x.split(":",2);op_target_detail(cid,oid,key);return
+    if x.startswith("opoffer:"):
+        _,oid,ouid=x.split(":",2);op_offer_detail(cid,oid,ouid);return
+    if x.startswith("op:"):show_op(cid,x.split(":",1)[1]);return
     if x=="targets:add":state(uid,"target_coords");send(cid,"➕ Введите координаты цели через пробел.");return
     if x=="targets:list":list_targets(cid);return
     if x.startswith("newtype:"):
