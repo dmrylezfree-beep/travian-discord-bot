@@ -275,8 +275,29 @@ def fmt_num(value):
     return f"{int(value):,}".replace(",", " ")
 
 
+def telegram_member_tag(telegram_id):
+    """Return the administrator-assigned Telegram member tag when available."""
+    if not TELEGRAM_TOKEN or not telegram_id:
+        return ""
+    try:
+        response = requests.get(
+            f"{API}/getChatMember",
+            params={"chat_id": -1002420009507, "user_id": int(telegram_id)},
+            timeout=REQUEST_TIMEOUT,
+        )
+        payload = response.json()
+        if not response.ok or not payload.get("ok"):
+            return ""
+        member = payload.get("result") or {}
+        return str(member.get("tag") or "").strip()
+    except Exception as exc:
+        print(f"Telegram member tag lookup failed for {telegram_id}: {exc}", flush=True)
+        return ""
+
+
 def player_name(p):
-    return p.get("first_name") or (("@" + p.get("username")) if p.get("username") else str(p.get("telegram_id", "?")))
+    tag = telegram_member_tag(p.get("telegram_id"))
+    return tag or p.get("player_name") or p.get("first_name") or (("@" + p.get("username")) if p.get("username") else str(p.get("telegram_id", "?")))
 
 
 def defence_stats():
