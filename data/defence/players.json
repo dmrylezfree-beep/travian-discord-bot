@@ -33,18 +33,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "request_confirm",
-      "target_coords": "22 63",
-      "target_x": 22,
-      "target_y": 63,
-      "target_player": "RyLeZ",
-      "attack_date": "2026-10-05",
-      "attack_date_display": "05.10.2026",
-      "attack_time": "2026-10-05 02:30:45",
-      "attack_time_display": "05.10.2026 02:30:45",
-      "required_def": 1000
-    },
+    "state": null,
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
