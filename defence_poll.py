@@ -1,6 +1,7 @@
 import os
 import time
 import traceback
+import threading
 from datetime import datetime
 
 import defence_bot as bot
@@ -11,6 +12,7 @@ import defence_requests as defence
 # 0 or a negative value = run continuously (used by the VPS systemd service).
 RUN_SECONDS = int(os.environ.get("DEFENCE_RUN_SECONDS", "540"))
 TG_POLL_TIMEOUT = int(os.environ.get("DEFENCE_TG_POLL_TIMEOUT", "20"))
+TG_WATCHDOG_TIMEOUT = int(os.environ.get("DEFENCE_TG_WATCHDOG_TIMEOUT", "90"))
 
 
 def delete_webhook():
@@ -121,8 +123,30 @@ def process_update(update):
     return False
 
 
+def watchdog(state, stop_event):
+    """Terminate the process if Telegram polling stops making progress."""
+    while not stop_event.wait(5):
+        stalled_for = time.monotonic() - state["last_progress"]
+        if stalled_for > TG_WATCHDOG_TIMEOUT:
+            print(
+                f"WATCHDOG: Telegram polling stalled for {stalled_for:.0f}s; "
+                "terminating so systemd can restart the bot.",
+                flush=True,
+            )
+            os._exit(1)
+
+
 def poll():
     delete_webhook()
+
+    watchdog_state = {"last_progress": time.monotonic()}
+    watchdog_stop = threading.Event()
+    threading.Thread(
+        target=watchdog,
+        args=(watchdog_state, watchdog_stop),
+        name="telegram-poll-watchdog",
+        daemon=True,
+    ).start()
 
     # When the legacy webhook starts a short GitHub Actions session, it may pass
     # the triggering update here because Telegram has already delivered it to
@@ -164,13 +188,16 @@ def poll():
             timeout = min(TG_POLL_TIMEOUT, remaining)
 
         try:
+            watchdog_state["last_progress"] = time.monotonic()
             updates = bot.tg(
                 "getUpdates",
                 offset=offset if offset is not None else "",
                 timeout=timeout,
                 allowed_updates='["message","callback_query"]',
             ) or []
+            watchdog_state["last_progress"] = time.monotonic()
         except Exception as exc:
+            watchdog_state["last_progress"] = time.monotonic()
             print(f"getUpdates error: {exc}", flush=True)
             time.sleep(2)
             continue
@@ -206,6 +233,7 @@ def poll():
                 )
                 traceback.print_exc()
 
+    watchdog_stop.set()
     print(f"Defence bot polling finished; processed {processed} updates", flush=True)
 
 
