@@ -60,20 +60,46 @@ def save_players(value):
 
 
 def persist_data():
+    git_timeout = int(os.environ.get("DEFENCE_GIT_TIMEOUT", "20"))
+
+    def run_git(args, **kwargs):
+        return subprocess.run(
+            ["git", *args],
+            timeout=git_timeout,
+            **kwargs,
+        )
+
     try:
-        subprocess.run(["git", "config", "user.name", "defence-bot"], check=False, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "defence-bot@users.noreply.github.com"], check=False, capture_output=True)
-        status = subprocess.run(["git", "status", "--porcelain", "data/defence"], text=True, capture_output=True)
+        run_git(["config", "user.name", "defence-bot"], check=False, capture_output=True)
+        run_git(["config", "user.email", "defence-bot@users.noreply.github.com"], check=False, capture_output=True)
+        status = run_git(["status", "--porcelain", "data/defence"], text=True, capture_output=True)
         if not status.stdout.strip():
             return
         requests_changed = any(
             line.strip().endswith("data/defence/requests.json")
             for line in status.stdout.splitlines()
         )
-        subprocess.run(["git", "add", "data/defence"], check=True)
-        subprocess.run(["git", "commit", "-m", "Update defence bot data"], check=False, capture_output=True)
-        subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=False, capture_output=True)
-        push = subprocess.run(["git", "push", "origin", "HEAD:main"], check=False, capture_output=True, text=True)
+        run_git(["add", "data/defence"], check=True, capture_output=True)
+        run_git(["commit", "-m", "Update defence bot data"], check=False, capture_output=True)
+        pull = run_git(
+            ["pull", "--rebase", "origin", "main"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if pull.returncode != 0:
+            print(
+                "Git pull/rebase failed; local data is saved and Telegram polling will continue:",
+                (pull.stderr or pull.stdout or "").strip()[:1000],
+                flush=True,
+            )
+            return
+        push = run_git(
+            ["push", "origin", "HEAD:main"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
         if push.returncode == 0 and requests_changed and TELEGRAM_TOKEN:
             try:
                 response = requests.post(
@@ -87,6 +113,12 @@ def persist_data():
                     print("Discord centre refreshed after requests.json change.", flush=True)
             except Exception as sync_exc:
                 print("Discord centre refresh error:", sync_exc, flush=True)
+    except subprocess.TimeoutExpired as exc:
+        print(
+            f"Git persistence timeout after {git_timeout}s during {exc.cmd}; "
+            "local data is saved and Telegram polling will continue.",
+            flush=True,
+        )
     except Exception as exc:
         print("Git persistence error:", exc, flush=True)
 
