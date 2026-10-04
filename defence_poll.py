@@ -7,14 +7,14 @@ import defence_bot as bot
 import defence_requests as defence
 
 
+# Positive value = a short polling session (used by the legacy GitHub Action).
+# 0 or a negative value = run continuously (used by the VPS systemd service).
 RUN_SECONDS = int(os.environ.get("DEFENCE_RUN_SECONDS", "540"))
 TG_POLL_TIMEOUT = int(os.environ.get("DEFENCE_TG_POLL_TIMEOUT", "20"))
 
 
 def delete_webhook():
-    # Keep pending updates. We are deliberately switching this bot from
-    # webhook delivery to long polling so one GitHub Actions run can serve
-    # several Telegram interactions without starting a new workflow each time.
+    # Keep pending updates when switching from webhook delivery to polling.
     result = bot.tg("deleteWebhook", drop_pending_updates=False)
     print(f"Telegram webhook disabled: {result}", flush=True)
 
@@ -66,12 +66,7 @@ def process_private_start(update):
 
 
 def normalize_date_time_message(message):
-    """Combine the date selected by the user with the entered time.
-
-    defence_requests.py still contains the old full-date parser for
-    request_attack_time. The new UI deliberately asks for the date first
-    and then only HH:MM:SS, so normalize the message before dispatching it.
-    """
+    """Combine the date selected by the user with the entered time."""
     text = (message.get("text") or "").strip()
     if not text:
         return message
@@ -86,8 +81,6 @@ def normalize_date_time_message(message):
         return message
 
     state = player.get("state")
-    # Legacy settings flows store state as a plain string, while request
-    # flows use a dict. Only the latter can contain request_attack_time.
     if not isinstance(state, dict) or state.get("type") != "request_attack_time":
         return message
 
@@ -131,15 +124,9 @@ def process_update(update):
 def poll():
     delete_webhook()
 
-    # Do not refresh the group Defence Centre merely because a polling
-    # session was started. A private-chat action can start this workflow too;
-    # group centre updates are performed only by actions that actually change
-    # shared defence requests (or by /def in the defence topic).
-    
-    # When the webhook is active, Telegram delivers the triggering update to
-    # Cloudflare and it is no longer available to getUpdates. The Worker passes
-    # that exact update to this workflow, so process it before starting the
-    # normal polling loop.
+    # When the legacy webhook starts a short GitHub Actions session, it may pass
+    # the triggering update here because Telegram has already delivered it to
+    # the Worker. The VPS normally leaves this empty.
     initial_update_json = os.environ.get("DEFENCE_INITIAL_UPDATE_JSON", "").strip()
     if initial_update_json:
         try:
@@ -160,14 +147,21 @@ def poll():
             traceback.print_exc()
 
     offset = None
-    deadline = time.monotonic() + RUN_SECONDS
+    continuous = RUN_SECONDS <= 0
+    deadline = None if continuous else time.monotonic() + RUN_SECONDS
     processed = 0
 
-    print(f"Defence bot polling started for {RUN_SECONDS} seconds", flush=True)
+    if continuous:
+        print("Defence bot polling started in continuous VPS mode", flush=True)
+    else:
+        print(f"Defence bot polling started for {RUN_SECONDS} seconds", flush=True)
 
-    while time.monotonic() < deadline:
-        remaining = max(1, int(deadline - time.monotonic()))
-        timeout = min(TG_POLL_TIMEOUT, remaining)
+    while continuous or time.monotonic() < deadline:
+        if continuous:
+            timeout = TG_POLL_TIMEOUT
+        else:
+            remaining = max(1, int(deadline - time.monotonic()))
+            timeout = min(TG_POLL_TIMEOUT, remaining)
 
         try:
             updates = bot.tg(
@@ -186,11 +180,6 @@ def poll():
             if isinstance(update_id, int):
                 offset = update_id + 1
 
-            # While this workflow is polling, the webhook is disabled. Private
-            # messages and callbacks therefore arrive here too and must not be
-            # discarded just because they have no alliance topic thread_id.
-            chat_id = update_chat_id(update)
-            private_update = False
             message = update.get("message") or update.get("edited_message") or {}
             callback_message = (update.get("callback_query") or {}).get("message") or {}
             update_chat = message.get("chat") or callback_message.get("chat") or {}
@@ -203,12 +192,6 @@ def poll():
             try:
                 if process_update(update):
                     processed += 1
-                    # Do not refresh the pinned centre after every callback.
-                    # Some callbacks (for example send_def) deliberately edit
-                    # the centre message into a temporary submenu. Refreshing
-                    # it here immediately overwrites that submenu and makes
-                    # the button appear to do nothing. Callbacks that actually
-                    # change the centre already refresh it explicitly.
                     print(
                         f"Processed Telegram update {update.get('update_id')} "
                         f"(processed={processed})",
@@ -216,7 +199,7 @@ def poll():
                     )
             except Exception as exc:
                 # Advance offset even if one malformed update fails, otherwise
-                # the same update could block the entire bot on the next poll.
+                # the same update could block the bot indefinitely.
                 print(
                     f"Telegram update {update.get('update_id')} failed: {exc}",
                     flush=True,
