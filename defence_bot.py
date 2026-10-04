@@ -7,6 +7,9 @@ from pathlib import Path
 
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 TELEGRAM_TOKEN = os.environ.get("DEFENCE_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 THREAD_ID = 38636
 POLL_TIMEOUT = 25
@@ -89,7 +92,7 @@ def persist_data():
 
 
 def tg(method, **kwargs):
-    response = requests.post(f"{API}/{method}", data=kwargs, timeout=REQUEST_TIMEOUT)
+    response = requests.post(f"{API}/{method}", data=kwargs, timeout=REQUEST_TIMEOUT, proxies=TELEGRAM_PROXIES)
     response.raise_for_status()
     result = response.json()
     if not result.get("ok"):
@@ -289,6 +292,7 @@ def telegram_member_tag(telegram_id):
             f"{API}/getChatMember",
             params={"chat_id": int(group_chat_id), "user_id": int(telegram_id)},
             timeout=REQUEST_TIMEOUT,
+            proxies=TELEGRAM_PROXIES,
         )
         payload = response.json()
         if not response.ok or not payload.get("ok"):
