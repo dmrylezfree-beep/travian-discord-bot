@@ -34,11 +34,13 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "request_attack_date",
+      "type": "request_attack_time",
       "target_coords": "22 63",
       "target_x": 22,
       "target_y": 63,
-      "target_player": "RyLeZ"
+      "target_player": "RyLeZ",
+      "attack_date": "2026-10-05",
+      "attack_date_display": "05.10.2026"
     },
     "private_chat_id": 317595036,
     "private_notifications": true,
