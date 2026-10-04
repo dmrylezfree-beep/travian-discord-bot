@@ -6,6 +6,9 @@ from pathlib import Path
 
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 
 # ============================================================
 # НАСТРОЙКИ
@@ -568,7 +571,7 @@ def _send_telegram_once(message, thread_id=None):
         payload["message_thread_id"] = thread_id
 
     try:
-        response = requests.post(url, json=payload, timeout=30)
+        response = requests.post(url, json=payload, timeout=30, proxies=TELEGRAM_PROXIES)
         try:
             result = response.json()
         except ValueError:
