@@ -327,18 +327,7 @@
     "username": "",
     "first_name": "Татьяна",
     "race": "gaul",
-    "villages": [
-      {
-        "coordinates": "37 50",
-        "arena": 0,
-        "troops": {
-          "phalanx": 10
-        },
-        "hero": {
-          "present": false
-        }
-      }
-    ],
+    "villages": [],
     "substitutes": [],
     "state": {
       "type": "subs"
