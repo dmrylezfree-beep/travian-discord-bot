@@ -6,6 +6,9 @@ from datetime import datetime
 
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 from travian_bot import (
     TELEGRAM_TOKEN,
     SERVER_URL,
@@ -65,6 +68,7 @@ def telegram_request(
         f"{TELEGRAM_TOKEN}/{method}",
         json=payload or {},
         timeout=timeout,
+        proxies=TELEGRAM_PROXIES,
     )
 
     response.raise_for_status()
