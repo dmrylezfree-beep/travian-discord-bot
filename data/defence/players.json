@@ -23,7 +23,7 @@
     "villages": [
       {
         "coordinates": "22 63",
-        "arena": 0,
+        "arena": 1,
         "troops": {
           "praetorian": 10
         },
@@ -33,10 +33,7 @@
       }
     ],
     "substitutes": [],
-    "state": {
-      "type": "arena",
-      "index": 0
-    },
+    "state": null,
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
