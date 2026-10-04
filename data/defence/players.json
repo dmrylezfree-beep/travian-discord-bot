@@ -191,7 +191,9 @@
     ],
     "substitutes": [],
     "state": {
-      "type": "subs"
+      "type": "unit_amount",
+      "index": 0,
+      "unit": "phalanx"
     },
     "private_chat_id": 500556389,
     "private_notifications": true,
