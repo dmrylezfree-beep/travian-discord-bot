@@ -11,6 +11,9 @@ from zoneinfo import ZoneInfo
 
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 
 print("ATTACKS BOT STARTED", flush=True)
 
@@ -1646,6 +1649,7 @@ def telegram(
         f"{API_URL}/{method}",
         json=kwargs,
         timeout=REQUEST_TIMEOUT,
+        proxies=TELEGRAM_PROXIES,
     )
 
     response.raise_for_status()
