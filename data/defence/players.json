@@ -33,7 +33,10 @@
       }
     ],
     "substitutes": [],
-    "state": null,
+    "state": {
+      "type": "arena",
+      "index": 0
+    },
     "private_chat_id": 317595036,
     "private_notifications": true,
     "hero_inventory": {
