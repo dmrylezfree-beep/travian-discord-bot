@@ -724,11 +724,9 @@ def save_request(request):
 
 
 def _player_label(player):
-    return (
-        player.get("first_name")
-        or player.get("username")
-        or f"ID {player.get('telegram_id', '?')}"
-    )
+    # Keep Telegram-facing names consistent with the defender ranking:
+    # administrator-assigned member tag first, then stored Travian/display name.
+    return bot.player_name(player)
 
 
 def _previously_declared_by_village(req):
@@ -1262,7 +1260,7 @@ def process_text(message):
         contribution = {
             "telegram_id": int(user.get("id", 0)),
             "username": user.get("username", ""),
-            "first_name": user.get("first_name", ""),
+            "first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""),
             "def_points": amount,
             "plan": [],
             "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -1727,7 +1725,7 @@ def callback_query(q):
             return
         req.setdefault("contributions", []).append({
             "telegram_id": int(user.get("id", 0)), "username": user.get("username", ""),
-            "first_name": user.get("first_name", ""), "def_points": total,
+            "first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""), "def_points": total,
             "plan": draft, "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         })
         req["collected_def"] = int(req.get("collected_def", 0) or 0) + total
@@ -1788,7 +1786,7 @@ def callback_query(q):
             "id": req_id,
             "requester_id": int(user["id"]),
             "requester_username": user.get("username", ""),
-            "requester_first_name": user.get("first_name", ""),
+            "requester_first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""),
             "target_x": state["target_x"],
             "target_y": state["target_y"],
             "target_player": state["target_player"],
