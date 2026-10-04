@@ -8,6 +8,9 @@ from pathlib import Path
 
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 from bot_i18n import get_language, set_language, language_keyboard, language_text, saved_text, tr_crop_text, localize_keyboard
 
 TELEGRAM_TOKEN = os.environ.get("CROP_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
@@ -31,7 +34,7 @@ def ensure_data():
 def telegram(method, **kwargs):
     if not TELEGRAM_TOKEN:
         raise RuntimeError("Не задан CROP_TELEGRAM_TOKEN/TELEGRAM_TOKEN")
-    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}", json=kwargs, timeout=40)
+    r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/{method}", json=kwargs, timeout=40, proxies=TELEGRAM_PROXIES)
     r.raise_for_status()
     data = r.json()
     if not data.get("ok"):
