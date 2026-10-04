@@ -1,4 +1,4 @@
-name: Defence Bot
+name: Defence Bot Discord Sync
 
 on:
   workflow_dispatch:
@@ -6,26 +6,26 @@ on:
       action:
         description: "Action"
         required: false
-        default: "message"
+        default: "discord_sync"
       thread_id:
-        description: "Telegram thread ID"
+        description: "Telegram thread ID (legacy, ignored)"
         required: false
         default: "38636"
       update_json:
-        description: "Initial Telegram update JSON to process"
+        description: "Legacy input (ignored)"
         required: false
         default: ""
 
 permissions:
   contents: write
 
-# Only one short defence session may run at a time.
 concurrency:
-  group: defence-bot
+  group: defence-discord-sync
   cancel-in-progress: false
 
 jobs:
-  run-bot:
+  discord-sync:
+    if: inputs.action == 'discord_sync'
     runs-on: ubuntu-latest
 
     steps:
@@ -45,7 +45,6 @@ jobs:
         run: pip install requests
 
       - name: Sync Discord contribution to Telegram
-        if: inputs.action == 'discord_sync'
         env:
           DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
         run: |
@@ -54,130 +53,4 @@ jobs:
           defence.refresh_center(create_if_missing=True)
           defence.refresh_optimal_plans(force=True)
           print("Discord contribution synced to Telegram.", flush=True)
-          PY
-
-      - name: Restore Telegram webhook only
-        if: inputs.action == 'restore_webhook'
-        env:
-          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
-        run: |
-          python - <<'PY'
-          import os
-          import time
-          import requests
-
-          token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
-          webhook_url = "https://travian-defence.dmrylezfree.workers.dev/"
-          api = f"https://api.telegram.org/bot{token}/setWebhook"
-
-          last_error = None
-          for attempt in range(1, 4):
-              try:
-                  response = requests.post(
-                      api,
-                      data={
-                          "url": webhook_url,
-                          "allowed_updates": '[\"message\",\"callback_query\"]',
-                      },
-                      timeout=40,
-                  )
-                  print(f"Attempt {attempt}: HTTP {response.status_code}", flush=True)
-                  print(f"Attempt {attempt}: Telegram response: {response.text}", flush=True)
-
-                  if response.ok:
-                      result = response.json()
-                      if result.get("ok"):
-                          print("Webhook restored successfully.", flush=True)
-                          raise SystemExit(0)
-                      last_error = f"Telegram returned ok=false: {result}"
-                  else:
-                      last_error = f"HTTP {response.status_code}: {response.text}"
-              except Exception as exc:
-                  last_error = repr(exc)
-                  print(f"Attempt {attempt} exception: {last_error}", flush=True)
-
-              if attempt < 3:
-                  time.sleep(5)
-
-          raise SystemExit(f"Failed to restore Telegram webhook after 3 attempts: {last_error}")
-          PY
-
-      - name: Switch Telegram from webhook to polling
-        if: inputs.action != 'restore_webhook' && inputs.action != 'discord_sync'
-        env:
-          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
-        run: |
-          python - <<'PY'
-          import os
-          import requests
-
-          token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
-          response = requests.post(
-              f"https://api.telegram.org/bot{token}/deleteWebhook",
-              data={"drop_pending_updates": "false"},
-              timeout=40,
-          )
-          print("Telegram deleteWebhook HTTP:", response.status_code, flush=True)
-          print("Telegram deleteWebhook response:", response.text, flush=True)
-          if not response.ok:
-              raise SystemExit(1)
-          result = response.json()
-          if not result.get("ok"):
-              raise SystemExit(1)
-          PY
-
-      - name: Run defence bot
-        if: inputs.action != 'restore_webhook' && inputs.action != 'discord_sync'
-        env:
-          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
-          DEFENCE_RUN_SECONDS: "510"
-          DEFENCE_TG_POLL_TIMEOUT: "20"
-          DEFENCE_INITIAL_UPDATE_JSON: ${{ inputs.update_json }}
-        run: python defence_poll.py
-
-      - name: Restore Telegram webhook
-        if: always() && inputs.action != 'restore_webhook' && inputs.action != 'discord_sync'
-        env:
-          DEFENCE_TELEGRAM_TOKEN: ${{ secrets.DEFENCE_TELEGRAM_TOKEN }}
-        run: |
-          python - <<'PY'
-          import os
-          import time
-          import requests
-
-          token = os.environ["DEFENCE_TELEGRAM_TOKEN"]
-          webhook_url = "https://travian-defence.dmrylezfree.workers.dev/"
-          api = f"https://api.telegram.org/bot{token}/setWebhook"
-
-          last_error = None
-          for attempt in range(1, 4):
-              try:
-                  response = requests.post(
-                      api,
-                      data={
-                          "url": webhook_url,
-                          "allowed_updates": '[\"message\",\"callback_query\"]',
-                      },
-                      timeout=40,
-                  )
-                  print(f"Attempt {attempt}: HTTP {response.status_code}", flush=True)
-                  print(f"Attempt {attempt}: Telegram response: {response.text}", flush=True)
-
-                  if response.ok:
-                      result = response.json()
-                      if result.get("ok"):
-                          print("Webhook restored successfully.", flush=True)
-                          raise SystemExit(0)
-                      last_error = f"Telegram returned ok=false: {result}"
-                  else:
-                      last_error = f"HTTP {response.status_code}: {response.text}"
-              except Exception as exc:
-                  last_error = repr(exc)
-                  print(f"Attempt {attempt} exception: {last_error}", flush=True)
-
-              if attempt < 3:
-                  time.sleep(5)
-
-          print(f"WARNING: failed to restore Telegram webhook: {last_error}", flush=True)
-          raise SystemExit(1)
           PY
