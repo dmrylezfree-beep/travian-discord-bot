@@ -13,6 +13,7 @@ POLL_TIMEOUT = 25
 REQUEST_TIMEOUT = 40
 DATA_DIR = Path("data/defence")
 SETTINGS_FILE = DATA_DIR / "settings.json"
+STATE_FILE = DATA_DIR / "state.json"
 PLAYERS_FILE = DATA_DIR / "players.json"
 REQUESTS_FILE = DATA_DIR / "requests.json"
 API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
@@ -279,10 +280,14 @@ def telegram_member_tag(telegram_id):
     """Return the administrator-assigned Telegram member tag when available."""
     if not TELEGRAM_TOKEN or not telegram_id:
         return ""
+    state = load_json(STATE_FILE, {})
+    group_chat_id = state.get("center_chat_id") if isinstance(state, dict) else None
+    if not group_chat_id:
+        return ""
     try:
         response = requests.get(
             f"{API}/getChatMember",
-            params={"chat_id": -1002420009507, "user_id": int(telegram_id)},
+            params={"chat_id": int(group_chat_id), "user_id": int(telegram_id)},
             timeout=REQUEST_TIMEOUT,
         )
         payload = response.json()
