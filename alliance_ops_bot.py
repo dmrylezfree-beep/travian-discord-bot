@@ -3,6 +3,9 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 TOKEN=os.environ.get("ALLIANCE_OPS_TELEGRAM_TOKEN")
 COORDINATORS={317595036}
 SNAPSHOTS=Path("data/snapshots")
@@ -102,7 +105,7 @@ def village_at(x,y):
     return None,p
 
 def api(method,payload=None):
-    r=requests.post(f"https://api.telegram.org/bot{TOKEN}/{method}",json=payload or {},timeout=40);r.raise_for_status()
+    r=requests.post(f"https://api.telegram.org/bot{TOKEN}/{method}",json=payload or {},timeout=40,proxies=TELEGRAM_PROXIES);r.raise_for_status()
     d=r.json()
     if not d.get("ok"):raise RuntimeError(d)
     return d.get("result")
