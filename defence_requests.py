@@ -713,13 +713,37 @@ def next_request_id(requests):
     return max(ids, default=0) + 1
 
 
+def sync_request_to_worker(request):
+    """Send a completed Telegram request directly to the Discord Worker."""
+    token = os.environ.get("DEFENCE_TELEGRAM_TOKEN")
+    if not token:
+        print("Direct Discord request sync skipped: DEFENCE_TELEGRAM_TOKEN is missing", flush=True)
+        return False
+    try:
+        response = requests.post(
+            f"{DEFENCE_WORKER_URL}/discord/request-sync",
+            json={"request": request},
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8,
+        )
+        response.raise_for_status()
+        print(f"Direct Discord request sync queued: request=#{request.get('id')}", flush=True)
+        return True
+    except Exception as exc:
+        print(f"Direct Discord request sync failed for #{request.get('id')}: {exc}", flush=True)
+        return False
+
+
 def save_request(request):
-    requests = bot.load_json(bot.REQUESTS_FILE, [])
-    if not isinstance(requests, list):
-        requests = []
-    requests.append(request)
-    bot.save_json(bot.REQUESTS_FILE, requests)
-    bot.persist_data()
+    requests_data = bot.load_json(bot.REQUESTS_FILE, [])
+    if not isinstance(requests_data, list):
+        requests_data = []
+    requests_data.append(request)
+    # Save locally first so Telegram never depends on GitHub availability.
+    bot.save_json(bot.REQUESTS_FILE, requests_data)
+    # The Worker writes the request to GitHub through the GitHub API and then
+    # refreshes Discord. This is independent of VPS git pull/push latency.
+    sync_request_to_worker(request)
     return request
 
 
