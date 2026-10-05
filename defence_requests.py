@@ -714,11 +714,11 @@ def next_request_id(requests):
 
 
 def sync_request_to_worker(request):
-    """Send a completed Telegram request directly to the Discord Worker."""
+    """Persist a Telegram request through the Worker and return its saved form."""
     token = os.environ.get("DEFENCE_TELEGRAM_TOKEN")
     if not token:
         print("Direct Discord request sync skipped: DEFENCE_TELEGRAM_TOKEN is missing", flush=True)
-        return False
+        return None
     try:
         response = requests.post(
             f"{DEFENCE_WORKER_URL}/discord/request-sync",
@@ -727,11 +727,16 @@ def sync_request_to_worker(request):
             timeout=8,
         )
         response.raise_for_status()
-        print(f"Direct Discord request sync queued: request=#{request.get('id')}", flush=True)
-        return True
+        payload = response.json()
+        saved = payload.get("request") if isinstance(payload, dict) else None
+        if isinstance(saved, dict):
+            request.clear()
+            request.update(saved)
+        print(f"Direct Discord request sync completed: request=#{request.get('id')}", flush=True)
+        return request
     except Exception as exc:
         print(f"Direct Discord request sync failed for #{request.get('id')}: {exc}", flush=True)
-        return False
+        return None
 
 
 def save_request(request):
@@ -1861,9 +1866,8 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         if not isinstance(requests, list):
             requests = []
-        req_id = next_request_id(requests)
         req = {
-            "id": req_id,
+            "id": None,
             "requester_id": int(user["id"]),
             "requester_username": user.get("username", ""),
             "requester_first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""),
@@ -1876,7 +1880,11 @@ def callback_query(q):
             "status": "active",
             "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         }
-        save_request(req)
+        if sync_request_to_worker(req) is None or req.get("id") is None:
+            bot.edit(chat_id, msg_id, "❌ Не удалось сохранить заявку. Попробуйте ещё раз.", request_menu())
+            return
+        requests.append(req)
+        bot.save_json(bot.REQUESTS_FILE, requests)
         notify_eligible_defenders(req)
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
