@@ -28,7 +28,7 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/github_actions
           chmod 600 ~/.ssh/github_actions
-          printf '%s\n' "Host vps" "  HostName $VPS_HOST" "  StrictHostKeyChecking no" "  UserKnownHostsFile /dev/null" > ~/.ssh/config
+          printf '%s\n' "Host vps" "  HostName $VPS_HOST" "  Port 2222" "  StrictHostKeyChecking no" "  UserKnownHostsFile /dev/null" > ~/.ssh/config
           chmod 600 ~/.ssh/config
 
       - name: Deploy
