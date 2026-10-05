@@ -961,7 +961,7 @@ def refresh_optimal_plans(chat_id=None, force=False):
 
     if changed_data:
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
+        bot.persist_data() if os.environ.get("DEFENCE_ENABLE_GIT_PERSIST") == "1" and os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
     return changed_data
 
 def notification_source_options(player, req):
@@ -1528,7 +1528,7 @@ def callback_query(q):
             active.append(req)
         if changed:
             bot.save_json(bot.REQUESTS_FILE, requests)
-            bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
+            bot.persist_data() if os.environ.get("DEFENCE_ENABLE_GIT_PERSIST") == "1" and os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
 
         if not active:
             bot.edit(
