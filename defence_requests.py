@@ -1586,7 +1586,14 @@ def callback_query(q):
         return
 
     if action.startswith("delete_cancel:"):
-        refresh_center(chat_id=chat_id, create_if_missing=True)
+        # Cancellation only closes the delete confirmation. Do not rebuild or
+        # re-pin the defence centre from a button click.
+        bot.edit(
+            chat_id,
+            msg_id,
+            "<b>🛡 ЦЕНТР ДЕФА</b>\n\nУдаление заявки отменено.",
+            request_menu(),
+        )
         return
 
     if action.startswith("delete_confirm:"):
@@ -1617,8 +1624,10 @@ def callback_query(q):
         req["cancelled_by_username"] = user.get("username", "")
         req["cancelled_by_first_name"] = user.get("first_name", "")
 
+        # Save immediately on the VPS. The Worker receives the changed request
+        # directly, so deleting a request does not block on VPS git pull/push.
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data()
+        sync_request_to_worker(req)
         refresh_optimal_plans(chat_id=chat_id)
 
         bot.edit(
@@ -1627,7 +1636,9 @@ def callback_query(q):
             f"<b>✅ Заявка #{req_id} удалена.</b>\n\nОна больше не отображается среди активных заявок.",
             request_menu(),
         )
-        refresh_center(chat_id=chat_id, create_if_missing=True)
+        # Refresh the existing Telegram centre after the action is complete.
+        # Do not create/re-pin another centre merely because a request was deleted.
+        refresh_center(chat_id=chat_id, create_if_missing=False)
         return
 
     if action.startswith("send_req:"):
