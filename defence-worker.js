@@ -9,7 +9,7 @@ const DISCORD_APPLICATION_ID = "1555623257724682402";
 const DISCORD_PUBLIC_KEY = "d1aa28732f54e287d78d859a69f21699794ba52da41c3b8f7da931aede02ce21";
 const DISCORD_GUILD_ID = "1430982178074005507";
 const DISCORD_DEFENCE_CHANNEL_ID = "1430982180401578153";
-const WORLD_ALLIANCE_IDS = new Set([8, 2, 11]);
+const WORLD_ALLIANCE_ID = 2;
 
 function hexToBytes(hex) {
   if (!/^[0-9a-f]+$/i.test(hex) || hex.length % 2) throw new Error("Invalid hex");
@@ -380,7 +380,7 @@ async function handleDiscord(request, env, ctx) {
    const token=i.token,appId=i.application_id,x=+cm[1],y=+cm[2],creator=id,uname=i.member?.user?.username||"",gname=i.member?.user?.global_name||"";
    ctx.waitUntil((async()=>{let content;try{
     const map=await getMap(),v=mapVillage(map,x,y);
-    if(!v||!WORLD_ALLIANCE_IDS.has(Number(v.aid)))content=l==="ja"?"❌ 対象はWORLD同盟の村である必要があります。":"❌ Target must be a WORLD alliance village.";
+    if(!v||v.aid!==WORLD_ALLIANCE_ID)content=l==="ja"?"❌ 対象はWORLD同盟の村である必要があります。":"❌ Target must be a WORLD alliance village.";
     else{
      const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],rid=Math.max(0,...list.map(z=>Number(z.id)||0))+1;
      const q={id:rid,requester_platform:"discord",requester_id:creator,requester_username:uname,requester_first_name:gname,target_x:x,target_y:y,target_player:v.player,attack_time:attack,attack_time_display:attack.replace(/^(\d{4})-(\d{2})-(\d{2}) /,"$3.$2.$1 "),required_def:required,collected_def:0,status:"active",contributions:[],created_at:serverNowText()};
@@ -533,7 +533,7 @@ async function handleDiscord(request, env, ctx) {
   if(i.type===5&&/^def_addcoords_(en|ja)$/.test(i.data?.custom_id||"")){
    const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l],rawc=i.data.components?.[0]?.components?.[0]?.value||"",m=String(rawc).trim().match(/^(-?\d{1,3})\s+(-?\d{1,3})$/);
    if(!m)return dReply(t.bad);const x=+m[1],y=+m[2];if(x< -200||x>200||y< -200||y>200)return dReply(t.bad);
-   const map=await getMap(),v=mapVillage(map,x,y);if(!v)return dReply(t.miss);if(!WORLD_ALLIANCE_IDS.has(Number(v.aid)))return dReply(t.world);if(Number(v.uid)!==Number(p.travian_uid))return dReply(t.notYours);
+   const map=await getMap(),v=mapVillage(map,x,y);if(!v)return dReply(t.miss);if(v.aid!==WORLD_ALLIANCE_ID)return dReply(t.world);if(Number(v.uid)!==Number(p.travian_uid))return dReply(t.notYours);
    if(!(p.villages||[]).some(z=>z.coordinates===x+" "+y))p.villages.push({coordinates:x+" "+y,name:v.name,arena:0,troops:{},hero:{present:false}});
    p.language=l;players[id]=p;await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Add WORLD Discord village "+v.name);
    return dReply("✅ "+t.saved+"\n\n🏘 **"+v.name+"** ("+x+"|"+y+")",settingsButtons(l));
@@ -553,7 +553,7 @@ async function handleDiscord(request, env, ctx) {
   if(i.type===5&&/^def_coords_(en|ja)$/.test(i.data?.custom_id||"")){
    const l=i.data.custom_id.endsWith("_ja")?"ja":"en",t=DTXT[l],rawc=i.data.components?.[0]?.components?.[0]?.value||"",m=String(rawc).trim().match(/^(-?\d{1,3})\s+(-?\d{1,3})$/);
    if(!m)return dReply(t.bad);const x=+m[1],y=+m[2];if(x< -200||x>200||y< -200||y>200)return dReply(t.bad);
-   const map=await getMap(),v=mapVillage(map,x,y);if(!v)return dReply(t.miss);if(!WORLD_ALLIANCE_IDS.has(Number(v.aid)))return dReply(t.world);if(await uidUsed(env,v.uid,players,id,map))return dReply(t.dup);
+   const map=await getMap(),v=mapVillage(map,x,y);if(!v)return dReply(t.miss);if(v.aid!==WORLD_ALLIANCE_ID)return dReply(t.world);if(await uidUsed(env,v.uid,players,id,map))return dReply(t.dup);
    players[id]={discord_id:id,discord_username:i.member?.user?.username||"",discord_global_name:i.member?.user?.global_name||"",language:l,travian_uid:v.uid,player_name:v.player,race:({1:"roman",2:"teuton",3:"gaul",6:"egyptian",7:"hun",8:"spartan"})[v.tribe]||null,tribe:v.tribe,villages:[{coordinates:x+" "+y,name:v.name,arena:0,troops:{},hero:{present:false}}],hero_inventory:{standards:[],boots:[],maps:[]},state:null};
    await ghSave(env,DISCORD_PLAYERS_PATH,players,loaded.sha,"Register WORLD Discord player "+v.player);
    return dReply(t.done+"\n\n👤 **"+t.account+":** "+v.player+"\n🏘 **"+t.village+":** "+v.name+" ("+x+"|"+y+")\n⚔️ **"+t.tribe+":** "+tribeName(v.tribe,l));
