@@ -1812,7 +1812,7 @@ def callback_query(q):
         if request_closed(req):
             req["status"] = "closed"
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
+        sync_request_to_worker(req)
         schedule_defence_reminders(req, req["contributions"][-1])
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
