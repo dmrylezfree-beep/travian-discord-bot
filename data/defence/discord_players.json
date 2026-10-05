@@ -85,7 +85,9 @@
       }
     ],
     "hero_inventory": {
-      "standards": [],
+      "standards": [
+        15
+      ],
       "boots": [],
       "maps": []
     },
