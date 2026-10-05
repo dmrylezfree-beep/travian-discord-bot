@@ -56,7 +56,9 @@ def players():
 
 def save_players(value):
     save_json(PLAYERS_FILE, value)
-    if os.environ.get("DEFENCE_DEFER_GIT") != "1":
+    # Interactive VPS sessions must never wait for GitHub.  Git persistence is
+    # enabled only when explicitly requested by a maintenance/legacy process.
+    if os.environ.get("DEFENCE_ENABLE_GIT_PERSIST") == "1" and os.environ.get("DEFENCE_DEFER_GIT") != "1":
         persist_data()
 
 
