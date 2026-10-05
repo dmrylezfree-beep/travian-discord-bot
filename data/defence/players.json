@@ -208,7 +208,9 @@
       "standards": [
         15
       ],
-      "boots": [],
+      "boots": [
+        25
+      ],
       "maps": []
     },
     "travian_uid": 476
