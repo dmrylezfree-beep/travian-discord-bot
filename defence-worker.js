@@ -337,6 +337,8 @@ async function handleDiscord(request, env, ctx) {
  }
  if(i.type===3&&/^def_delete_cancel_(en|ja)$/.test(cid)){
    const l=cid.endsWith("_ja")?"ja":"en";
+   const playerLoaded=await ghJson(env,DISCORD_PLAYERS_PATH),p=(playerLoaded.data||{})[id];
+   if(!p?.travian_uid)return dReply(l==="ja"?"❌ まず **/def** で登録してください。":"❌ Please register first with **/def**.");
    const cd=await centreData(env,p);
    return dReply(cd.text,personalCentreComponents(cd.requests,l,canCreateDefence(i),id));
  }
@@ -808,6 +810,22 @@ async function switchTelegramToPolling(env) {
   }
 }
 
+async function restoreTelegramWebhook(env) {
+  if (!env.TELEGRAM_BOT_TOKEN) throw new Error("Cloudflare: не задан TELEGRAM_BOT_TOKEN");
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/setWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url: "https://travian-defence.dmrylezfree.workers.dev/",
+      allowed_updates: ["message", "callback_query"]
+    })
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Telegram setWebhook ${response.status}: ${body.slice(0, 1000)}`);
+  const parsed = JSON.parse(body);
+  if (!parsed.ok) throw new Error(`Telegram setWebhook failed: ${body.slice(0, 1000)}`);
+}
+
 async function dispatch(env, update = null, workflow = GITHUB_WORKFLOW) {
   if (!env.GITHUB_TOKEN) {
     throw new Error("Cloudflare: не задан GITHUB_TOKEN");
@@ -846,6 +864,13 @@ async function dispatch(env, update = null, workflow = GITHUB_WORKFLOW) {
 
   if (!response.ok) {
     const details = await response.text();
+    if (update) {
+      try {
+        await restoreTelegramWebhook(env);
+      } catch (restoreError) {
+        console.error("Failed to restore Telegram webhook after GitHub dispatch failure:", restoreError);
+      }
+    }
     throw new Error(`GitHub API ${response.status}: ${details.slice(0, 1500)}`);
   }
 }
