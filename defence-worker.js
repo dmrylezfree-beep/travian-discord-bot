@@ -790,12 +790,37 @@ async function sendStartMenu(env, message) {
   }
 }
 
+async function switchTelegramToPolling(env) {
+  if (!env.TELEGRAM_BOT_TOKEN) throw new Error("Cloudflare: не задан TELEGRAM_BOT_TOKEN");
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/deleteWebhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ drop_pending_updates: false })
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Telegram deleteWebhook ${response.status}: ${body.slice(0, 1000)}`);
+  try {
+    const parsed = JSON.parse(body);
+    if (!parsed.ok) throw new Error(`Telegram deleteWebhook failed: ${body.slice(0, 1000)}`);
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error(`Telegram deleteWebhook invalid response: ${body.slice(0, 1000)}`);
+    throw error;
+  }
+}
+
 async function dispatch(env, update = null, workflow = GITHUB_WORKFLOW) {
   if (!env.GITHUB_TOKEN) {
     throw new Error("Cloudflare: не задан GITHUB_TOKEN");
   }
   if (!env.TELEGRAM_BOT_TOKEN) {
     throw new Error("Cloudflare: не задан TELEGRAM_BOT_TOKEN");
+  }
+
+  // Close the webhook before dispatching GitHub. This prevents a second
+  // Telegram update from starting another workflow while the first runner
+  // is still booting and has not reached defence_poll.py yet.
+  if (update) {
+    await switchTelegramToPolling(env);
   }
 
   const url =
