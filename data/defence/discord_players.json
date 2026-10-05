@@ -78,7 +78,9 @@
         "coordinates": "79 10",
         "name": "✸〇〇〇〇",
         "arena": 5,
-        "troops": {},
+        "troops": {
+          "phalanx": 20
+        },
         "hero": {
           "present": false
         }
