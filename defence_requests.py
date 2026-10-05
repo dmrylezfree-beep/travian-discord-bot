@@ -1227,8 +1227,11 @@ def process_text(message):
     if text.startswith("/start"):
         return
     if text.startswith("/def"):
+        # /def is an interactive menu command: do not block the Telegram reply
+        # on GitHub pull/push. Save the cleared transient state locally first;
+        # persistent Git sync will happen on subsequent real data changes.
         player["state"] = None
-        bot.save_players(data)
+        bot.save_json(bot.PLAYERS_FILE, data)
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
