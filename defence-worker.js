@@ -413,12 +413,16 @@ async function handleDiscord(request, env, ctx) {
     const map=await getMap(),v=mapVillage(map,x,y);
     if(!v||v.aid!==WORLD_ALLIANCE_ID)content=l==="ja"?"❌ 対象はWORLD同盟の村である必要があります。":"❌ Target must be a WORLD alliance village.";
     else{
-     const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],rid=Math.max(0,...list.map(z=>Number(z.id)||0))+1;
-     const q={id:rid,requester_platform:"discord",requester_id:creator,requester_username:uname,requester_first_name:gname,target_x:x,target_y:y,target_player:v.player,attack_time:attack,attack_time_display:attack.replace(/^(\d{4})-(\d{2})-(\d{2}) /,"$3.$2.$1 "),required_def:required,collected_def:0,status:"active",contributions:[],created_at:serverNowText()};
-     await ghSave(env,"data/defence/requests.json",[...list,q],rq.sha,"Create WORLD Discord defence request #"+rid);
+     let q=null;
+     for(let attempt=1;attempt<=3&&!q;attempt++){
+       const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],rid=Math.max(0,...list.map(z=>Number(z.id)||0))+1;
+       const candidate={id:rid,requester_platform:"discord",requester_id:creator,requester_username:uname,requester_first_name:gname,target_x:x,target_y:y,target_player:v.player,attack_time:attack,attack_time_display:attack.replace(/^(\d{4})-(\d{2})-(\d{2}) /,"$3.$2.$1 "),required_def:required,collected_def:0,status:"active",contributions:[],created_at:serverNowText()};
+       try{await ghSave(env,"data/defence/requests.json",[...list,candidate],rq.sha,"Create WORLD Discord defence request #"+rid);q=candidate;}
+       catch(error){if(attempt===3)throw error;await new Promise(resolve=>setTimeout(resolve,250*attempt));}
+     }
      await queueDiscordExpiry(env,q);
      await dispatchDiscordSync(env);await refreshDiscordCentre(env);
-     content=(l==="ja"?"✅ **防衛要請を作成しました #":"✅ **Defence request created #")+rid+"**\n🎯 **"+x+"|"+y+"**\n⚔️ "+q.attack_time_display+"\n🛡 "+required.toLocaleString();
+     content=(l==="ja"?"✅ **防衛要請を作成しました #":"✅ **Defence request created #")+q.id+"**\n🎯 **"+x+"|"+y+"**\n⚔️ "+q.attack_time_display+"\n🛡 "+required.toLocaleString();
     }
    }catch(e){console.error("Deferred request creation failed:",e);content=l==="ja"?"❌ 要請を作成できませんでした。もう一度お試しください。":"❌ Could not create the request. Please try again.";}
    await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
