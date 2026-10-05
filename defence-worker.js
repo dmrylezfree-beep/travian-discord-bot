@@ -867,6 +867,41 @@ export default {
       return handleDiscord(request, env, ctx);
     }
 
+    if (request.method === "POST" && url.pathname === "/discord/request-sync") {
+      const auth = request.headers.get("Authorization") || "";
+      if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      try {
+        const body = await request.json();
+        const incoming = body?.request;
+        if (!incoming || incoming.id == null) {
+          return Response.json({ ok: false, error: "request is required" }, { status: 400 });
+        }
+
+        // Persist the Telegram-created request through GitHub's API from the
+        // Worker. This avoids depending on a potentially hanging git pull/push
+        // on the VPS before Discord can see the new request.
+        const current = await ghJson(env, "data/defence/requests.json");
+        const requests = Array.isArray(current.data) ? current.data : [];
+        const index = requests.findIndex(q => Number(q.id) === Number(incoming.id));
+        if (index >= 0) requests[index] = { ...requests[index], ...incoming };
+        else requests.push(incoming);
+        requests.sort((a,b) => Number(a.id||0) - Number(b.id||0));
+        await ghSave(env, "data/defence/requests.json", requests, current.sha, "Sync Telegram defence request");
+
+        ctx.waitUntil(
+          refreshDiscordCentre(env).catch(error => {
+            console.error("Discord request sync refresh failed:", error instanceof Error ? error.message : String(error));
+          })
+        );
+        return Response.json({ ok: true, synced: Number(incoming.id) });
+      } catch (error) {
+        console.error("Telegram request sync failed:", error instanceof Error ? error.message : String(error));
+        return Response.json({ ok: false, error: String(error) }, { status: 500 });
+      }
+    }
+
     if (request.method === "POST" && url.pathname === "/discord/refresh") {
       const auth = request.headers.get("Authorization") || "";
       if (auth !== `Bearer ${env.TELEGRAM_BOT_TOKEN}`) {
