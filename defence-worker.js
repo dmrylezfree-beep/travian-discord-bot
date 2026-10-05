@@ -984,6 +984,15 @@ export default {
             const index = requests.findIndex(q => Number(q.id) === Number(incoming.id));
             if (index >= 0) {
               const currentRequest = requests[index];
+              // A stale Telegram polling session must never resurrect a request
+              // that Discord, the expiry queue, or another Telegram action has
+              // already closed/cancelled/expired.
+              if (currentRequest.status !== "active" && incoming.status === "active") {
+                incoming.status = currentRequest.status;
+                if (currentRequest.cancelled_at) incoming.cancelled_at = currentRequest.cancelled_at;
+                if (currentRequest.expired_at) incoming.expired_at = currentRequest.expired_at;
+                if (currentRequest.closed_at) incoming.closed_at = currentRequest.closed_at;
+              }
               // Contributions are shared by Telegram and Discord. Never replace
               // a newer GitHub contribution list with the Telegram runner's
               // older local snapshot.
