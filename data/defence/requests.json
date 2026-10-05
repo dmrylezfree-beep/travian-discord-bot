@@ -274,5 +274,19 @@
     "cancelled_at": "2026-10-05 15:09:27",
     "cancelled_by_platform": "discord",
     "cancelled_by_id": "445447170330722305"
+  },
+  {
+    "id": 6,
+    "requester_id": 317595036,
+    "requester_username": "dmrylez",
+    "requester_first_name": "Дмитрий",
+    "target_x": 62,
+    "target_y": 74,
+    "target_player": "Reynor",
+    "attack_time": "2026-10-05 23:50:00",
+    "attack_time_display": "05.10.2026 23:50:00",
+    "required_def": 500,
+    "status": "active",
+    "created_at": "2026-10-05 18:30:37"
   }
 ]
