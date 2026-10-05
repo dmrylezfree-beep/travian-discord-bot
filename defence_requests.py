@@ -1179,27 +1179,29 @@ def refresh_center(chat_id=None, create_if_missing=False):
             bot.edit(center_chat_id, center_message_id, text, request_menu())
             return True
         except Exception as exc:
-            # Recreate only when Telegram explicitly says that the saved centre
-            # message no longer exists. Network/time-out errors must keep the
-            # stored ID so a temporary outage cannot create duplicate centres.
+            # HTTP 400 from editMessageText is a permanent problem with the
+            # saved centre message (deleted, inaccessible, or no longer
+            # editable).  In create_if_missing mode replace that stale centre.
+            # Network errors/timeouts keep the stored ID to avoid duplicates.
             response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None)
             details = ""
             if response is not None:
                 try:
                     details = (response.text or "").lower()
                 except Exception:
                     details = ""
-            missing = (
+            stale = status_code == 400 or (
                 "message to edit not found" in details
                 or "message_id_invalid" in details
                 or "message identifier is not specified" in details
                 or "message can't be edited" in details
                 or "message cannot be edited" in details
             )
-            if not (create_if_missing and missing):
+            if not (create_if_missing and stale):
                 print(f"Centre edit failed, keeping existing centre {center_message_id}: {exc}", flush=True)
                 return False
-            print(f"Saved centre {center_message_id} no longer exists; recreating it.", flush=True)
+            print(f"Saved centre {center_message_id} is stale; recreating it.", flush=True)
             state.pop("center_message_id", None)
             save_state(state)
             center_message_id = None
