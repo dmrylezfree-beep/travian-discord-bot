@@ -1193,6 +1193,8 @@ def refresh_center(chat_id=None, create_if_missing=False):
                 "message to edit not found" in details
                 or "message_id_invalid" in details
                 or "message identifier is not specified" in details
+                or "message can't be edited" in details
+                or "message cannot be edited" in details
             )
             if not (create_if_missing and missing):
                 print(f"Centre edit failed, keeping existing centre {center_message_id}: {exc}", flush=True)
@@ -1443,16 +1445,16 @@ def callback_query(q):
     bot.answer_callback(q.get("id"))
 
     if action == "menu":
-        # "Back" belongs to the transient menu message the user is currently
-        # interacting with.  Do not touch the separately pinned centre here:
-        # its saved message id may be stale/deleted and a failed centre edit
-        # would make this button appear to hang.
-        bot.edit(
-            chat_id,
-            msg_id,
-            "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите действие:",
-            request_menu(),
-        )
+        # Return only the transient control message to the main view.  The
+        # separately pinned centre remains authoritative and untouched.
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        if not isinstance(requests, list):
+            requests = []
+        menu_text, changed = active_requests_text(requests)
+        if changed:
+            bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.edit(chat_id, msg_id, menu_text + "\n\nВыберите действие:", request_menu())
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     if action == "settings":
@@ -1540,9 +1542,8 @@ def callback_query(q):
             bot.persist_data() if os.environ.get("DEFENCE_ENABLE_GIT_PERSIST") == "1" and os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
 
         if not active:
-            bot.edit(
+            bot.send(
                 chat_id,
-                msg_id,
                 "<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nАктивных заявок нет.",
                 request_menu(),
             )
@@ -1555,9 +1556,10 @@ def callback_query(q):
                 "callback_data": f"delete_req:{req['id']}",
             }])
         rows.append([{"text": "⬅️ Назад", "callback_data": "menu"}])
-        bot.edit(
+        # Never turn the pinned defence centre into a delete wizard.  All
+        # interactive delete navigation lives in a separate transient message.
+        bot.send(
             chat_id,
-            msg_id,
             "<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nВыберите заявку:",
             bot.kb(rows),
         )
