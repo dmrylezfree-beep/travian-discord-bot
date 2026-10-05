@@ -63,5 +63,32 @@
       "maps": []
     },
     "state": null
+  },
+  "1115767292144390144": {
+    "discord_id": "1115767292144390144",
+    "discord_username": "yupupu_",
+    "discord_global_name": "yupupu",
+    "language": "ja",
+    "travian_uid": 757,
+    "player_name": "ypp",
+    "race": "gaul",
+    "tribe": 3,
+    "villages": [
+      {
+        "coordinates": "79 10",
+        "name": "✸〇〇〇〇",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    },
+    "state": null
   }
 }
