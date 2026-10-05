@@ -210,8 +210,10 @@ const DEF_UNITS={
 };
 const DEF_SPEEDS={legionnaire:6,praetorian:5,equites_caesaris:10,spearman:7,paladin:10,phalanx:7,druidrider:16,haeduan:13};
 const DEF_CAV=new Set(["equites_caesaris","paladin","druidrider","haeduan"]);
-function parseServerTime(s){const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);return m?Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]):NaN;}
-function formatServerTime(ms){const d=new Date(ms);return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0")+" "+String(d.getUTCHours()).padStart(2,"0")+":"+String(d.getUTCMinutes()).padStart(2,"0")+":"+String(d.getUTCSeconds()).padStart(2,"0");}
+const SERVER_TIME_ZONE="Europe/London";
+function londonParts(ms){const parts=new Intl.DateTimeFormat("en-GB",{timeZone:SERVER_TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(ms));return Object.fromEntries(parts.filter(p=>p.type!=="literal").map(p=>[p.type,Number(p.value)]));}
+function parseServerTime(s){const m=String(s||"").match(/^(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2}):(\\d{2})$/);if(!m)return NaN;const w={year:+m[1],month:+m[2],day:+m[3],hour:+m[4],minute:+m[5],second:+m[6]},wall=Date.UTC(w.year,w.month-1,w.day,w.hour,w.minute,w.second);let guess=wall;for(let i=0;i<3;i++){const p=londonParts(guess),shown=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);guess+=wall-shown;}const p=londonParts(guess);return p.year===w.year&&p.month===w.month&&p.day===w.day&&p.hour===w.hour&&p.minute===w.minute&&p.second===w.second?guess:NaN;}
+function formatServerTime(ms){const p=londonParts(ms),pad=n=>String(n).padStart(2,"0");return p.year+"-"+pad(p.month)+"-"+pad(p.day)+" "+pad(p.hour)+":"+pad(p.minute)+":"+pad(p.second);}
 function timeOnly(s){return String(s||"").split(" ")[1]||String(s||"");}
 function mapDist(x1,y1,x2,y2){let dx=Math.abs(x2-x1),dy=Math.abs(y2-y1);dx=Math.min(dx,401-dx);dy=Math.min(dy,401-dy);return Math.sqrt(dx*dx+dy*dy);}
 function travelSecs(distance,speed,arena=0){const first=Math.min(distance,20),second=Math.max(0,distance-20);return first*3600/speed+(second?second*3600/(speed*(1+Number(arena||0)*0.20)):0);}
@@ -599,10 +601,7 @@ async function handleDiscord(request, env, ctx) {
 
 const MAX_QUEUE_DELAY_SECONDS = 86400;
 
-function serverNowText() {
-  const d=new Date(),pad=n=>String(n).padStart(2,"0");
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-}
+function serverNowText() { return formatServerTime(Date.now()); }
 function secondsUntilServer(localText) {
   return Math.floor((parseServerTime(String(localText||""))-Date.now())/1000);
 }
