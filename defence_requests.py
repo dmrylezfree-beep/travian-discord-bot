@@ -1192,11 +1192,28 @@ def refresh_center(chat_id=None, create_if_missing=False):
             bot.edit(center_chat_id, center_message_id, text, request_menu())
             return True
         except Exception as exc:
-            # A temporary Telegram/API/edit error must never be interpreted as
-            # proof that the centre disappeared. Otherwise every refresh can
-            # unpin/recreate the centre and make active requests seem to vanish.
-            print(f"Centre edit failed, keeping existing centre {center_message_id}: {exc}", flush=True)
-            return False
+            # Recreate only when Telegram explicitly says that the saved centre
+            # message no longer exists. Network/time-out errors must keep the
+            # stored ID so a temporary outage cannot create duplicate centres.
+            response = getattr(exc, "response", None)
+            details = ""
+            if response is not None:
+                try:
+                    details = (response.text or "").lower()
+                except Exception:
+                    details = ""
+            missing = (
+                "message to edit not found" in details
+                or "message_id_invalid" in details
+                or "message identifier is not specified" in details
+            )
+            if not (create_if_missing and missing):
+                print(f"Centre edit failed, keeping existing centre {center_message_id}: {exc}", flush=True)
+                return False
+            print(f"Saved centre {center_message_id} no longer exists; recreating it.", flush=True)
+            state.pop("center_message_id", None)
+            save_state(state)
+            center_message_id = None
 
     if not create_if_missing:
         return False
@@ -1249,16 +1266,19 @@ def process_text(message):
     if text.startswith("/start"):
         return
     if text.startswith("/def"):
-        # /def is the explicit entry point to controls. Keep the pinned centre
-        # informational and open an independent interactive menu instead of
-        # silently editing/re-pinning the centre message.
+        # Keep the pinned centre authoritative, but also show the current
+        # requests in the freshly opened control message. This makes /def useful
+        # even when the pinned message is outside the user's current viewport.
         player["state"] = None
         bot.save_json(bot.PLAYERS_FILE, data)
-        bot.send(
-            chat_id,
-            "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите действие:",
-            request_menu(),
-        )
+        requests = bot.load_json(bot.REQUESTS_FILE, [])
+        if not isinstance(requests, list):
+            requests = []
+        menu_text, changed = active_requests_text(requests)
+        if changed:
+            bot.save_json(bot.REQUESTS_FILE, requests)
+        bot.send(chat_id, menu_text + "\n\nВыберите действие:", request_menu())
+        refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
     if not isinstance(state, dict):
