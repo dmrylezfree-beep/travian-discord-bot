@@ -1642,7 +1642,9 @@ def callback_query(q):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
         player["state"] = None
-        bot.save_players(data)
+        # This is transient wizard state. Do not block a Telegram button on
+        # GitHub pull/rebase/push just to clear it.
+        bot.save_json(bot.PLAYERS_FILE, data)
         bot.edit(chat_id, msg_id, send_def_plan_text(player, req), send_def_plan_keyboard(player, req))
         return
 
@@ -1654,7 +1656,8 @@ def callback_query(q):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
         player["state"] = {"type": "send_total_amount", "request_id": req_id}
-        bot.save_players(data)
+        # Wizard state is local runtime state; saving it must be immediate.
+        bot.save_json(bot.PLAYERS_FILE, data)
         bot.send(
             chat_id,
             f"<b>🛡 ОТПРАВИТЬ ДЕФ #{req_id}</b>\n\n"
