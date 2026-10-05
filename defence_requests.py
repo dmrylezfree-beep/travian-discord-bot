@@ -1488,12 +1488,15 @@ def callback_query(q):
             else:
                 active.append(req)
         if changed:
+            # Expiry is derived state; never block this menu on Git.
             bot.save_json(bot.REQUESTS_FILE, requests)
-            bot.persist_data()
+
+        # Never edit the pinned defence-centre message into a wizard/menu.
+        # Send the interactive flow as a separate topic message instead.
         if not active:
-            bot.edit(chat_id, msg_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nАктивных заявок нет.", request_menu())
+            bot.send(chat_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nАктивных заявок нет.", request_menu())
             return
-        bot.edit(chat_id, msg_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nВыберите заявку:", send_def_requests_keyboard(active))
+        bot.send(chat_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nВыберите заявку:", send_def_requests_keyboard(active))
         return
 
     if action == "delete_request_menu":
