@@ -982,8 +982,36 @@ export default {
               incoming.id = Math.max(0, ...requests.map(q => Number(q.id) || 0)) + 1;
             }
             const index = requests.findIndex(q => Number(q.id) === Number(incoming.id));
-            if (index >= 0) requests[index] = { ...requests[index], ...incoming };
-            else requests.push(incoming);
+            if (index >= 0) {
+              const currentRequest = requests[index];
+              // Contributions are shared by Telegram and Discord. Never replace
+              // a newer GitHub contribution list with the Telegram runner's
+              // older local snapshot.
+              if (Array.isArray(incoming.contributions)) {
+                const merged = [...(Array.isArray(currentRequest.contributions) ? currentRequest.contributions : [])];
+                for (const contribution of incoming.contributions) {
+                  const key = JSON.stringify([
+                    contribution?.platform || "telegram",
+                    contribution?.user_id ?? contribution?.telegram_id ?? "",
+                    contribution?.created_at || "",
+                    Number(contribution?.def_points || 0)
+                  ]);
+                  if (!merged.some(existing => JSON.stringify([
+                    existing?.platform || "telegram",
+                    existing?.user_id ?? existing?.telegram_id ?? "",
+                    existing?.created_at || "",
+                    Number(existing?.def_points || 0)
+                  ]) === key)) merged.push(contribution);
+                }
+                incoming.contributions = merged;
+                incoming.collected_def = merged.reduce((sum,z)=>sum+Number(z?.def_points||0),0);
+                if (incoming.collected_def >= Number(incoming.required_def || currentRequest.required_def || 0)) {
+                  incoming.status = "closed";
+                  incoming.closed_at = incoming.closed_at || serverNowText();
+                }
+              }
+              requests[index] = { ...currentRequest, ...incoming };
+            } else requests.push(incoming);
             requests.sort((a,b) => Number(a.id||0) - Number(b.id||0));
             await ghSave(env, "data/defence/requests.json", requests, current.sha, "Sync Telegram defence request");
             saved = true;
