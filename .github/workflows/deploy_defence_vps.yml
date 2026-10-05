@@ -28,7 +28,11 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/github_actions
           chmod 600 ~/.ssh/github_actions
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts || true
+          for i in 1 2 3 4 5; do
+            ssh-keyscan -T 10 -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            [ -s ~/.ssh/known_hosts ] && break
+            sleep 2
+          done
           test -s ~/.ssh/known_hosts
 
       - name: Deploy
