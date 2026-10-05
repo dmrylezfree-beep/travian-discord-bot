@@ -36,7 +36,7 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          timeout 30s ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i ~/.ssh/github_actions "$VPS_USER@vps" '
+          timeout 30s ssh -vv -o ConnectTimeout=10 -o ConnectionAttempts=1 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i ~/.ssh/github_actions "$VPS_USER@vps" '
             set -e
             cd /opt/travian-discord-bot
             git fetch origin main
