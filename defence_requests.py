@@ -83,7 +83,7 @@ def load_state():
 
 
 def save_state(state):
-    """Centre metadata is runtime state; keep it local on the VPS."""
+    """Save centre metadata locally; the GitHub session flushes it once at exit."""
     bot.save_json(STATE_FILE, state)
 
 
@@ -1098,7 +1098,7 @@ def notify_eligible_defenders(req):
 
 
 def save_request_wizard_state(data):
-    """Persist transient request-wizard state locally without blocking on Git."""
+    """Save wizard state locally; the active polling session keeps it immediately available."""
     bot.save_json(bot.PLAYERS_FILE, data)
 
 
