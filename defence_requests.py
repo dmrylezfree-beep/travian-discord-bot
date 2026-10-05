@@ -708,11 +708,6 @@ def request_summary(player):
     )
 
 
-def next_request_id(requests):
-    ids = [int(r.get("id", 0)) for r in requests if str(r.get("id", "")).isdigit()]
-    return max(ids, default=0) + 1
-
-
 def sync_request_to_worker(request):
     """Persist a Telegram request through the Worker and return its saved form."""
     token = os.environ.get("DEFENCE_TELEGRAM_TOKEN")
@@ -737,19 +732,6 @@ def sync_request_to_worker(request):
     except Exception as exc:
         print(f"Direct Discord request sync failed for #{request.get('id')}: {exc}", flush=True)
         return None
-
-
-def save_request(request):
-    requests_data = bot.load_json(bot.REQUESTS_FILE, [])
-    if not isinstance(requests_data, list):
-        requests_data = []
-    requests_data.append(request)
-    # Save locally first so Telegram never depends on GitHub availability.
-    bot.save_json(bot.REQUESTS_FILE, requests_data)
-    # The Worker writes the request to GitHub through the GitHub API and then
-    # refreshes Discord. This is independent of VPS git pull/push latency.
-    sync_request_to_worker(request)
-    return request
 
 
 def _player_label(player):
