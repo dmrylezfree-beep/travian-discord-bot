@@ -28,19 +28,15 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/github_actions
           chmod 600 ~/.ssh/github_actions
-          for i in 1 2 3 4 5; do
-            ssh-keyscan -T 10 -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
-            [ -s ~/.ssh/known_hosts ] && break
-            sleep 2
-          done
-          test -s ~/.ssh/known_hosts
+          printf '%s\n' "Host vps" "  HostName $VPS_HOST" "  StrictHostKeyChecking no" "  UserKnownHostsFile /dev/null" > ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Deploy
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ssh -i ~/.ssh/github_actions "$VPS_USER@$VPS_HOST" '
+          timeout 30s ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i ~/.ssh/github_actions "$VPS_USER@vps" '
             set -e
             cd /opt/travian-discord-bot
             git fetch origin main
