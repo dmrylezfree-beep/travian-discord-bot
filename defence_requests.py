@@ -1333,7 +1333,7 @@ def process_text(message):
         player["state"] = None
         bot.save_players(data)
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
+        sync_request_to_worker(req)
         refresh_optimal_plans(chat_id=chat_id)
         refresh_center(chat_id=chat_id, create_if_missing=True)
         bot.send(
