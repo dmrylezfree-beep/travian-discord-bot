@@ -1443,7 +1443,16 @@ def callback_query(q):
     bot.answer_callback(q.get("id"))
 
     if action == "menu":
-        refresh_center(chat_id=chat_id, create_if_missing=True)
+        # "Back" belongs to the transient menu message the user is currently
+        # interacting with.  Do not touch the separately pinned centre here:
+        # its saved message id may be stale/deleted and a failed centre edit
+        # would make this button appear to hang.
+        bot.edit(
+            chat_id,
+            msg_id,
+            "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите действие:",
+            request_menu(),
+        )
         return
 
     if action == "settings":
