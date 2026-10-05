@@ -46,6 +46,15 @@
         "hero": {
           "present": false
         }
+      },
+      {
+        "coordinates": "1 46",
+        "name": "00.ディオメーデス",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
       }
     ],
     "hero_inventory": {
