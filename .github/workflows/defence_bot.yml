@@ -124,6 +124,7 @@ jobs:
           DEFENCE_RUN_SECONDS: "510"
           DEFENCE_TG_POLL_TIMEOUT: "20"
           DEFENCE_INITIAL_UPDATE_JSON: ${{ inputs.update_json }}
+          DEFENCE_DEFER_GIT: "1"
         run: python defence_poll.py
 
       - name: Persist defence session state
@@ -131,7 +132,7 @@ jobs:
         run: |
           git config user.name "defence-bot"
           git config user.email "defence-bot@users.noreply.github.com"
-          git add data/defence
+          git add data/defence/players.json data/defence/state.json
           if git diff --cached --quiet; then
             echo "No defence session data changes."
             exit 0
