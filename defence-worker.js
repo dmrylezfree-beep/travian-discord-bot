@@ -932,13 +932,24 @@ export default {
         // Persist the Telegram-created request through GitHub's API from the
         // Worker. This avoids depending on a potentially hanging git pull/push
         // on the VPS before Discord can see the new request.
-        const current = await ghJson(env, "data/defence/requests.json");
-        const requests = Array.isArray(current.data) ? current.data : [];
-        const index = requests.findIndex(q => Number(q.id) === Number(incoming.id));
-        if (index >= 0) requests[index] = { ...requests[index], ...incoming };
-        else requests.push(incoming);
-        requests.sort((a,b) => Number(a.id||0) - Number(b.id||0));
-        await ghSave(env, "data/defence/requests.json", requests, current.sha, "Sync Telegram defence request");
+        let saved = false;
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3 && !saved; attempt++) {
+          try {
+            const current = await ghJson(env, "data/defence/requests.json");
+            const requests = Array.isArray(current.data) ? current.data : [];
+            const index = requests.findIndex(q => Number(q.id) === Number(incoming.id));
+            if (index >= 0) requests[index] = { ...requests[index], ...incoming };
+            else requests.push(incoming);
+            requests.sort((a,b) => Number(a.id||0) - Number(b.id||0));
+            await ghSave(env, "data/defence/requests.json", requests, current.sha, "Sync Telegram defence request");
+            saved = true;
+          } catch (error) {
+            lastError = error;
+            if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+          }
+        }
+        if (!saved) throw lastError || new Error("Failed to persist Telegram defence request");
 
         ctx.waitUntil(
           refreshDiscordCentre(env).catch(error => {
