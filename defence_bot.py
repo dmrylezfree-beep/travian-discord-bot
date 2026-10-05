@@ -56,7 +56,8 @@ def players():
 
 def save_players(value):
     save_json(PLAYERS_FILE, value)
-    persist_data()
+    if os.environ.get("DEFENCE_DEFER_GIT") != "1":
+        persist_data()
 
 
 def persist_data():
