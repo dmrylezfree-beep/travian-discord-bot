@@ -1249,12 +1249,16 @@ def process_text(message):
     if text.startswith("/start"):
         return
     if text.startswith("/def"):
-        # /def is an interactive menu command: do not block the Telegram reply
-        # on GitHub pull/push. Save the cleared transient state locally first;
-        # persistent Git sync will happen on subsequent real data changes.
+        # /def is the explicit entry point to controls. Keep the pinned centre
+        # informational and open an independent interactive menu instead of
+        # silently editing/re-pinning the centre message.
         player["state"] = None
         bot.save_json(bot.PLAYERS_FILE, data)
-        refresh_center(chat_id=chat_id, create_if_missing=True)
+        bot.send(
+            chat_id,
+            "<b>🛡 ЦЕНТР ДЕФА</b>\n\nВыберите действие:",
+            request_menu(),
+        )
         return
 
     if not isinstance(state, dict):
