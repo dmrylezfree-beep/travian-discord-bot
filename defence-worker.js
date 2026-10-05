@@ -372,15 +372,19 @@ async function handleDiscord(request, env, ctx) {
  if(i.type===3&&/^def_delete_confirm_\d+_(en|ja)$/.test(cid)){
    const a=cid.split("_"),rid=Number(a[3]),l=a[4]==="ja"?"ja":"en",token=i.token,appId=i.application_id;
    ctx.waitUntil((async()=>{let content,components=[];try{
-     const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],q=list.find(x=>Number(x.id)===rid);
-     if(!q||q.status!=="active"||q.requester_platform!=="discord"||String(q.requester_id||"")!==id){
-       content=l==="ja"?"❌ この防衛要請を削除する権限がないか、既に終了しています。":"❌ You can only delete your own active defence request.";
-     }else{
+     let deleted=false,denied=false;
+     for(let attempt=1;attempt<=3&&!deleted&&!denied;attempt++){
+       const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],q=list.find(x=>Number(x.id)===rid);
+       if(!q||q.status!=="active"||q.requester_platform!=="discord"||String(q.requester_id||"")!==id){denied=true;break;}
        q.status="cancelled";q.cancelled_at=serverNowText();q.cancelled_by_platform="discord";q.cancelled_by_id=id;
-       await ghSave(env,"data/defence/requests.json",list,rq.sha,"Cancel WORLD Discord defence request #"+rid);
+       try{await ghSave(env,"data/defence/requests.json",list,rq.sha,"Cancel WORLD Discord defence request #"+rid);deleted=true;}
+       catch(error){if(attempt===3)throw error;await new Promise(resolve=>setTimeout(resolve,250*attempt));}
+     }
+     if(denied)content=l==="ja"?"❌ この防衛要請を削除する権限がないか、既に終了しています。":"❌ You can only delete your own active defence request.";
+     else if(deleted){
        await dispatchDiscordSync(env);await refreshDiscordCentre(env);
        content=(l==="ja"?"✅ **防衛要請 #":"✅ **Defence request #")+rid+(l==="ja"?" を削除しました。**":" deleted.**");
-       try{const cd=await centreData(env,p);components=personalCentreComponents(cd.requests,l,canCreateDefence(i),id);}catch{}
+       try{const playerLoaded=await ghJson(env,DISCORD_PLAYERS_PATH),p=(playerLoaded.data||{})[id],cd=p?await centreData(env,p):null;if(cd)components=personalCentreComponents(cd.requests,l,canCreateDefence(i),id);}catch{}
      }
    }catch(e){console.error("Deferred request deletion failed:",e);content=l==="ja"?"❌ 要請を削除できませんでした。もう一度お試しください。":"❌ Could not delete the request. Please try again.";}
    await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components})});
