@@ -974,7 +974,7 @@ def refresh_optimal_plans(chat_id=None, force=False):
 
     if changed_data:
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data()
+        bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
     return changed_data
 
 def notification_source_options(player, req):
@@ -1333,7 +1333,7 @@ def process_text(message):
         player["state"] = None
         bot.save_players(data)
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data()
+        bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
         refresh_optimal_plans(chat_id=chat_id)
         refresh_center(chat_id=chat_id, create_if_missing=True)
         bot.send(
@@ -1541,7 +1541,7 @@ def callback_query(q):
             active.append(req)
         if changed:
             bot.save_json(bot.REQUESTS_FILE, requests)
-            bot.persist_data()
+            bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
 
         if not active:
             bot.edit(
@@ -1812,7 +1812,7 @@ def callback_query(q):
         if request_closed(req):
             req["status"] = "closed"
         bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.persist_data()
+        bot.persist_data() if os.environ.get("DEFENCE_DEFER_GIT") != "1" else None
         schedule_defence_reminders(req, req["contributions"][-1])
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
