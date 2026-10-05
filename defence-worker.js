@@ -313,6 +313,10 @@ async function handleDiscord(request, env, ctx) {
  const cid=String(i.data?.custom_id||"");
  if(i.type===3&&/^def_delete_menu_(en|ja)$/.test(cid)){
    const l=cid.endsWith("_ja")?"ja":"en";
+   // This branch runs before the normal profile-loading block below, so load
+   // the Discord player explicitly here. Referencing p here previously threw
+   // before Discord could be acknowledged, causing "application did not respond".
+   const playerLoaded=await ghJson(env,DISCORD_PLAYERS_PATH),p=(playerLoaded.data||{})[id];
    if(!p?.travian_uid)return dReply(l==="ja"?"❌ まず **/def** で登録してください。":"❌ Please register first with **/def**.");
    const rs=await loadActiveRequests(env),own=ownActiveRequests(rs,id);
    if(!own.length)return dReply(l==="ja"?"🗑 削除できる自分の防衛要請はありません。":"🗑 You have no active defence requests to delete.");
