@@ -1,0 +1,45 @@
+name: Deploy defence bot to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "defence_bot.py"
+      - "defence_requests.py"
+      - "defence_poll.py"
+      - "defence_register.py"
+      - "defence_reminders.py"
+      - ".github/workflows/deploy_defence_vps.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: defence-vps-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/github_actions
+          chmod 600 ~/.ssh/github_actions
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/github_actions "$VPS_USER@$VPS_HOST" '
+            set -e
+            cd /opt/travian-discord-bot
+            git fetch origin main
+            git checkout origin/main -- defence_bot.py defence_requests.py defence_poll.py defence_register.py defence_reminders.py
+            systemctl restart travian-defence.service
+            systemctl is-active --quiet travian-defence.service
+          '
