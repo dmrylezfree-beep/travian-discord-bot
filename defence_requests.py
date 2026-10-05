@@ -1817,12 +1817,24 @@ def callback_query(q):
         if request_closed(req):
             req["status"] = "closed"
         bot.save_json(bot.REQUESTS_FILE, requests)
-        sync_request_to_worker(req)
-        schedule_defence_reminders(req, req["contributions"][-1])
+        if sync_request_to_worker(req) is None:
+            bot.edit(chat_id, msg_id, "❌ Не удалось сохранить отправку дефа. Попробуйте ещё раз.", request_menu())
+            return
+        # Worker may have capped this pledge because another player filled part
+        # of the request while this wizard was open. Reload the accepted form
+        # returned by Worker before scheduling reminders and showing the result.
+        bot.save_json(bot.REQUESTS_FILE, requests)
+        accepted_contribution = req.get("contributions", [])[-1] if req.get("contributions") else None
+        if accepted_contribution:
+            schedule_defence_reminders(req, accepted_contribution)
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
         bot.save_players(data)
-        result = draft_summary({"draft": draft}, req) + f"\n\n✅ Записано: <b>{total}</b> очков."
+        accepted_total = int(accepted_contribution.get("def_points", 0) or 0) if accepted_contribution else 0
+        accepted_draft = accepted_contribution.get("plan", []) if accepted_contribution else []
+        result = draft_summary({"draft": accepted_draft or draft}, req) + f"\n\n✅ Записано: <b>{accepted_total}</b> очков."
+        if accepted_total < total:
+            result += f"\n⚠️ План уменьшен с <b>{total}</b>: часть заявки уже закрыли другие игроки."
         if req.get("status") != "closed":
             result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
         bot.edit(chat_id, msg_id, result, request_menu())
