@@ -27,5 +27,32 @@
       "maps": []
     },
     "state": null
+  },
+  "445447170330722305": {
+    "discord_id": "445447170330722305",
+    "discord_username": "roderick_sound",
+    "discord_global_name": "Roderick",
+    "language": "ja",
+    "travian_uid": 470,
+    "player_name": "Symphony",
+    "race": "teuton",
+    "tribe": 2,
+    "villages": [
+      {
+        "coordinates": "65 169",
+        "name": "01.トラデスカンティア",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    },
+    "state": null
   }
 }
