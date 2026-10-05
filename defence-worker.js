@@ -925,9 +925,10 @@ export default {
       try {
         const body = await request.json();
         const incoming = body?.request;
-        if (!incoming || incoming.id == null) {
+        if (!incoming) {
           return Response.json({ ok: false, error: "request is required" }, { status: 400 });
         }
+        const allocateId = incoming.id == null;
 
         // Persist the Telegram-created request through GitHub's API from the
         // Worker. This avoids depending on a potentially hanging git pull/push
@@ -938,6 +939,9 @@ export default {
           try {
             const current = await ghJson(env, "data/defence/requests.json");
             const requests = Array.isArray(current.data) ? current.data : [];
+            if (allocateId) {
+              incoming.id = Math.max(0, ...requests.map(q => Number(q.id) || 0)) + 1;
+            }
             const index = requests.findIndex(q => Number(q.id) === Number(incoming.id));
             if (index >= 0) requests[index] = { ...requests[index], ...incoming };
             else requests.push(incoming);
@@ -956,7 +960,7 @@ export default {
             console.error("Discord request sync refresh failed:", error instanceof Error ? error.message : String(error));
           })
         );
-        return Response.json({ ok: true, synced: Number(incoming.id) });
+        return Response.json({ ok: true, synced: Number(incoming.id), request: incoming });
       } catch (error) {
         console.error("Telegram request sync failed:", error instanceof Error ? error.message : String(error));
         return Response.json({ ok: false, error: String(error) }, { status: 500 });
