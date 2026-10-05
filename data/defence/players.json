@@ -205,7 +205,9 @@
     "private_chat_id": 500556389,
     "private_notifications": true,
     "hero_inventory": {
-      "standards": [],
+      "standards": [
+        15
+      ],
       "boots": [],
       "maps": []
     },
