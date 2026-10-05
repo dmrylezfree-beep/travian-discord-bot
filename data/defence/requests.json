@@ -296,8 +296,16 @@
         "def_points": 50,
         "plan": [],
         "created_at": "2026-10-05 20:32:12"
+      },
+      {
+        "telegram_id": 317595036,
+        "username": "dmrylez",
+        "first_name": "Дмитрий",
+        "def_points": 1,
+        "plan": [],
+        "created_at": "2026-10-05 21:02:16"
       }
     ],
-    "collected_def": 50
+    "collected_def": 51
   }
 ]
