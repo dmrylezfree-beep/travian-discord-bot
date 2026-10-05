@@ -1187,6 +1187,20 @@ def refresh_center(chat_id=None, create_if_missing=False):
     state["center_chat_id"] = int(center_chat_id)
     state["center_message_id"] = int(center_message_id)
     save_state(state)
+
+    # This Telegram topic is dedicated to the defence centre. Whenever a new
+    # centre has to be created, remove every old pin in this topic first so
+    # there can be only one authoritative pinned centre.
+    try:
+        bot.tg(
+            "unpinAllForumTopicMessages",
+            chat_id=center_chat_id,
+            message_thread_id=bot.THREAD_ID,
+        )
+        print(f"Cleared old defence-centre pins in topic {bot.THREAD_ID}", flush=True)
+    except Exception as exc:
+        print(f"Failed to clear old defence-centre pins: {exc}", flush=True)
+
     try:
         bot.tg("pinChatMessage", chat_id=center_chat_id, message_id=center_message_id, disable_notification=True)
     except Exception as exc:
