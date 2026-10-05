@@ -596,17 +596,29 @@ async function queueDiscordExpiry(env, requestItem) {
 }
 
 async function handleDiscordExpiry(env, item) {
-  const rq = await ghJson(env, "data/defence/requests.json");
-  const list = Array.isArray(rq.data) ? rq.data : [];
-  const q = list.find(x => Number(x.id) === Number(item.request_id));
-  if (!q) return;
-  const remaining = secondsUntilServer(q.attack_time);
-  if (Number.isFinite(remaining) && remaining > 0) {
-    item.reminder_at = formatServerTime(parseServerTime(q.attack_time) + 90 * 1000);
-    await queueReminder(env, item);
-    return;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const rq = await ghJson(env, "data/defence/requests.json");
+    const list = Array.isArray(rq.data) ? rq.data : [];
+    const q = list.find(x => Number(x.id) === Number(item.request_id));
+    if (!q || q.status !== "active") return;
+    const remaining = secondsUntilServer(q.attack_time);
+    if (Number.isFinite(remaining) && remaining > 0) {
+      item.reminder_at = formatServerTime(parseServerTime(q.attack_time) + 90 * 1000);
+      await queueReminder(env, item);
+      return;
+    }
+    q.status = "expired";
+    q.expired_at = serverNowText();
+    try {
+      await ghSave(env, "data/defence/requests.json", list, rq.sha, "Expire defence request #"+q.id);
+      await dispatchDiscordSync(env);
+      await refreshDiscordCentre(env);
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+    }
   }
-  await refreshDiscordCentre(env);
 }
 
 async function sendDiscordReminder(env,item){
