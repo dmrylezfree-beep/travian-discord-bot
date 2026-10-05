@@ -1073,9 +1073,14 @@ def notify_eligible_defenders(req):
 
 
 
+def save_request_wizard_state(data):
+    """Persist transient request-wizard state locally without blocking on Git."""
+    bot.save_json(bot.PLAYERS_FILE, data)
+
+
 def start_request(chat_id, player, data):
     player["state"] = {"type": "request_target_coords"}
-    bot.save_players(data)
+    save_request_wizard_state(data)
     bot.send(
         chat_id,
         "<b>🛡 Запросить деф</b>\n\nВведите координаты деревни назначения.\nНапример: <code>45 -62</code>",
@@ -1356,7 +1361,7 @@ def process_text(message):
             "target_y": int(village["y"]),
             "target_player": player_name,
         }
-        bot.save_players(data)
+        save_request_wizard_state(data)
         bot.send(
             chat_id,
             f"📍 Деревня: {village_link(village['x'], village['y'])}\n👤 Игрок: <b>{html.escape(player_name)}</b>\n\n📅 Выберите дату атаки:",
@@ -1373,7 +1378,7 @@ def process_text(message):
         player["state"]["attack_time"] = attack_time.strftime("%Y-%m-%d %H:%M:%S")
         player["state"]["attack_time_display"] = attack_time.strftime("%d.%m.%Y %H:%M:%S")
         player["state"]["type"] = "request_def_amount"
-        bot.save_players(data)
+        save_request_wizard_state(data)
         bot.send(
             chat_id,
             "Введите требуемое количество дефа.\n\n<b>Пехота = 1\nКонница = 2</b>\n\nНапример:\n5000 пехоты = 5000\n2500 конницы = 5000\n1000 пехоты + 2000 конницы = 5000",
@@ -1388,7 +1393,7 @@ def process_text(message):
             return
         player["state"]["required_def"] = required
         player["state"]["type"] = "request_confirm"
-        bot.save_players(data)
+        save_request_wizard_state(data)
         bot.send(chat_id, request_summary(player), confirm_keyboard())
         return
 
@@ -1763,7 +1768,7 @@ def callback_query(q):
 
     if action == "request_cancel":
         player["state"] = None
-        bot.save_players(data)
+        save_request_wizard_state(data)
         bot.edit(chat_id, msg_id, "<b>🛡 ЗАПРОС НА ДЕФ</b>\n\nЗаявка отменена.", request_menu())
         return
 
@@ -1774,7 +1779,7 @@ def callback_query(q):
         player["state"]["attack_date"] = selected_date.strftime("%Y-%m-%d")
         player["state"]["attack_date_display"] = selected_date.strftime("%d.%m.%Y")
         player["state"]["type"] = "request_attack_time"
-        bot.save_players(data)
+        save_request_wizard_state(data)
         try:
             bot.edit(
                 chat_id,
@@ -1817,7 +1822,7 @@ def callback_query(q):
         notify_eligible_defenders(req)
         refresh_optimal_plans(chat_id=chat_id)
         player["state"] = None
-        bot.save_players(data)
+        save_request_wizard_state(data)
         bot.edit(chat_id, msg_id, "<b>✅ Заявка создана.</b>\n\nОна добавлена в закреплённый Центр дефа.", request_menu())
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
