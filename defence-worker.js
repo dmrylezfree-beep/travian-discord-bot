@@ -989,6 +989,8 @@ export default {
               // older local snapshot.
               if (Array.isArray(incoming.contributions)) {
                 const merged = [...(Array.isArray(currentRequest.contributions) ? currentRequest.contributions : [])];
+                const required = Number(incoming.required_def || currentRequest.required_def || 0);
+                let collected = merged.reduce((sum,z)=>sum+Number(z?.def_points||0),0);
                 for (const contribution of incoming.contributions) {
                   const key = JSON.stringify([
                     contribution?.platform || "telegram",
@@ -996,18 +998,38 @@ export default {
                     contribution?.created_at || "",
                     Number(contribution?.def_points || 0)
                   ]);
-                  if (!merged.some(existing => JSON.stringify([
+                  const exists = merged.some(existing => JSON.stringify([
                     existing?.platform || "telegram",
                     existing?.user_id ?? existing?.telegram_id ?? "",
                     existing?.created_at || "",
                     Number(existing?.def_points || 0)
-                  ]) === key)) merged.push(contribution);
+                  ]) === key);
+                  if (exists) continue;
+                  const remaining = Math.max(0, required - collected);
+                  if (remaining <= 0) break;
+                  const requested = Math.max(0, Number(contribution?.def_points || 0));
+                  const accepted = Math.min(requested, remaining);
+                  if (accepted <= 0) continue;
+                  const savedContribution = { ...contribution, def_points: accepted };
+                  if (Array.isArray(savedContribution.plan) && requested > 0 && accepted < requested) {
+                    let left = accepted;
+                    savedContribution.plan = savedContribution.plan.map(item => {
+                      const points = Math.max(0, Number(item?.def_points || 0));
+                      const kept = Math.min(points, left);
+                      left -= kept;
+                      return { ...item, def_points: kept };
+                    }).filter(item => Number(item.def_points || 0) > 0);
+                  }
+                  merged.push(savedContribution);
+                  collected += accepted;
                 }
                 incoming.contributions = merged;
-                incoming.collected_def = merged.reduce((sum,z)=>sum+Number(z?.def_points||0),0);
-                if (incoming.collected_def >= Number(incoming.required_def || currentRequest.required_def || 0)) {
+                incoming.collected_def = collected;
+                if (collected >= required) {
                   incoming.status = "closed";
                   incoming.closed_at = incoming.closed_at || serverNowText();
+                } else if (currentRequest.status !== "active") {
+                  incoming.status = currentRequest.status;
                 }
               }
               requests[index] = { ...currentRequest, ...incoming };
