@@ -196,7 +196,7 @@
           "druidrider": 22
         },
         "hero": {
-          "present": false
+          "present": true
         }
       }
     ],
