@@ -1060,6 +1060,13 @@ export default {
         }
         if (!saved) throw lastError || new Error("Failed to persist Telegram defence request");
 
+        if (allocateId && incoming.status === "active") {
+          ctx.waitUntil(
+            queueDiscordExpiry(env, incoming).catch(error => {
+              console.error("Telegram request expiry scheduling failed:", error instanceof Error ? error.message : String(error));
+            })
+          );
+        }
         ctx.waitUntil(
           refreshDiscordCentre(env).catch(error => {
             console.error("Discord request sync refresh failed:", error instanceof Error ? error.message : String(error));
