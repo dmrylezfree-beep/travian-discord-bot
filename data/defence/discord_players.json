@@ -94,5 +94,32 @@
       "maps": []
     },
     "state": null
+  },
+  "267444682638884864": {
+    "discord_id": "267444682638884864",
+    "discord_username": "exfeel_craft",
+    "discord_global_name": "Craft",
+    "language": "ja",
+    "travian_uid": 566,
+    "player_name": "Craft",
+    "race": "gaul",
+    "tribe": 3,
+    "villages": [
+      {
+        "coordinates": "52 2",
+        "name": "CR00N",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    },
+    "state": null
   }
 }
