@@ -13,6 +13,11 @@ SNAPSHOT_DIR = Path("data/snapshots")
 STATE_FILE = bot.DATA_DIR / "state.json"
 SERVER_TZ = ZoneInfo("Europe/London")
 DEFENCE_WORKER_URL = "https://travian-defence.dmrylezfree.workers.dev"
+# The Russian VPS may not have reliable direct HTTPS access to Cloudflare.
+# Reuse the already configured Telegram HTTPS proxy for Worker traffic unless
+# a dedicated DEFENCE_WORKER_PROXY_URL is provided.
+DEFENCE_WORKER_PROXY_URL = os.environ.get("DEFENCE_WORKER_PROXY_URL") or os.environ.get("TELEGRAM_PROXY_URL")
+DEFENCE_WORKER_PROXIES = {"https": DEFENCE_WORKER_PROXY_URL} if DEFENCE_WORKER_PROXY_URL else None
 _snapshot_cache_path = None
 _snapshot_cache = None
 
@@ -64,6 +69,7 @@ def schedule_defence_reminders(req, contribution):
             json={"reminders": reminders},
             headers={"Authorization": f"Bearer {token}"},
             timeout=30,
+            proxies=DEFENCE_WORKER_PROXIES,
         )
         response.raise_for_status()
         print(
@@ -719,7 +725,8 @@ def sync_request_to_worker(request):
             f"{DEFENCE_WORKER_URL}/discord/request-sync",
             json={"request": request},
             headers={"Authorization": f"Bearer {token}"},
-            timeout=8,
+            timeout=20,
+            proxies=DEFENCE_WORKER_PROXIES,
         )
         response.raise_for_status()
         payload = response.json()
