@@ -9,6 +9,8 @@ import requests
 
 TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
 TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+DEFENCE_WORKER_PROXY_URL = os.environ.get("DEFENCE_WORKER_PROXY_URL") or TELEGRAM_PROXY_URL
+DEFENCE_WORKER_PROXIES = {"https": DEFENCE_WORKER_PROXY_URL} if DEFENCE_WORKER_PROXY_URL else None
 
 TELEGRAM_TOKEN = os.environ.get("DEFENCE_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 THREAD_ID = 38636
@@ -109,6 +111,7 @@ def persist_data():
                     "https://travian-defence.dmrylezfree.workers.dev/discord/refresh",
                     headers={"Authorization": f"Bearer {TELEGRAM_TOKEN}"},
                     timeout=40,
+                    proxies=DEFENCE_WORKER_PROXIES,
                 )
                 if not response.ok:
                     print("Discord centre refresh failed:", response.status_code, response.text[:1000], flush=True)
