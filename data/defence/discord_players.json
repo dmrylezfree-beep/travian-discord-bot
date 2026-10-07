@@ -121,5 +121,32 @@
       "maps": []
     },
     "state": null
+  },
+  "382843149959299072": {
+    "discord_id": "382843149959299072",
+    "discord_username": "kanaka3",
+    "discord_global_name": "kanaka",
+    "language": "ja",
+    "travian_uid": 720,
+    "player_name": "Jade",
+    "race": "teuton",
+    "tribe": 2,
+    "villages": [
+      {
+        "coordinates": "11 52",
+        "name": "00",
+        "arena": 0,
+        "troops": {},
+        "hero": {
+          "present": false
+        }
+      }
+    ],
+    "hero_inventory": {
+      "standards": [],
+      "boots": [],
+      "maps": []
+    },
+    "state": null
   }
 }
