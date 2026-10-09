@@ -297,6 +297,9 @@ def generate_op(uid,d):
     return oid
 
 def handle_message(m):
+    # The operations wizard is private; ignore messages from group topics.
+    if (m.get("chat") or {}).get("type") != "private":
+        return
     uid=m["from"]["id"];cid=m["chat"]["id"];text=m.get("text","").strip()
     if text=="/start":state(uid);start(cid,uid);return
     st=getstate(uid)
