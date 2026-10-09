@@ -108,6 +108,7 @@ def main():
             x, y = coord
             lines.append(
                 f"• <b>{x} {y}</b> — {crop_label(crop_by_coord, coord)}"
+                f" | 🌾 {crop_bonus(crop_by_coord, coord)}"
             )
 
     if settled_by_players:
