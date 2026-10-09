@@ -34,7 +34,7 @@ SERVER_NAME = "Азия 8"
 SERVER_URL = "https://ts8.x1.asia.travian.com"
 
 ENEMY_ALLIANCE_NAME = "Вражеские альянсы"
-ENEMY_ALLIANCE_IDS = {12, 4}
+ENEMY_ALLIANCE_IDS = {12}
 
 # ID наших альянсов.
 OUR_ALLIANCE_IDS = {8, 2, 11}
