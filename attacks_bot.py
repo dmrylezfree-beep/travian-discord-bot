@@ -2526,12 +2526,12 @@ def offers_keyboard(
             ]
         )
 
-    if prefix == "attack_offer":
+    if prefix in ("attack_offer", "manual_offer"):
         keyboard.append(
             [
                 {
                     "text": "✏️ Ввести координаты оффера",
-                    "callback_data": "attack_manual_offer",
+                    "callback_data": "attack_manual_offer" if prefix == "attack_offer" else "arena_add_offer",
                 }
             ]
         )
@@ -6433,6 +6433,7 @@ def process_callback(
     # Изменение Арены и настройки разведки доступны только владельцу в личке.
     owner_only = (
         data == "set_arena"
+        or data == "arena_add_offer"
         or data.startswith("manual_offer:")
         or data.startswith("arena_suggest:")
         or data in {"scout_settings", "add_important", "add_scout_village", "show_scout_settings"}
@@ -6743,6 +6744,14 @@ def process_callback(
             )
         else:
             send_message(chat_id, "❌ Не удалось сохранить Арену в GitHub.")
+        return
+
+    if data == "arena_add_offer":
+        clear_session(chat_id, user_id)
+        session = get_session(chat_id, user_id)
+        session["flow"] = "manual_arena"
+        session["step"] = "add_offer_coords"
+        send_message(chat_id, "➕ <b>Добавить оффера</b>\n\nВведите координаты через пробел, например: <code>46 -62</code>", reply_markup=input_keyboard())
         return
 
     if data == "set_arena":
@@ -7659,6 +7668,17 @@ def process_message(
 
         if not owner_private:
             clear_session(chat_id, user_id)
+            return
+
+        if step == "add_offer_coords":
+            coords = parse_coordinates(text)
+            if not coords:
+                send_message(chat_id, "❌ Введите координаты через пробел: <code>46 -62</code>", reply_markup=input_keyboard())
+                return
+            x, y = coords
+            offer_id, created = add_or_get_manual_offer(x, y)
+            clear_session(chat_id, user_id)
+            send_message(chat_id, f"✅ Оффер <b>({x}|{y})</b> " + ("добавлен в базу." if created else "уже есть в базе.") + "\nАрена: <b>0</b> (неизвестна)." if created else f"ℹ️ Оффер <b>({x}|{y})</b> уже есть в базе.", reply_markup=offers_keyboard("manual_offer"))
             return
 
         if step == "arena_value":
