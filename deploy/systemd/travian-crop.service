@@ -1,0 +1,17 @@
+[Unit]
+Description=Travian Crop Reservations Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/travian-discord-bot
+EnvironmentFile=/etc/travian-bots.env
+Environment=CROP_RUN_SECONDS=0
+Environment=CROP_TG_POLL_TIMEOUT=20
+ExecStart=/opt/travian-discord-bot/.venv/bin/python /opt/travian-discord-bot/crop_poll.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
