@@ -1,0 +1,10 @@
+[Unit]
+Description=Travian Daily Report schedule
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+Persistent=true
+Unit=travian-daily-report.service
+
+[Install]
+WantedBy=timers.target
