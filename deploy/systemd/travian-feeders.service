@@ -1,0 +1,18 @@
+[Unit]
+Description=Travian Feeders Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/travian-discord-bot
+EnvironmentFile=/etc/travian-bots.env
+Environment=FEEDERS_RUN_SECONDS=0
+Environment=FEEDERS_TG_POLL_TIMEOUT=20
+Environment=TRAVIAN_MAP_SIZE=401
+ExecStart=/opt/travian-discord-bot/.venv/bin/python /opt/travian-discord-bot/feeders_poll.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
