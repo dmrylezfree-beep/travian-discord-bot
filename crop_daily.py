@@ -8,6 +8,9 @@ from pathlib import Path
 
 import requests
 
+TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
+TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+
 THREAD_ID = 20
 JAPANESE_THREAD_ID = 79936
 TOKEN = os.environ.get("CROP_TELEGRAM_TOKEN")
@@ -139,8 +142,9 @@ def main():
                 "parse_mode": "HTML",
             },
             timeout=40,
+            proxies=TELEGRAM_PROXIES,
         )
-        print(r.status_code, r.text)
+        print("Russian crop report HTTP status:", r.status_code)
         r.raise_for_status()
 
         japanese_text = russian_text
@@ -162,8 +166,9 @@ def main():
                 "parse_mode": "HTML",
             },
             timeout=40,
+            proxies=TELEGRAM_PROXIES,
         )
-        print(r.status_code, r.text)
+        print("Japanese crop report HTTP status:", r.status_code)
         r.raise_for_status()
 
 
