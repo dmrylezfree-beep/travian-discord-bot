@@ -1,0 +1,15 @@
+[Unit]
+Description=Travian Alliance Operations Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/travian-discord-bot
+EnvironmentFile=/etc/travian-bots.env
+ExecStart=/opt/travian-discord-bot/.venv/bin/python /opt/travian-discord-bot/alliance_ops_bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
