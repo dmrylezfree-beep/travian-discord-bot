@@ -29,6 +29,10 @@ def main():
             print("getUpdates:",repr(exc),flush=True); time.sleep(2); continue
         for u in updates:
             if isinstance(u.get("update_id"),int): offset=u["update_id"]+1
+            msg=u.get("message") or (u.get("callback_query") or {}).get("message") or {}
+            chat=msg.get("chat") or {}
+            if msg:
+                print("crop update:", "chat_type=", chat.get("type"), "thread_id=", msg.get("message_thread_id"), "accepted=", accepted(u), flush=True)
             if accepted(u):
                 try: bot.process_update(u)
                 except Exception as exc: print("process:",repr(exc),flush=True)
