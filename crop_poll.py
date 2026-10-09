@@ -19,9 +19,10 @@ def main():
             u=json.loads(raw)
             if accepted(u): bot.process_update(u)
         except Exception as exc: print("Initial update failed:",repr(exc),flush=True)
-    offset=None; deadline=time.monotonic()+RUN_SECONDS
-    while time.monotonic()<deadline:
-        kw={"timeout":min(POLL_TIMEOUT,max(1,int(deadline-time.monotonic()))),"allowed_updates":["message","callback_query"]}
+    offset=None; deadline=time.monotonic()+RUN_SECONDS if RUN_SECONDS > 0 else None
+    while deadline is None or time.monotonic()<deadline:
+        timeout=POLL_TIMEOUT if deadline is None else min(POLL_TIMEOUT,max(1,int(deadline-time.monotonic())))
+        kw={"timeout":timeout,"allowed_updates":["message","callback_query"]}
         if offset is not None: kw["offset"]=offset
         try: updates=bot.telegram("getUpdates",**kw) or []
         except Exception as exc:
