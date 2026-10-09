@@ -1071,6 +1071,9 @@ def alliance_villages_keyboard(
 # ============================================================
 
 def persist_attacks_data_to_github():
+    # VPS is the authoritative runtime store. Never git push during polling.
+    if os.environ.get("ATTACKS_ENABLE_GIT_PERSIST", "").lower() not in ("1", "true", "yes"):
+        return True
 
     """
     Сохраняет изменения data/attacks
