@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 import requests
+from discord_japan_reports import send as send_japanese_discord
 
 TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
 TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
@@ -158,19 +159,7 @@ def main():
         ]:
             japanese_text = japanese_text.replace(source, target)
 
-        r = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={
-                "chat_id": CHAT_ID,
-                "message_thread_id": JAPANESE_THREAD_ID,
-                "text": japanese_text,
-                "parse_mode": "HTML",
-            },
-            timeout=40,
-            proxies=TELEGRAM_PROXIES,
-        )
-        print("Japanese crop report HTTP status:", r.status_code)
-        r.raise_for_status()
+        send_japanese_discord(japanese_text)
 
 
 if __name__ == "__main__":
