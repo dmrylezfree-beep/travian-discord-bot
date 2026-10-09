@@ -91,7 +91,8 @@ def download_map_data():
     try:
         response = requests.get(
             MAP_SQL_URL,
-            timeout=120
+            timeout=120,
+            proxies=TELEGRAM_PROXIES
         )
 
         response.raise_for_status()
