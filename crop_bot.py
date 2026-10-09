@@ -94,6 +94,8 @@ def load_reservations():
 
 def save_reservations(rows):
     RESERVATIONS_FILE.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if os.environ.get("CROP_ENABLE_GIT_PERSIST", "0") != "1":
+        return
     try:
         subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=False)
         subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=False)
