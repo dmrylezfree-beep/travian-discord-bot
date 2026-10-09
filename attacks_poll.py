@@ -2,6 +2,9 @@ import json
 import os
 import time
 
+if os.environ.get("ATTACKS_TELEGRAM_TOKEN"):
+    os.environ["TELEGRAM_TOKEN"] = os.environ["ATTACKS_TELEGRAM_TOKEN"]
+
 import attacks_bot as bot
 
 
@@ -69,13 +72,13 @@ def poll():
             print(f"Initial Telegram update failed: {exc}", flush=True)
 
     offset = None
-    deadline = time.monotonic() + RUN_SECONDS
+    deadline = time.monotonic() + RUN_SECONDS if RUN_SECONDS > 0 else None
     processed = 0
 
     print(f"Attacks bot polling started for {RUN_SECONDS} seconds", flush=True)
 
-    while time.monotonic() < deadline:
-        remaining = max(1, int(deadline - time.monotonic()))
+    while deadline is None or time.monotonic() < deadline:
+        remaining = max(1, int(deadline - time.monotonic())) if deadline is not None else TG_POLL_TIMEOUT
         timeout = min(TG_POLL_TIMEOUT, remaining)
         try:
             kwargs = {
