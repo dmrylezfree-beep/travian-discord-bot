@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Travian Daily Crop Report at 03:35 UTC
+
+[Timer]
+OnCalendar=*-*-* 03:35:00 UTC
+Persistent=true
+Unit=travian-crop-daily.service
+
+[Install]
+WantedBy=timers.target
