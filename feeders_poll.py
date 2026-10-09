@@ -89,10 +89,10 @@ def main():
             print("Initial update failed:", repr(exc), flush=True)
 
     offset = None
-    deadline = time.monotonic() + RUN_SECONDS
+    deadline = time.monotonic() + RUN_SECONDS if RUN_SECONDS > 0 else None
 
-    while time.monotonic() < deadline:
-        timeout = min(POLL_TIMEOUT, max(1, int(deadline - time.monotonic())))
+    while deadline is None or time.monotonic() < deadline:
+        timeout = POLL_TIMEOUT if deadline is None else min(POLL_TIMEOUT, max(1, int(deadline - time.monotonic())))
         payload = {
             "timeout": timeout,
             "allowed_updates": ["message", "callback_query"],
