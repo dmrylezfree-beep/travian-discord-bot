@@ -1,0 +1,12 @@
+[Unit]
+Description=Travian Daily Report and snapshot backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/travian-discord-bot
+EnvironmentFile=/etc/travian-bots.env
+ExecStart=/opt/travian-discord-bot/.venv/bin/python /opt/travian-discord-bot/travian_bot.py
+ExecStartPost=/opt/travian-discord-bot/.venv/bin/python /opt/travian-discord-bot/travian_snapshot_backup.py
+TimeoutStartSec=900
