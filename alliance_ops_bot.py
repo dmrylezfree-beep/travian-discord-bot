@@ -33,6 +33,8 @@ def load(p):
     except: return {}
 def save(p,d): p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True),encoding="utf-8")
 def persist(msg):
+    if os.environ.get("ALLIANCE_OPS_ENABLE_GIT_PERSIST", "0") != "1":
+        return
     subprocess.run(["git","config","user.name","github-actions[bot]"])
     subprocess.run(["git","config","user.email","41898282+github-actions[bot]@users.noreply.github.com"])
     subprocess.run(["git","add",str(DATA)])
