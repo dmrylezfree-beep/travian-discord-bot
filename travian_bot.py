@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import requests
+from discord_japan_reports import send as send_japanese_discord
 
 TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
 TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
@@ -601,7 +602,7 @@ def send_to_telegram(message, thread_id=None):
     # into the Japanese topic. Dynamic names, alliances, coordinates and
     # numbers stay unchanged; only report/interface wording is translated.
     if thread_id == THREAD_ID and JAPANESE_THREAD_ID != THREAD_ID:
-        _send_telegram_once(japanese_report(message), JAPANESE_THREAD_ID)
+        send_japanese_discord(japanese_report(message))
 def html_escape(text):
     """Безопасно экранирует динамический текст для Telegram HTML."""
 
