@@ -28,13 +28,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Run Travian analysis
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python travian_bot.py
+      - name: Download independent Travian snapshot
+        run: python github_snapshot_download.py
 
-      - name: Commit historical snapshots and inactivity state
+      - name: Commit historical snapshots
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
