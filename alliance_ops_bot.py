@@ -152,10 +152,11 @@ def fmt_offer(o):
     lines.append(f"\nОбновлено: <code>{o.get('army',{}).get('updated_at','—')}</code>")
     return "\n".join(lines)
 def start(cid,uid):
-    if str(uid) not in load(OFFERS):
+    if str(uid) not in load(OFFERS) and uid not in COORDINATORS:
         state(uid,"reg_coords");send(cid,"⚔️ <b>Регистрация оффера</b>\n\nВведите координаты своей офф-деревни через пробел.\nНапример: <code>55 46</code>");return
     o=load(OFFERS).get(str(uid))
-    send(cid,"⚔️ <b>Центр операций альянса</b>\n\n"+fmt_offer(o)+"\n\nВыберите действие:",menu(uid))
+    detail=fmt_offer(o) if o else "Режим координатора. Офф-деревня не зарегистрирована."
+    send(cid,"⚔️ <b>Центр операций альянса</b>\n\n"+detail+"\n\nВыберите действие:",menu(uid))
 def list_targets(cid):
     ts=load(TARGETS)
     if not ts:send(cid,"🎯 <b>База целей пуста.</b>",[[btn("➕ Добавить цель","targets:add")],[btn("⬅️ Меню","menu")]]);return
@@ -479,7 +480,7 @@ def callback(c):
     try:api("answerCallbackQuery",{"callback_query_id":c["id"]})
     except:pass
     uid=c["from"]["id"];cid=c["message"]["chat"]["id"];x=c.get("data","")
-    if x=="menu":start(cid,uid);return
+    if x=="menu":state(uid);start(cid,uid);return
     if x=="offer:view":
         o=load(OFFERS).get(str(uid));send(cid,fmt_offer(o),menu(uid)) if o else start(cid,uid);return
     if x=="offer:army":
@@ -487,7 +488,7 @@ def callback(c):
         if not o:start(cid,uid);return
         state(uid,"army",{"tribe_id":o["tribe_id"]});send(cid,f"🔄 <b>Обновление войск</b>\n\n<pre>{html.escape(template(o['tribe_id']))}</pre>");return
     if x=="offer:arena":state(uid,"arena");send(cid,"🏟 Введите новый уровень арены 0–20.");return
-    if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op","oa:","ow","oe","ot","od","ob","oall:")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
+    if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op","oa:","ow","oe","ot","od","ob","oall:","oofferedit:","oadd")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
 
     if x=="ops:list":list_ops(cid);return
     if x=="ops:new":state(uid,"op_name",{});send(cid,"📝 <b>Новая операция</b>\n\nВведите название операции.");return
