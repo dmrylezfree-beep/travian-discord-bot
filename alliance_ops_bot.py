@@ -213,7 +213,7 @@ def list_ops(cid):
 def show_op(cid,oid):
     op=load(OPERATIONS).get(oid)
     if not op:send(cid,"❌ Операция не найдена.");return
-    send(cid,op_summary(op),[[btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],[btn("⬅️ Операции","ops:list")]])
+    send(cid,op_summary(op),[[btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],[btn("⏱ Смещение всех",f"oall:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],[btn("💬 Комментарий",f"oedit:{oid}:op:comment"),btn("🗑 Удалить черновик",f"odraftask:{oid}")],[btn("⬅️ Операции","ops:list")]])
 
 def op_targets(cid,oid):
     op=load(OPERATIONS).get(oid)
@@ -243,7 +243,8 @@ def op_target_detail(cid,oid,key):
     for a in op["attacks"].values():
         if a["target_key"]==key:
             lines.append(f"• {html.escape(a['offer_player'])}: <code>{a['arrival']}</code> · {a['waves']} волн")
-    send(cid,"\n".join(lines),[[btn("⬅️ К целям",f"optargets:{oid}")]])
+    rows=[[btn(f"⚔️ {a['offer_player']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["target_key"]==key]
+    rows.append([btn("⬅️ К целям",f"optargets:{oid}")]);send(cid,"\n".join(lines),rows)
 
 def op_offer_detail(cid,oid,uid):
     op=load(OPERATIONS).get(oid)
@@ -253,7 +254,8 @@ def op_offer_detail(cid,oid,uid):
         if a["offer_id"]==uid:
             t=op["targets"][a["target_key"]]
             lines.append(f"• {op_mode_name(a['mode'])} <code>{a['target_key']}</code> {html.escape(t['player'])} — <code>{a['arrival']}</code> · {a['waves']} волн")
-    send(cid,"\n".join(lines),[[btn("⬅️ К офферам",f"opoffers:{oid}")]])
+    rows=[[btn(f"⚔️ {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["offer_id"]==uid]
+    rows += [[btn("⏱ Смещение оффера",f"oofferedit:{oid}:{uid}")],[btn("⬅️ К офферам",f"opoffers:{oid}")]];send(cid,"\n".join(lines),rows)
 
 def op_offer_picker(cid,d):
     offers=load(OFFERS); selected=set(d.get("offers",[])); rows=[]
@@ -295,6 +297,80 @@ def generate_op(uid,d):
                 "arrival_iso":actual.isoformat(),"speed":d["base_speed"],"arena":o["arena"]}
     ops=load(OPERATIONS);ops[oid]=op;save(OPERATIONS,ops);persist("Create alliance ops draft")
     return oid
+
+def op_store(ops, msg="Edit operation draft"):
+    save(OPERATIONS,ops)
+    persist(msg)
+
+def op_retime(op,a):
+    dt=datetime.fromisoformat(op["arrival_iso"])+timedelta(seconds=int(a["offset"]))
+    a["arrival_iso"]=dt.isoformat()
+    a["arrival"]=dt.strftime("%d.%m.%Y %H:%M:%S")
+
+def op_travel(a,op):
+    o=op["offers"][a["offer_id"]];t=op["targets"][a["target_key"]]
+    dx=abs(int(o["x"])-int(t["x"]));dy=abs(int(o["y"])-int(t["y"]))
+    dist=((min(dx,401-dx))**2+(min(dy,401-dy))**2)**0.5
+    speed=float(a["speed"]);arena=int(a["arena"])
+    # Travian tournament square: beyond 20 fields, speed rises by 20% per arena level.
+    if speed<=0:return None,dist
+    hours=min(dist,20)/speed+max(0,dist-20)/(speed*(1+arena*.2))
+    return datetime.fromisoformat(a["arrival_iso"])-timedelta(seconds=round(hours*3600)),dist
+
+def op_attack_view(cid,oid,aid):
+    op=load(OPERATIONS).get(oid)
+    if not op or aid not in op["attacks"]:send(cid,"❌ Отправка не найдена.");return
+    a=op["attacks"][aid];t=op["targets"][a["target_key"]];o=op["offers"][a["offer_id"]]
+    departure,dist=op_travel(a,op)
+    waves="\n".join(f"{i}. {html.escape(w.get('text','—'))}" for i,w in enumerate(a["wave_plan"],1))
+    msg=(f"⚔️ <b>{html.escape(o['player'])} → {html.escape(t['player'])}</b>\n"
+         f"🎯 <code>{a['target_key']}</code> · {op_mode_name(a['mode'])}\n"
+         f"Приход: <code>{a['arrival']}</code>\n"
+         f"Смещение: <b>{a['offset']:+d} сек</b>\n"
+         f"Скорость: {a['speed']} · Арена: {a['arena']}\n"
+         f"Расстояние: {dist:.2f}\n"
+         f"Отправление: <code>{departure.strftime('%d.%m.%Y %H:%M:%S') if departure else '—'}</code>\n\n"
+         f"<b>Волны ({len(a['wave_plan'])}):</b>\n{waves}\n\n"
+         f"💬 {html.escape(a.get('comment') or '—')}")
+    send(cid,msg,[[btn("⏱ Смещение",f"oedit:{oid}:{aid}:offset"),btn("🐎 Скорость",f"oedit:{oid}:{aid}:speed")],
+        [btn("🏟 Арена",f"oedit:{oid}:{aid}:arena"),btn("🟡 Тип атаки",f"otypes:{oid}:{aid}")],
+        [btn("🌊 Волны",f"owaves:{oid}:{aid}"),btn("💬 Комментарий",f"oedit:{oid}:{aid}:comment")],
+        [btn("🗑 Удалить",f"odelask:{oid}:{aid}")],[btn("⬅️ Операция",f"op:{oid}")]])
+
+def op_wave_view(cid,oid,aid):
+    op=load(OPERATIONS).get(oid)
+    if not op or aid not in op["attacks"]:return
+    a=op["attacks"][aid]
+    rows=[[btn(f"✏️ Волна {i}: {w.get('text','')[:30]}",f"oedit:{oid}:{aid}:wave:{i-1}")] for i,w in enumerate(a["wave_plan"],1)]
+    rows += [[btn("➕ Волна",f"owadd:{oid}:{aid}"),btn("➖ Убрать последнюю",f"owdel:{oid}:{aid}")],[btn("⬅️ Отправка",f"oa:{oid}:{aid}")]]
+    send(cid,f"🌊 <b>Волны отправки №{aid}</b>\nРедактируйте состав каждой волны обычным текстом.",rows)
+
+def op_offer_edit_menu(cid,oid,ouid):
+    op=load(OPERATIONS).get(oid)
+    if not op or ouid not in op["offers"]:return
+    o=op["offers"][ouid]
+    send(cid,f"👥 <b>{html.escape(o['player'])}</b>\nОбщее смещение: {o['offset']:+d} сек\n\nИзменение перезапишет смещение <b>всех</b> отправок этого оффера.",
+         [[btn("⏱ Изменить смещение всех",f"obulk:{oid}:offer:{ouid}")],[btn("⬅️ Офферы",f"opoffers:{oid}")]])
+
+def op_all_edit_menu(cid,oid):
+    send(cid,"⏱ <b>Массовое изменение</b>\nЗадать одинаковое смещение всем отправкам операции (включая ранее изменённые).",
+         [[btn("⏱ Установить смещение всем",f"obulk:{oid}:all:all")],[btn("⬅️ Операция",f"op:{oid}")]])
+
+def op_new_send_picker(cid,oid):
+    op=load(OPERATIONS).get(oid)
+    if not op:return
+    send(cid,"➕ <b>Новая отправка</b>\nВыберите оффера.",[[btn(o["player"],f"oaddoffer:{oid}:{uid}")] for uid,o in op["offers"].items()]+[[btn("⬅️ Операция",f"op:{oid}")]])
+
+def op_new_send(cid,oid,ouid,key):
+    ops=load(OPERATIONS);op=ops.get(oid)
+    if not op or ouid not in op["offers"] or key not in op["targets"]:return
+    o=op["offers"][ouid];t=op["targets"][key]
+    aid=str(max([int(k) for k in op["attacks"] if k.isdigit()] or [0])+1)
+    defaults=op_attack_defaults(t["mode"],t)
+    a={"id":aid,"offer_id":ouid,"offer_player":o["player"],"target_key":key,
+       "mode":defaults["mode"],"waves":defaults["waves"],"wave_plan":defaults["wave_plan"],
+       "comment":"","offset":o["offset"],"speed":op["base_speed"],"arena":o["arena"]}
+    op_retime(op,a);op["attacks"][aid]=a;op_store(ops);op_attack_view(cid,oid,aid)
 
 def handle_message(m):
     # The operations wizard is private; ignore messages from group topics.
@@ -351,6 +427,49 @@ def handle_message(m):
         if remaining:
             nxt=remaining[0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ Смещение для <b>{html.escape(o['player'])}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
         d.pop("offset_uid",None);d["targets"]={};state(uid,"op_pick_targets",d);op_target_picker(cid,d);return
+
+    if step=="op_edit_value":
+        if uid not in COORDINATORS:return
+        oid=d["oid"];aid=d["aid"];field=d["field"];ops=load(OPERATIONS);op=ops.get(oid)
+        if not op:state(uid);send(cid,"❌ Операция не найдена.");return
+        if aid=="op":
+            op["comment"]="" if text=="-" else text
+            op_store(ops);state(uid);show_op(cid,oid);return
+        a=op["attacks"].get(aid)
+        if not a:state(uid);send(cid,"❌ Отправка не найдена.");return
+        if field=="offset":
+            try:v=int(text)
+            except:send(cid,"❌ Введите целое число секунд.");return
+            a["offset"]=v;op_retime(op,a)
+        elif field=="speed":
+            try:v=float(text.replace(",","."))
+            except:send(cid,"❌ Введите число.");return
+            if not 0<v<=1000:send(cid,"❌ Скорость должна быть больше нуля.");return
+            a["speed"]=v
+        elif field=="arena":
+            if not text.isdigit() or not 0<=int(text)<=20:send(cid,"❌ Арена 0–20.");return
+            a["arena"]=int(text)
+        elif field=="comment":a["comment"]="" if text=="-" else text
+        elif field.startswith("wave:"):
+            idx=int(field.split(":")[1])
+            if idx>=len(a["wave_plan"]):send(cid,"❌ Волна не найдена.");return
+            a["wave_plan"][idx]["text"]=text
+        else:return
+        a["waves"]=len(a["wave_plan"]);op_store(ops);state(uid);op_attack_view(cid,oid,aid);return
+    if step=="op_bulk_offset":
+        if uid not in COORDINATORS:return
+        try:offset=int(text)
+        except:send(cid,"❌ Введите целое число секунд.");return
+        oid=d["oid"];ops=load(OPERATIONS);op=ops.get(oid)
+        if not op:state(uid);return
+        if d["scope"]=="offer":
+            ouid=d["ouid"];op["offers"][ouid]["offset"]=offset
+            affected=[a for a in op["attacks"].values() if a["offer_id"]==ouid]
+        else:
+            for o in op["offers"].values():o["offset"]=offset
+            affected=list(op["attacks"].values())
+        for a in affected:a["offset"]=offset;op_retime(op,a)
+        op_store(ops);state(uid);send(cid,f"✅ Смещение {offset:+d} сек установлено для {len(affected)} отправок.");show_op(cid,oid);return
     if step=="target_comment":
         ts=load(TARGETS);k=d["key"]
         if k in ts:ts[k]["comment"]="" if text=="-" else text;ts[k]["updated_at"]=now();save(TARGETS,ts);persist("Update alliance ops target")
@@ -368,7 +487,7 @@ def callback(c):
         if not o:start(cid,uid);return
         state(uid,"army",{"tribe_id":o["tribe_id"]});send(cid,f"🔄 <b>Обновление войск</b>\n\n<pre>{html.escape(template(o['tribe_id']))}</pre>");return
     if x=="offer:arena":state(uid,"arena");send(cid,"🏟 Введите новый уровень арены 0–20.");return
-    if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
+    if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op","oa:","ow","oe","ot","od","ob","oall:")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
 
     if x=="ops:list":list_ops(cid);return
     if x=="ops:new":state(uid,"op_name",{});send(cid,"📝 <b>Новая операция</b>\n\nВведите название операции.");return
@@ -405,6 +524,63 @@ def callback(c):
     if x.startswith("opoffer:"):
         _,oid,ouid=x.split(":",2);op_offer_detail(cid,oid,ouid);return
     if x.startswith("op:"):show_op(cid,x.split(":",1)[1]);return
+
+    if x.startswith("oa:"):
+        _,oid,aid=x.split(":",2);op_attack_view(cid,oid,aid);return
+    if x.startswith("owaves:"):
+        _,oid,aid=x.split(":",2);op_wave_view(cid,oid,aid);return
+    if x.startswith("oedit:"):
+        _,oid,aid,field=x.split(":",3)
+        if not load(OPERATIONS).get(oid):return
+        state(uid,"op_edit_value",{"oid":oid,"aid":aid,"field":field})
+        prompts={"offset":"Введите смещение в секундах: -2, 0, +1.","speed":"Введите скорость (клеток/час).",
+                 "arena":"Введите уровень арены 0–20.","comment":"Введите комментарий (или - для очистки)."}
+        send(cid,"✏️ "+html.escape(prompts.get(field,"Введите состав волны текстом.")));return
+    if x.startswith("otypes:"):
+        _,oid,aid=x.split(":",2)
+        send(cid,"Выберите новый тип отправки. Состав волн будет заменён шаблоном.",[[btn(op_mode_name(mode),f"otype:{oid}:{aid}:{mode}")] for mode in ("spam","destroy","capture")]);return
+    if x.startswith("otype:"):
+        _,oid,aid,mode=x.split(":",3);ops=load(OPERATIONS);op=ops.get(oid)
+        if not op or aid not in op["attacks"]:return
+        a=op["attacks"][aid];defs=op_attack_defaults(mode,op["targets"][a["target_key"]])
+        a["mode"]=mode;a["waves"]=defs["waves"];a["wave_plan"]=defs["wave_plan"]
+        op_store(ops);op_attack_view(cid,oid,aid);return
+    if x.startswith(("owadd:","owdel:")):
+        action,oid,aid=x.split(":",2);ops=load(OPERATIONS);op=ops.get(oid)
+        if not op or aid not in op["attacks"]:return
+        a=op["attacks"][aid]
+        if action=="owadd":
+            if len(a["wave_plan"])>=20:send(cid,"❌ Максимум 20 волн.");return
+            a["wave_plan"].append({"text":"Укажите состав"})
+        elif len(a["wave_plan"])>1:a["wave_plan"].pop()
+        else:send(cid,"❌ Должна остаться хотя бы одна волна.");return
+        a["waves"]=len(a["wave_plan"]);op_store(ops);op_wave_view(cid,oid,aid);return
+    if x.startswith("odelask:"):
+        _,oid,aid=x.split(":",2)
+        send(cid,"🗑 Удалить эту отправку?",[[btn("✅ Удалить",f"odelyes:{oid}:{aid}")],[btn("⬅️ Назад",f"oa:{oid}:{aid}")]]);return
+    if x.startswith("odelyes:"):
+        _,oid,aid=x.split(":",2);ops=load(OPERATIONS);op=ops.get(oid)
+        if not op:return
+        op["attacks"].pop(aid,None);op_store(ops);show_op(cid,oid);return
+    if x.startswith("oofferedit:"):
+        _,oid,ouid=x.split(":",2);op_offer_edit_menu(cid,oid,ouid);return
+    if x.startswith("oall:"):op_all_edit_menu(cid,x.split(":",1)[1]);return
+    if x.startswith("obulk:"):
+        _,oid,scope,ouid=x.split(":",3)
+        if oid not in load(OPERATIONS):return
+        state(uid,"op_bulk_offset",{"oid":oid,"scope":scope,"ouid":ouid})
+        send(cid,"⏱ Введите новое смещение в секундах. Оно перезапишет смещение всех выбранных отправок.");return
+    if x.startswith("oadd:"):op_new_send_picker(cid,x.split(":",1)[1]);return
+    if x.startswith("oaddoffer:"):
+        _,oid,ouid=x.split(":",2);op=load(OPERATIONS).get(oid)
+        if not op:return
+        send(cid,"🎯 Выберите цель новой отправки.",[[btn(f"{k} · {t['player']}",f"oaddtarget:{oid}:{ouid}:{k}")] for k,t in op["targets"].items()]);return
+    if x.startswith("oaddtarget:"):
+        _,oid,ouid,key=x.split(":",3);op_new_send(cid,oid,ouid,key);return
+    if x.startswith("odraftask:"):
+        oid=x.split(":",1)[1];send(cid,"🗑 Удалить черновик без возможности восстановления?",[[btn("✅ Удалить",f"odraftyes:{oid}")],[btn("⬅️ Отмена",f"op:{oid}")]]);return
+    if x.startswith("odraftyes:"):
+        oid=x.split(":",1)[1];ops=load(OPERATIONS);ops.pop(oid,None);op_store(ops);list_ops(cid);return
     if x=="targets:add":state(uid,"target_coords");send(cid,"➕ Введите координаты цели через пробел.");return
     if x=="targets:list":list_targets(cid);return
     if x.startswith("newtype:"):
