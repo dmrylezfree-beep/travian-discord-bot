@@ -414,12 +414,9 @@ def handle_message(m):
     if step=="op_arrival":
         dt=op_dt(text)
         if not dt:send(cid,"❌ Формат: <code>05.10.2026 20:00:00</code>");return
-        d["arrival_iso"]=dt.isoformat();state(uid,"op_speed",d);send(cid,"🐎 Введите базовую скорость для всех отправок (клеток/час), например <code>3</code> или <code>6</code>.");return
-    if step=="op_speed":
-        try:v=float(text.replace(",","."))
-        except:send(cid,"❌ Введите число, например <code>3</code>.");return
-        if v<=0:send(cid,"❌ Скорость должна быть больше нуля.");return
-        d["base_speed"]=v;d["offers"]=[];d["offsets"]={};state(uid,"op_pick_offers",d);op_offer_picker(cid,d);return
+        d["arrival_iso"]=dt.isoformat();d["base_speed"]=3
+        d["offers"]=[];d["offsets"]={}
+        state(uid,"op_pick_offers",d);op_offer_picker(cid,d);return
     if step=="op_offset":
         try:off=int(text)
         except:send(cid,"❌ Введите целое число секунд: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
