@@ -141,7 +141,7 @@ def parse_army(text,tid):
     if not found:return None,"Не удалось распознать шаблон войск."
     return {n:found.get(n,0) for n in names},None
 def menu(uid):
-    rows=[[btn("⚔️ Мой офф","offer:view")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
+    rows=[[btn("📋 Мои планы","mine:list")],[btn("⚔️ Мой офф","offer:view")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
     if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Операции","ops:list"),btn("📝 Создать черновик","ops:new")]]
     return rows
 def fmt_offer(o):
@@ -196,7 +196,7 @@ def op_mode_name(mode):
 
 def op_summary(op):
     return (f"📝 <b>{html.escape(op['name'])}</b>\n"
-            f"Статус: <b>ЧЕРНОВИК</b>\n\n"
+            f"Статус: <b>{'ОПУБЛИКОВАНА' if op.get('status')=='published' else 'ЧЕРНОВИК'}</b>\n\n"
             f"🕐 Базовый приход: <code>{html.escape(op['arrival'])}</code>\n"
             f"🐎 Базовая скорость: <b>{op['base_speed']}</b>\n"
             f"👥 Офферов: <b>{len(op['offers'])}</b>\n"
@@ -207,14 +207,24 @@ def list_ops(cid):
     ops=load(OPERATIONS)
     if not ops:
         send(cid,"⚔️ <b>Операций пока нет.</b>",[[btn("📝 Создать черновик","ops:new")],[btn("⬅️ Меню","menu")]]);return
-    rows=[[btn(f"📝 {v.get('name',k)}",f"op:{k}")] for k,v in reversed(list(ops.items()))]
+    rows=[[btn(f"{'📢' if v.get('status')=='published' else '📝'} {v.get('name',k)}",f"op:{k}")] for k,v in reversed(list(ops.items()))]
     rows += [[btn("📝 Создать черновик","ops:new")],[btn("⬅️ Меню","menu")]]
     send(cid,f"⚔️ <b>Операции</b>\nВсего: {len(ops)}",rows)
 
 def show_op(cid,oid):
     op=load(OPERATIONS).get(oid)
     if not op:send(cid,"❌ Операция не найдена.");return
-    send(cid,op_summary(op),[[btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],[btn("⏱ Смещение всех",f"oall:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],[btn("💬 Комментарий",f"oedit:{oid}:op:comment"),btn("🗑 Удалить черновик",f"odraftask:{oid}")],[btn("⬅️ Операции","ops:list")]])
+    buttons=[[btn("📊 Готовность и прогресс",f"progress:{oid}")],
+             [btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],
+             [btn("⏱ Смещение всех",f"oall:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],
+             [btn("💬 Комментарий",f"oedit:{oid}:op:comment")]]
+    if op.get("status")=="published":
+        buttons.insert(0,[btn("📣 Повторить рассылку",f"publish:{oid}")])
+    else:
+        buttons.insert(0,[btn("📢 Опубликовать",f"publish:{oid}")])
+        buttons.append([btn("🗑 Удалить черновик",f"odraftask:{oid}")])
+    buttons.append([btn("⬅️ Операции","ops:list")])
+    send(cid,op_summary(op),buttons)
 
 def op_targets(cid,oid):
     op=load(OPERATIONS).get(oid)
@@ -303,9 +313,23 @@ def generate_op(uid,d):
     ops[oid]=op;save(OPERATIONS,ops);persist("Create alliance ops draft")
     return oid
 
-def op_store(ops, msg="Edit operation draft"):
+def op_store(ops, msg="Edit operation"):
+    previous=load(OPERATIONS)
     save(OPERATIONS,ops)
     persist(msg)
+    for oid,op in ops.items():
+        old=previous.get(oid,{})
+        if old.get("status")!="published" or op.get("status")!="published":continue
+        for uid in op.get("offers",{}):
+            old_jobs={k:v for k,v in old.get("attacks",{}).items() if v.get("offer_id")==uid}
+            new_jobs={k:v for k,v in op.get("attacks",{}).items() if v.get("offer_id")==uid}
+            if old_jobs==new_jobs or not (old_jobs or new_jobs):continue
+            op.setdefault("ready",{}).pop(uid,None)
+            for a in new_jobs.values():
+                a.pop("reminder_sent_for",None)
+            try:send(int(uid),f"⚠️ <b>{html.escape(op['name'])}: план изменён!</b>\nПроверьте задания и повторно подтвердите готовность.",[[btn("📋 Открыть план",f"mine:op:{oid}")]])
+            except Exception as e:print("change notification error",uid,repr(e),flush=True)
+    save(OPERATIONS,ops)
 
 def op_retime(op,a):
     dt=datetime.fromisoformat(op["arrival_iso"])+timedelta(seconds=int(a["offset"]))
@@ -376,6 +400,84 @@ def op_new_send(cid,oid,ouid,key):
        "mode":defaults["mode"],"waves":defaults["waves"],"wave_plan":defaults["wave_plan"],
        "comment":"","offset":o["offset"],"speed":op["base_speed"],"arena":o["arena"]}
     op_retime(op,a);op["attacks"][aid]=a;op_store(ops);op_attack_view(cid,oid,aid)
+
+
+def personal_jobs(op,uid):
+    jobs=[a for a in op.get("attacks",{}).values() if str(a.get("offer_id"))==str(uid)]
+    return sorted(jobs,key=lambda a:(op_travel(a,op)[0] or datetime.max.replace(tzinfo=TZ),str(a["id"])))
+
+def personal_list(cid,uid):
+    ops=load(OPERATIONS)
+    available=[(oid,op) for oid,op in ops.items() if op.get("status")=="published" and str(uid) in op.get("offers",{})]
+    if not available:
+        send(cid,"📋 Пока нет опубликованных операций для вас.",[[btn("⬅️ Меню","menu")]]);return
+    send(cid,"📋 <b>Мои операции</b>",[[btn(op["name"],f"mine:op:{oid}")] for oid,op in reversed(available)]+[[btn("⬅️ Меню","menu")]])
+
+def personal_op(cid,uid,oid):
+    op=load(OPERATIONS).get(oid)
+    if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):
+        send(cid,"⛔ Этот план недоступен.");return
+    jobs=personal_jobs(op,uid);done=sum(bool(a.get("sent_at")) for a in jobs)
+    upcoming=[(op_travel(a,op)[0],a) for a in jobs if not a.get("sent_at")]
+    future=[(dt,a) for dt,a in upcoming if dt and dt>datetime.now(TZ)]
+    next_=min(future,key=lambda z:z[0]) if future else None
+    lines=[f"⚔️ <b>{html.escape(op['name'])}</b>",f"Готовность: {'✅ подтверждена' if op.get('ready',{}).get(str(uid)) else '⏳ не подтверждена'}",
+           f"Отправлено: <b>{done} из {len(jobs)}</b>",""]
+    if next_:
+        dt,a=next_;lines.append(f"⏰ Следующая: <b>{dt.strftime('%H:%M:%S')}</b> → <code>{a['target_key']}</code>")
+    lines.append("Для живого секундного таймера будет подключено Mini App.")
+    buttons=[[btn(f"{'✅' if a.get('sent_at') else '⏳'} {op_travel(a,op)[0].strftime('%H:%M:%S') if op_travel(a,op)[0] else '—'} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")] for a in jobs[:70]]
+    buttons += [[btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")],[btn("⬅️ Мои операции","mine:list")]]
+    send(cid,"\n".join(lines),buttons)
+
+def personal_job(cid,uid,oid,aid):
+    op=load(OPERATIONS).get(oid)
+    if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):return
+    a=op["attacks"].get(aid)
+    if not a or str(a["offer_id"])!=str(uid):return
+    departure,dist=op_travel(a,op)
+    waves="\n".join(f"{i}. {html.escape(w.get('text','—'))}" for i,w in enumerate(a.get("wave_plan",[]),1))
+    msg=(f"🎯 <b>{html.escape(op['name'])} · {a['target_key']}</b>\n"
+         f"{op_mode_name(a['mode'])}\n"
+         f"Отправление: <code>{departure.strftime('%d.%m.%Y %H:%M:%S') if departure else '—'}</code>\n"
+         f"Прибытие: <code>{a['arrival']}</code>\n"
+         f"Арена: {a['arena']} · Скорость: {a['speed']} · Расстояние: {dist:.2f}\n\n"
+         f"<b>Волны:</b>\n{waves}\n\n💬 {html.escape(a.get('comment') or '—')}\n"
+         f"Статус: {'✅ Отправлено' if a.get('sent_at') else '⏳ Ожидает'}")
+    send(cid,msg,[[btn("↩ Отменить отметку" if a.get("sent_at") else "✅ Отправлено",f"mine:sent:{oid}:{aid}")],
+                  [btn("⬅️ Весь план",f"mine:op:{oid}")]])
+
+def operation_progress(cid,oid):
+    op=load(OPERATIONS).get(oid)
+    if not op:return
+    lines=[f"📊 <b>{html.escape(op['name'])}</b>"]
+    for uid,o in op["offers"].items():
+        jobs=personal_jobs(op,uid)
+        done=sum(bool(a.get("sent_at")) for a in jobs)
+        ready="✅" if op.get("ready",{}).get(uid) else "⏳"
+        lines.append(f"{ready} {html.escape(o['player'])}: {done}/{len(jobs)}")
+    send(cid,"\n".join(lines),[[btn("⬅️ Операция",f"op:{oid}")]])
+
+def send_reminders():
+    ops=load(OPERATIONS);current=datetime.now(TZ);changed=False
+    for oid,op in ops.items():
+        if op.get("status")!="published":continue
+        for a in op.get("attacks",{}).values():
+            if a.get("sent_at"):continue
+            departure,_=op_travel(a,op)
+            if not departure:continue
+            seconds=(departure-current).total_seconds()
+            marker=departure.isoformat()
+            if not 0<seconds<=300 or a.get("reminder_sent_for")==marker:continue
+            try:
+                send(int(a["offer_id"]),f"⏰ <b>Через 5 минут или меньше — отправка!</b>\n"
+                     f"{html.escape(op['name'])} · Цель <code>{a['target_key']}</code>\n"
+                     f"{op_mode_name(a['mode'])} · {len(a.get('wave_plan',[]))} волн\n"
+                     f"Отправить: <b>{departure.strftime('%H:%M:%S')}</b>\n"
+                     f"Арена: {a['arena']}",[[btn("🎯 Открыть задание",f"mine:job:{oid}:{a['id']}")]])
+                a["reminder_sent_for"]=marker;changed=True
+            except Exception as e:print("reminder error",oid,a["id"],repr(e),flush=True)
+    if changed:save(OPERATIONS,ops)
 
 def handle_message(m):
     # The operations wizard is private; ignore messages from group topics.
@@ -479,6 +581,37 @@ def callback(c):
     except:pass
     uid=c["from"]["id"];cid=c["message"]["chat"]["id"];x=c.get("data","")
     if x=="menu":state(uid);start(cid,uid);return
+    if x=="mine:list":personal_list(cid,uid);return
+    if x.startswith("mine:op:"):personal_op(cid,uid,x.split(":",2)[2]);return
+    if x.startswith("mine:job:"):
+        _,_,oid,aid=x.split(":",3);personal_job(cid,uid,oid,aid);return
+    if x.startswith("mine:ready:"):
+        oid=x.split(":",2)[2];ops=load(OPERATIONS);op=ops.get(oid)
+        if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):return
+        op.setdefault("ready",{})[str(uid)]=now();op_store(ops);personal_op(cid,uid,oid);return
+    if x.startswith("mine:sent:"):
+        _,_,oid,aid=x.split(":",3);ops=load(OPERATIONS);op=ops.get(oid)
+        if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):return
+        a=op["attacks"].get(aid)
+        if not a or str(a.get("offer_id"))!=str(uid):return
+        if a.get("sent_at"):a.pop("sent_at")
+        else:a["sent_at"]=now()
+        op_store(ops);personal_job(cid,uid,oid,aid);return
+    if x.startswith("publish:"):
+        if uid not in COORDINATORS:return
+        oid=x.split(":",1)[1];ops=load(OPERATIONS);op=ops.get(oid)
+        if not op:return
+        op["status"]="published";op.setdefault("published_at",now());op_store(ops)
+        ok=0;failed=[]
+        for ouid in op["offers"]:
+            try:
+                send(int(ouid),f"📢 <b>{html.escape(op['name'])} опубликована!</b>\nВаш персональный план готов.",[[btn("📋 Открыть план",f"mine:op:{oid}")]])
+                ok+=1
+            except Exception as e:failed.append(ouid);print("publish delivery error",ouid,repr(e),flush=True)
+        send(cid,f"📢 Рассылка завершена: {ok} доставлено, {len(failed)} ошибок."+("\nНе доставлено: "+", ".join(failed) if failed else ""));show_op(cid,oid);return
+    if x.startswith("progress:"):
+        if uid in COORDINATORS:operation_progress(cid,x.split(":",1)[1])
+        return
     if x=="offer:view":
         o=load(OFFERS).get(str(uid));send(cid,fmt_offer(o),menu(uid)) if o else start(cid,uid);return
     if x=="offer:army":
@@ -617,4 +750,6 @@ def main():
                     elif "callback_query" in u:callback(u["callback_query"])
                 except Exception as e:print("update error",repr(e),flush=True)
         except Exception as e:print("poll error",repr(e),flush=True);time.sleep(5)
+        try:send_reminders()
+        except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()
