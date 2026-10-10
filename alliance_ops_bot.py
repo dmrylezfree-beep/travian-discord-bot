@@ -216,7 +216,7 @@ def show_op(cid,oid):
     if not op:send(cid,"❌ Операция не найдена.");return
     buttons=[[btn("📊 Готовность и прогресс",f"progress:{oid}")],
              [btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],
-             [btn("⏱ Смещение всех",f"oall:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],
+             [btn("🕒 Изменить время операции",f"oretime:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],
              [btn("💬 Комментарий",f"oedit:{oid}:op:comment")]]
     if op.get("status")=="published":
         buttons.insert(0,[btn("📣 Повторить рассылку",f"publish:{oid}")])
@@ -622,6 +622,32 @@ def handle_message(m):
             a["wave_plan"][idx]["text"]=text
         else:return
         a["waves"]=len(a["wave_plan"]);op_store(ops);state(uid);op_attack_view(cid,oid,aid);return
+    if step=="op_change_time":
+        if uid not in COORDINATORS:return
+        dt=op_dt(text)
+        if not dt:
+            send(cid,"❌ Введите дату и время: <code>10.10.2026 23:30:00</code>");return
+        oid=d["oid"];ops=load(OPERATIONS);op=ops.get(oid)
+        if not op:state(uid);send(cid,"❌ Операция не найдена.");return
+        old_dt=datetime.fromisoformat(op["arrival_iso"])
+        delta=dt-old_dt
+        if delta.total_seconds()==0:
+            state(uid);send(cid,"Время операции не изменилось.");show_op(cid,oid);return
+        op["arrival_iso"]=dt.isoformat()
+        op["arrival"]=dt.strftime("%d.%m.%Y %H:%M:%S")
+        changed=0;sent=0
+        for a in op["attacks"].values():
+            if a.get("sent_at"):
+                sent+=1
+                continue
+            op_retime(op,a)
+            a.pop("reminder_sent_for",None)
+            changed+=1
+        op_store(ops,"Change operation arrival time")
+        state(uid)
+        send(cid,f"✅ Новое время операции: <b>{op['arrival']}</b>. Пересчитано отправок: {changed}. Уже отправленных без изменений: {sent}. Индивидуальные смещения сохранены.")
+        show_op(cid,oid)
+        return
     if step=="op_bulk_offset":
         if uid not in COORDINATORS:return
         try:offset=int(text)
@@ -763,6 +789,16 @@ def callback(c):
         op["attacks"].pop(aid,None);op_store(ops);show_op(cid,oid);return
     if x.startswith("oofferedit:"):
         _,oid,ouid=x.split(":",2);op_offer_edit_menu(cid,oid,ouid);return
+    if x.startswith("oretime:"):
+        if uid not in COORDINATORS:return
+        oid=x.split(":",1)[1];op=load(OPERATIONS).get(oid)
+        if not op:return
+        sent=sum(bool(a.get("sent_at")) for a in op["attacks"].values())
+        state(uid,"op_change_time",{"oid":oid})
+        send(cid,f"🕒 <b>Изменить время операции</b>\nТекущее: <b>{op['arrival']}</b>\\n"
+             f"Введите новую дату и время прибытия в формате <code>10.10.2026 23:30:00</code>.\\n"
+             f"Индивидуальные смещения сохранятся. Уже отправленных атак: {sent} (не изменятся).")
+        return
     if x.startswith("oall:"):op_all_edit_menu(cid,x.split(":",1)[1]);return
     if x.startswith("obulk:"):
         _,oid,scope,ouid=x.split(":",3)
