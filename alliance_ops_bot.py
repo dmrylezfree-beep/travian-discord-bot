@@ -217,7 +217,7 @@ def show_op(cid,oid):
     buttons=[[btn("📊 Готовность и прогресс",f"progress:{oid}")],
              [btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],
              [btn("🕒 Изменить время операции",f"oretime:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],
-             [btn("💬 Комментарий",f"oedit:{oid}:op:comment")]]
+             ]
     if op.get("status")=="published":
         buttons.insert(0,[btn("📣 Повторить рассылку",f"publish:{oid}")])
         buttons.append([btn("🗑 Удалить операцию",f"opdeleteask:{oid}")])
