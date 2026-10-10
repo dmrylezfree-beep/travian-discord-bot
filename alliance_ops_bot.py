@@ -304,7 +304,7 @@ def op_target_picker(cid,d):
         mark={"spam":"🟡","destroy":"🔥","capture":"👑"}.get(mode,"⬜")
         rows.append([btn(f"{mark} {k} · {t.get('player','?')} · {t.get('type','?')}",f"optargetpick:{k}")])
     rows.append([btn(f"⚙️ Создать черновик ({len(selected)})","opgenerate")])
-    send(cid,"🎯 <b>Цели операции</b>\n\nНажмите цель и выберите тип атаки.",rows)
+    send(cid,"🎯 <b>Цели операции</b>\n\nНажмите, чтобы добавить или убрать цель. Все отправки создаются как спам; реальные атаки можно настроить в черновике.",rows)
 
 def generate_op(uid,d):
     offers_all=load(OFFERS); targets_all=load(TARGETS); oid=op_id()
@@ -316,8 +316,8 @@ def generate_op(uid,d):
         o=offers_all[ouid]
         op["offers"][ouid]={"player":o["player"],"village":o["village"],"x":o["x"],"y":o["y"],"arena":o["arena"],
                             "offset":int(d["offsets"].get(ouid,0)),"army_snapshot":o.get("army",{})}
-    for key,mode in d["targets"].items():
-        t=targets_all[key]; op["targets"][key]={**t,"mode":mode}
+    for key in d["targets"]:
+        t=targets_all[key]; op["targets"][key]={**t,"mode":"spam"}
     i=0
     for ouid,o in op["offers"].items():
         for key,t in op["targets"].items():
@@ -769,18 +769,16 @@ def callback(c):
         if not d.get("offers"):send(cid,"❌ Выберите хотя бы одного оффера.");return
         nxt=d["offers"][0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ <b>Смещения офферов</b>\n\nВведите смещение для <b>{html.escape(o['player'])}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
     if x.startswith("optargetpick:"):
-        st=getstate(uid);d=st["data"];key=x.split(":",1)[1];t=load(TARGETS).get(key)
-        if not t:return
-        send(cid,f"🎯 <b>{html.escape(t['player'])} — {html.escape(t['village'])}</b>\n<code>{key}</code>\nТип деревни: <b>{t.get('type','Не определено')}</b>\n\nЧто это за атака?",[
-            [btn("🟡 Спам",f"opmode:{key}:spam")],
-            [btn("🔥 Уничтожение",f"opmode:{key}:destroy")],
-            [btn("👑 Захват",f"opmode:{key}:capture")],
-            [btn("❌ Убрать цель",f"opmode:{key}:remove")]]);return
-    if x.startswith("opmode:"):
-        _,key,mode=x.split(":",2);st=getstate(uid);d=st["data"]
-        if mode=="remove":d["targets"].pop(key,None)
-        else:d["targets"][key]=mode
-        state(uid,"op_pick_targets",d);op_target_picker(cid,d);return
+        if uid not in COORDINATORS:return
+        st=getstate(uid)
+        if not st or st["step"]!="op_pick_targets":return
+        d=st["data"];key=x.split(":",1)[1]
+        if key not in load(TARGETS):return
+        if key in d["targets"]:d["targets"].pop(key)
+        else:d["targets"][key]="spam"
+        state(uid,"op_pick_targets",d)
+        op_target_picker(cid,d)
+        return
     if x=="opgenerate":
         st=getstate(uid);d=st["data"]
         if not d.get("targets"):send(cid,"❌ Выберите хотя бы одну цель.");return
