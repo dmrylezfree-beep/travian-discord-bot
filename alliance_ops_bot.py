@@ -442,7 +442,7 @@ def personal_op(cid,uid,oid,message_id=None):
     if not op.get("ready",{}).get(str(uid)):
         buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
     buttons.append([btn("⬅️ Мои операции","mine:list")])
-    message="\\n".join(lines)
+    message="\n".join(lines)
     if message_id is None:
         send(cid,message,buttons)
     else:
