@@ -323,7 +323,7 @@ def op_store(ops, msg="Edit operation"):
         for uid in op.get("offers",{}):
             old_jobs={k:v for k,v in old.get("attacks",{}).items() if v.get("offer_id")==uid}
             new_jobs={k:v for k,v in op.get("attacks",{}).items() if v.get("offer_id")==uid}
-            if old_jobs==new_jobs or not (old_jobs or new_jobs):continue
+            if {k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for")} for k,a in old_jobs.items()}=={k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for")} for k,a in new_jobs.items()} or not (old_jobs or new_jobs):continue
             op.setdefault("ready",{}).pop(uid,None)
             for a in new_jobs.values():
                 a.pop("reminder_sent_for",None)
@@ -512,7 +512,16 @@ def handle_message(m):
         save(OFFERS,os_);state(uid);persist("Update alliance ops offers");send(cid,"✅ Данные сохранены.\n\n"+fmt_offer(os_[k]),menu(uid));return
     if step=="arena":
         if not text.isdigit() or not 0<=int(text)<=20:send(cid,"❌ Арена должна быть числом 0–20.");return
-        os_=load(OFFERS);os_[str(uid)]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena");send(cid,"✅ Арена обновлена.",menu(uid));return
+        os_=load(OFFERS);os_[str(uid)]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena")
+        ops=load(OPERATIONS);affected=0
+        for op in ops.values():
+            if op.get("status")!="published" or str(uid) not in op.get("offers",{}):continue
+            op["offers"][str(uid)]["arena"]=int(text)
+            for a in op["attacks"].values():
+                if str(a["offer_id"])==str(uid) and not a.get("sent_at"):
+                    a["arena"]=int(text);a.pop("reminder_sent_for",None);affected+=1
+        if affected:op_store(ops)
+        send(cid,f"✅ Арена обновлена. Пересчитано отправок: {affected}.",menu(uid));return
 
     if step=="op_arrival":
         dt=op_dt(text)
