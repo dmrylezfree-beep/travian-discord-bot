@@ -278,7 +278,7 @@ def op_target_picker(cid,d):
 def generate_op(uid,d):
     offers_all=load(OFFERS); targets_all=load(TARGETS); oid=op_id()
     arrival_dt=datetime.fromisoformat(d["arrival_iso"])
-    op={"id":oid,"name":d["name"],"status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
+    op={"id":oid,"name":"Операция","status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
         "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,
         "comment":"","offers":{},"targets":{},"attacks":{}}
     for ouid in d["offers"]:
@@ -296,7 +296,11 @@ def generate_op(uid,d):
                 "mode":defaults["mode"],"waves":defaults["waves"],"wave_plan":defaults["wave_plan"],
                 "comment":"","offset":o["offset"],"arrival":actual.strftime("%d.%m.%Y %H:%M:%S"),
                 "arrival_iso":actual.isoformat(),"speed":d["base_speed"],"arena":o["arena"]}
-    ops=load(OPERATIONS);ops[oid]=op;save(OPERATIONS,ops);persist("Create alliance ops draft")
+    ops=load(OPERATIONS)
+    numbers=[int(m.group(1)) for existing in ops.values()
+             if (m:=re.fullmatch(r"Операция №(\\d+)",str(existing.get("name",""))))]
+    op["name"]=f"Операция №{max(numbers,default=0)+1}"
+    ops[oid]=op;save(OPERATIONS,ops);persist("Create alliance ops draft")
     return oid
 
 def op_store(ops, msg="Edit operation draft"):
@@ -408,9 +412,6 @@ def handle_message(m):
         if not text.isdigit() or not 0<=int(text)<=20:send(cid,"❌ Арена должна быть числом 0–20.");return
         os_=load(OFFERS);os_[str(uid)]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena");send(cid,"✅ Арена обновлена.",menu(uid));return
 
-    if step=="op_name":
-        if not text:send(cid,"❌ Введите название.");return
-        d["name"]=text;state(uid,"op_arrival",d);send(cid,"🕐 Введите основное время прихода.\nФормат: <code>05.10.2026 20:00:00</code>");return
     if step=="op_arrival":
         dt=op_dt(text)
         if not dt:send(cid,"❌ Формат: <code>05.10.2026 20:00:00</code>");return
@@ -488,7 +489,7 @@ def callback(c):
     if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op","oa:","ow","oe","ot","od","ob","oall:","oofferedit:","oadd")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
 
     if x=="ops:list":list_ops(cid);return
-    if x=="ops:new":state(uid,"op_name",{});send(cid,"📝 <b>Новая операция</b>\n\nВведите название операции.");return
+    if x=="ops:new":state(uid,"op_arrival",{});send(cid,"🕐 <b>Новая операция</b>\n\nВведите дату и время прибытия.\nФормат: <code>05.10.2026 20:00:00</code>");return
     if x.startswith("opofftoggle:"):
         st=getstate(uid);d=st["data"];ouid=x.split(":",1)[1]
         if ouid in d["offers"]:d["offers"].remove(ouid);d["offsets"].pop(ouid,None)
