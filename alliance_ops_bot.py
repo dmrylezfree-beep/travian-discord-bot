@@ -142,7 +142,7 @@ def parse_army(text,tid):
     return {n:found.get(n,0) for n in names},None
 def menu(uid):
     rows=[[btn("📋 Мой план","mine:list")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
-    if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Операции","ops:list"),btn("📝 Создать черновик","ops:new")]]
+    if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Операции","ops:list"),btn("📝 Создать черновик","ops:new")],[btn("⚔️ Список офферов","offers:ro:list")]]
     return rows
 def fmt_offer(o):
     lines=[f"⚔️ <b>Мой офф</b>","",f"Игрок: <b>{html.escape(o['player'])}</b>",f"Деревня: <b>{html.escape(o['village'])}</b>",f"Координаты: <code>{o['x']}|{o['y']}</code>",f"Раса: <b>{TRIBES.get(o['tribe_id'],'Неизвестно')}</b>",f"Арена: <b>{o['arena']}</b>","","<b>Войска:</b>"]
@@ -157,6 +157,26 @@ def start(cid,uid):
     o=load(OFFERS).get(str(uid))
     detail=fmt_offer(o) if o else "Режим координатора. Офф-деревня не зарегистрирована."
     send(cid,"⚔️ <b>Центр операций альянса</b>\n\n"+detail+"\n\nВыберите действие:",menu(uid))
+def coordinator_offer_list(cid):
+    offers=load(OFFERS)
+    if not offers:
+        send(cid,"⚔️ Зарегистрированных офферов пока нет.",[[btn("⬅️ Меню","menu")]])
+        return
+    rows=[]
+    for uid,o in sorted(offers.items(),key=lambda kv:kv[1].get("player","").lower()):
+        troops=o.get("army",{}).get("troops",{})
+        total=sum(int(v) for v in troops.values())
+        name=html.escape(str(o.get("player","?")))
+        rows.append([btn(f"{name} · {total:,} войск".replace(","," "),f"offers:ro:view:{uid}")])
+    rows.append([btn("⬅️ Меню","menu")])
+    send(cid,f"⚔️ <b>Зарегистрированные офферы</b>\\nВсего: {len(offers)}. Нажмите на игрока для просмотра армии.",rows)
+
+def coordinator_offer_view(cid,offer_uid):
+    o=load(OFFERS).get(str(offer_uid))
+    if not o:
+        send(cid,"❌ Оффер не найден.");return
+    send(cid,fmt_offer(o),[[btn("⬅️ К списку офферов","offers:ro:list")]])
+
 def list_targets(cid):
     ts=load(TARGETS)
     if not ts:send(cid,"🎯 <b>База целей пуста.</b>",[[btn("➕ Добавить цель","targets:add")],[btn("⬅️ Меню","menu")]]);return
@@ -672,6 +692,12 @@ def callback(c):
     except:pass
     uid=c["from"]["id"];cid=c["message"]["chat"]["id"];x=c.get("data","")
     if x=="menu":state(uid);start(cid,uid);return
+    if x=="offers:ro:list":
+        if uid not in COORDINATORS:return
+        coordinator_offer_list(cid);return
+    if x.startswith("offers:ro:view:"):
+        if uid not in COORDINATORS:return
+        coordinator_offer_view(cid,x.rsplit(":",1)[1]);return
     if x=="mine:list":personal_list(cid,uid);return
     if x.startswith("mine:refresh:"):
         personal_op(cid,uid,x.split(":",2)[2],c["message"]["message_id"]);return
