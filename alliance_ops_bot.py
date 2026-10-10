@@ -535,9 +535,12 @@ def operation_progress(cid,oid):
     send(cid,"\n".join(lines),[[btn("⬅️ Операция",f"op:{oid}")]])
 
 def send_reminders():
-    ops=cleanup_expired_operations();current=datetime.now(TZ);changed=False
+    ops=cleanup_expired_operations()
+    current=datetime.now(TZ)
+    changed=False
     for oid,op in ops.items():
         if op.get("status")!="published":continue
+        grouped={}
         for a in op.get("attacks",{}).values():
             if a.get("sent_at"):continue
             departure,_=op_travel(a,op)
@@ -545,14 +548,28 @@ def send_reminders():
             seconds=(departure-current).total_seconds()
             marker=departure.isoformat()
             if not 0<seconds<=300 or a.get("reminder_sent_for")==marker:continue
+            grouped.setdefault(str(a["offer_id"]),[]).append((departure,a,marker))
+        for offer_uid,jobs in grouped.items():
+            jobs.sort(key=lambda item:(item[0],str(item[1]["id"])))
+            lines=[f"⏰ <b>{html.escape(op['name'])}: отправки в ближайшие 5 минут</b>"]
+            buttons=[]
+            for departure,a,marker in jobs:
+                target=op["targets"].get(a["target_key"])
+                if not target:continue
+                lines.append(f"\\n🎯 <code>{a['target_key']}</code> · <b>{departure.strftime('%H:%M:%S')}</b>"
+                             f" · {op_mode_name(a['mode'])} · {len(a.get('wave_plan',[]))} волн · арена {a['arena']}")
+                link=(f"https://ts8.x1.asia.travian.com/build.php?id=39&tt=2"
+                      f"&x={int(target['x'])}&y={int(target['y'])}&c=3&gid=16&eventType=3")
+                buttons.append([{"text":f"⚔️ {departure.strftime('%H:%M:%S')} → {a['target_key']} · Travian","url":link}])
+                buttons.append([btn(f"📋 Задание {departure.strftime('%H:%M:%S')} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")])
+            if not buttons:continue
             try:
-                send(int(a["offer_id"]),f"⏰ <b>Через 5 минут или меньше — отправка!</b>\n"
-                     f"{html.escape(op['name'])} · Цель <code>{a['target_key']}</code>\n"
-                     f"{op_mode_name(a['mode'])} · {len(a.get('wave_plan',[]))} волн\n"
-                     f"Отправить: <b>{departure.strftime('%H:%M:%S')}</b>\n"
-                     f"Арена: {a['arena']}",[[btn("🎯 Открыть задание",f"mine:job:{oid}:{a['id']}")]])
-                a["reminder_sent_for"]=marker;changed=True
-            except Exception as e:print("reminder error",oid,a["id"],repr(e),flush=True)
+                send(int(offer_uid),"\\n".join(lines),buttons)
+                for departure,a,marker in jobs:
+                    a["reminder_sent_for"]=marker
+                changed=True
+            except Exception as e:
+                print("reminder error",oid,offer_uid,repr(e),flush=True)
     if changed:save(OPERATIONS,ops)
 
 def handle_message(m):
