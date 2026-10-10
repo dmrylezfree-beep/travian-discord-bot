@@ -495,7 +495,11 @@ def personal_job(cid,uid,oid,aid):
          f"Арена: {a['arena']} · Скорость: {a['speed']} · Расстояние: {dist:.2f}\n\n"
          f"<b>Волны:</b>\n{waves}\n\n💬 {html.escape(a.get('comment') or '—')}\n"
          f"Статус: {'✅ Отправлено' if a.get('sent_at') else '⏳ Ожидает'}")
-    send(cid,msg,[[btn("↩ Отменить отметку" if a.get("sent_at") else "✅ Отправлено",f"mine:sent:{oid}:{aid}")],
+    target=op["targets"][a["target_key"]]
+    link=(f"https://ts8.x1.asia.travian.com/build.php?id=39&tt=2"
+          f"&x={int(target['x'])}&y={int(target['y'])}&c=3&gid=16&eventType=3")
+    send(cid,msg,[[{"text":"⚔️ Открыть отправку в Travian","url":link}],
+                  [btn("↩ Отменить отметку" if a.get("sent_at") else "✅ Отправлено",f"mine:sent:{oid}:{aid}")],
                   [btn("⬅️ Весь план",f"mine:op:{oid}")]])
 
 def operation_progress(cid,oid):
