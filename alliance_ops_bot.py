@@ -141,7 +141,7 @@ def parse_army(text,tid):
     if not found:return None,"Не удалось распознать шаблон войск."
     return {n:found.get(n,0) for n in names},None
 def menu(uid):
-    rows=[[btn("📋 Мои планы","mine:list")],[btn("⚔️ Мой офф","offer:view")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
+    rows=[[btn("📋 Мой план","mine:list")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
     if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Операции","ops:list"),btn("📝 Создать черновик","ops:new")]]
     return rows
 def fmt_offer(o):
@@ -406,12 +406,40 @@ def personal_jobs(op,uid):
     jobs=[a for a in op.get("attacks",{}).values() if str(a.get("offer_id"))==str(uid)]
     return sorted(jobs,key=lambda a:(op_travel(a,op)[0] or datetime.max.replace(tzinfo=TZ),str(a["id"])))
 
-def personal_list(cid,uid):
+def cleanup_expired_operations():
     ops=load(OPERATIONS)
-    available=[(oid,op) for oid,op in ops.items() if op.get("status")=="published" and str(uid) in op.get("offers",{})]
+    current=datetime.now(TZ)
+    expired=[]
+    for oid,op in ops.items():
+        if op.get("status")!="published":
+            continue
+        attacks=list(op.get("attacks",{}).values())
+        if not attacks:
+            continue
+        try:
+            arrivals=[datetime.fromisoformat(a["arrival_iso"]) for a in attacks]
+            if all(dt.tzinfo is not None and dt<=current for dt in arrivals):
+                expired.append(oid)
+        except (KeyError,ValueError,TypeError):
+            continue
+    if expired:
+        for oid in expired:
+            del ops[oid]
+        save(OPERATIONS,ops)
+        persist("Remove expired operations")
+    return ops
+
+def personal_list(cid,uid):
+    ops=cleanup_expired_operations()
+    available=[(oid,op) for oid,op in ops.items()
+               if op.get("status")=="published" and str(uid) in op.get("offers",{})
+               and any(str(a.get("offer_id"))==str(uid) for a in op.get("attacks",{}).values())]
     if not available:
-        send(cid,"📋 Пока нет опубликованных операций для вас.",[[btn("⬅️ Меню","menu")]]);return
-    send(cid,"📋 <b>Мои операции</b>",[[btn(op["name"],f"mine:op:{oid}")] for oid,op in reversed(available)]+[[btn("⬅️ Меню","menu")]])
+        send(cid,"📋 Сейчас у вас нет актуального плана.",[[btn("⬅️ Меню","menu")]])
+        return
+    oid,op=max(available,key=lambda pair:max(
+        (a.get("arrival_iso","") for a in pair[1].get("attacks",{}).values()),default=""))
+    personal_op(cid,uid,oid)
 
 def personal_op(cid,uid,oid,message_id=None):
     op=load(OPERATIONS).get(oid)
@@ -441,7 +469,7 @@ def personal_op(cid,uid,oid,message_id=None):
                 for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
     if not op.get("ready",{}).get(str(uid)):
         buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
-    buttons.append([btn("⬅️ Мои операции","mine:list")])
+    buttons.append([btn("⬅️ Мой план","mine:list")])
     message="\n".join(lines)
     if message_id is None:
         send(cid,message,buttons)
@@ -482,7 +510,7 @@ def operation_progress(cid,oid):
     send(cid,"\n".join(lines),[[btn("⬅️ Операция",f"op:{oid}")]])
 
 def send_reminders():
-    ops=load(OPERATIONS);current=datetime.now(TZ);changed=False
+    ops=cleanup_expired_operations();current=datetime.now(TZ);changed=False
     for oid,op in ops.items():
         if op.get("status")!="published":continue
         for a in op.get("attacks",{}).values():
