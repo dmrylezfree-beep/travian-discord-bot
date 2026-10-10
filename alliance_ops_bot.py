@@ -413,22 +413,45 @@ def personal_list(cid,uid):
         send(cid,"📋 Пока нет опубликованных операций для вас.",[[btn("⬅️ Меню","menu")]]);return
     send(cid,"📋 <b>Мои операции</b>",[[btn(op["name"],f"mine:op:{oid}")] for oid,op in reversed(available)]+[[btn("⬅️ Меню","menu")]])
 
-def personal_op(cid,uid,oid):
+def personal_op(cid,uid,oid,message_id=None):
     op=load(OPERATIONS).get(oid)
     if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):
         send(cid,"⛔ Этот план недоступен.");return
-    jobs=personal_jobs(op,uid);done=sum(bool(a.get("sent_at")) for a in jobs)
-    upcoming=[(op_travel(a,op)[0],a) for a in jobs if not a.get("sent_at")]
-    future=[(dt,a) for dt,a in upcoming if dt and dt>datetime.now(TZ)]
-    next_=min(future,key=lambda z:z[0]) if future else None
-    lines=[f"⚔️ <b>{html.escape(op['name'])}</b>",f"Готовность: {'✅ подтверждена' if op.get('ready',{}).get(str(uid)) else '⏳ не подтверждена'}",
+    jobs=personal_jobs(op,uid)
+    done=sum(bool(a.get("sent_at")) for a in jobs)
+    current=datetime.now(TZ)
+    pending=[(op_travel(a,op)[0],a) for a in jobs if not a.get("sent_at")]
+    future=[(dt,a) for dt,a in pending if dt and dt>current]
+    overdue=[(dt,a) for dt,a in pending if dt and dt<=current]
+    lines=[f"⚔️ <b>{html.escape(op['name'])}</b>",
+           f"Готовность: {'✅ подтверждена' if op.get('ready',{}).get(str(uid)) else '⏳ не подтверждена'}",
            f"Отправлено: <b>{done} из {len(jobs)}</b>",""]
-    if next_:
-        dt,a=next_;lines.append(f"⏰ Следующая: <b>{dt.strftime('%H:%M:%S')}</b> → <code>{a['target_key']}</code>")
-    lines.append("Для живого секундного таймера будет подключено Mini App.")
-    buttons=[[btn(f"{'✅' if a.get('sent_at') else '⏳'} {op_travel(a,op)[0].strftime('%H:%M:%S') if op_travel(a,op)[0] else '—'} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")] for a in jobs[:70]]
-    buttons += [[btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")],[btn("⬅️ Мои операции","mine:list")]]
-    send(cid,"\n".join(lines),buttons)
+    if future:
+        dt,a=min(future,key=lambda z:z[0])
+        remaining=max(0,int((dt-current).total_seconds()))
+        h,rem=divmod(remaining,3600);m,sec=divmod(rem,60)
+        lines.append(f"⏰ Следующая: <b>{dt.strftime('%d.%m %H:%M:%S')}</b> → <code>{a['target_key']}</code>")
+        lines.append(f"⌛ До отправки: <b>{h:02d}:{m:02d}:{sec:02d}</b>")
+    if overdue:
+        lines.append(f"🔴 Просроченных без отметки: <b>{len(overdue)}</b>")
+    if not pending:lines.append("✅ Все отправки отмечены выполненными.")
+    lines.append(f"🔄 Обновлено: {current.strftime('%H:%M:%S')}")
+    buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")]]
+    buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt<=current else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
+                for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
+    if not op.get("ready",{}).get(str(uid)):
+        buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
+    buttons.append([btn("⬅️ Мои операции","mine:list")])
+    message="\\n".join(lines)
+    if message_id is None:
+        send(cid,message,buttons)
+    else:
+        try:
+            api("editMessageText",{"chat_id":cid,"message_id":message_id,"text":message,
+                                  "parse_mode":"HTML","reply_markup":{"inline_keyboard":buttons}})
+        except RuntimeError as e:
+            if "message is not modified" not in str(e):raise
+
 
 def personal_job(cid,uid,oid,aid):
     op=load(OPERATIONS).get(oid)
@@ -591,6 +614,8 @@ def callback(c):
     uid=c["from"]["id"];cid=c["message"]["chat"]["id"];x=c.get("data","")
     if x=="menu":state(uid);start(cid,uid);return
     if x=="mine:list":personal_list(cid,uid);return
+    if x.startswith("mine:refresh:"):
+        personal_op(cid,uid,x.split(":",2)[2],c["message"]["message_id"]);return
     if x.startswith("mine:op:"):personal_op(cid,uid,x.split(":",2)[2]);return
     if x.startswith("mine:job:"):
         _,_,oid,aid=x.split(":",3);personal_job(cid,uid,oid,aid);return
