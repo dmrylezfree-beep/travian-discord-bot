@@ -220,6 +220,7 @@ def show_op(cid,oid):
              [btn("💬 Комментарий",f"oedit:{oid}:op:comment")]]
     if op.get("status")=="published":
         buttons.insert(0,[btn("📣 Повторить рассылку",f"publish:{oid}")])
+        buttons.append([btn("🗑 Удалить операцию",f"opdeleteask:{oid}")])
     else:
         buttons.insert(0,[btn("📢 Опубликовать",f"publish:{oid}")])
         buttons.append([btn("🗑 Удалить черновик",f"odraftask:{oid}")])
@@ -775,6 +776,23 @@ def callback(c):
         send(cid,"🎯 Выберите цель новой отправки.",[[btn(f"{k} · {t['player']}",f"oaddtarget:{oid}:{ouid}:{k}")] for k,t in op["targets"].items()]);return
     if x.startswith("oaddtarget:"):
         _,oid,ouid,key=x.split(":",3);op_new_send(cid,oid,ouid,key);return
+    if x.startswith("opdeleteask:"):
+        if uid not in COORDINATORS:return
+        oid=x.split(":",1)[1]
+        op=load(OPERATIONS).get(oid)
+        if not op or op.get("status")!="published":return
+        send(cid,"Удалить опубликованную операцию без возможности восстановления?",
+             [[btn("Да, удалить",f"opdeleteyes:{oid}")],[btn("Отмена",f"op:{oid}")]])
+        return
+    if x.startswith("opdeleteyes:"):
+        if uid not in COORDINATORS:return
+        oid=x.split(":",1)[1]
+        ops=load(OPERATIONS)
+        if oid not in ops or ops[oid].get("status")!="published":return
+        del ops[oid]
+        op_store(ops,"Delete published operation")
+        list_ops(cid)
+        return
     if x.startswith("odraftask:"):
         oid=x.split(":",1)[1];send(cid,"🗑 Удалить черновик без возможности восстановления?",[[btn("✅ Удалить",f"odraftyes:{oid}")],[btn("⬅️ Отмена",f"op:{oid}")]]);return
     if x.startswith("odraftyes:"):
