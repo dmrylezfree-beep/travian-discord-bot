@@ -1,0 +1,34 @@
+name: Discord VPS migration checks
+
+on:
+  push:
+    branches: [discord-vps-migration]
+    paths:
+      - 'discord_defence_queue_vps.js'
+      - 'discord_defence_queue_vps.test.js'
+      - 'discord_signature_vps.test.js'
+      - 'discord_worker_vps_http.js'
+      - 'defence-worker.js'
+      - 'package.json'
+      - '.github/workflows/discord_vps_ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          node --check defence-worker.js
+          node --check discord_worker_vps_http.js
+          node --check discord_defence_queue_vps.js
+      - name: Offline tests
+        run: node --test discord_defence_queue_vps.test.js discord_signature_vps.test.js
