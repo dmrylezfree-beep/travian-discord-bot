@@ -13,7 +13,7 @@ flock -n 9 || exit 0
 cd "$REPO"
 git fetch --quiet origin "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
 mkdir -p "$TARGET"
-for name in package.json defence-worker.js discord_worker_vps_http.js discord_defence_queue_vps.js discord_defence_queue_vps.test.js discord_signature_vps.test.js; do
+for name in package.json defence-worker.js discord_worker_vps_http.js discord_defence_queue_vps.js discord_defence_queue_vps.test.js discord_signature_vps.test.js discord_staging_sync_marker.txt; do
   git show "origin/$BRANCH:$name" > "$TARGET/$name.tmp"
   mv "$TARGET/$name.tmp" "$TARGET/$name"
 done
