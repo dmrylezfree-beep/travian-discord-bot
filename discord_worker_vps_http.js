@@ -3,6 +3,7 @@
 // STAGING: bind loopback only; do not change Discord Interactions Endpoint yet.
 import http from "node:http";
 import worker from "./defence-worker.js";
+import { makeDefenceQueue } from "./discord_defence_queue_vps.js";
 
 const host = "127.0.0.1";
 const port = Number(process.env.DISCORD_HTTP_PORT || 8787);
@@ -11,7 +12,11 @@ const required = ["DISCORD_BOT_TOKEN", "GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN"];
 const missing = required.filter(k => !process.env[k]);
 if (missing.length) throw new Error("Missing environment variables: " + missing.join(", "));
 
-// Cloudflare queue binding is not available in Node.js. Never advertise full\n// production readiness until a durable VPS scheduler is implemented.\nconst env = Object.freeze(Object.fromEntries(Object.entries(process.env)));
+// Cloudflare queue binding is not available in Node.js. Never advertise full\n// production readiness until a durable VPS scheduler is implemented.\nconst env = { ...process.env };
+const queue = makeDefenceQueue(worker, env, process.env.DISCORD_QUEUE_PATH || "/var/lib/travian-discord/queue.json");
+await queue.init();
+env.DEFENCE_REMINDERS = queue.binding;
+// Queue is intentionally not started until a controlled cutover.
 const MAX_BYTES = 1024 * 1024;
 const pending = new Set();
 
@@ -25,7 +30,7 @@ function background(promise) {
 const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/healthz") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "staging_only", discord_interactions: "signature_verified", reminder_queue: "not_migrated", pending: pending.size }));
+    res.end(JSON.stringify({ status: "staging_only", discord_interactions: "signature_verified", reminder_queue: "staged_not_running", pending: pending.size }));
     return;
   }
   // Only the Discord interactions route is exposed by this adapter.
