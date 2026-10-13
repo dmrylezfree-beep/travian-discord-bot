@@ -11,7 +11,7 @@ const required = ["DISCORD_BOT_TOKEN", "GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN"];
 const missing = required.filter(k => !process.env[k]);
 if (missing.length) throw new Error("Missing environment variables: " + missing.join(", "));
 
-const env = Object.freeze(Object.fromEntries(Object.entries(process.env)));
+// Cloudflare queue binding is not available in Node.js. Never advertise full\n// production readiness until a durable VPS scheduler is implemented.\nconst env = Object.freeze(Object.fromEntries(Object.entries(process.env)));
 const MAX_BYTES = 1024 * 1024;
 const pending = new Set();
 
@@ -25,7 +25,7 @@ function background(promise) {
 const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/healthz") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", mode: "staging", pending: pending.size }));
+    res.end(JSON.stringify({ status: "staging_only", discord_interactions: "signature_verified", reminder_queue: "not_migrated", pending: pending.size }));
     return;
   }
   // Only the Discord interactions route is exposed by this adapter.
