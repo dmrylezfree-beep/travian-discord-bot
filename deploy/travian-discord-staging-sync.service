@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Travian Discord staging updates
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/travian-discord-bot
+ExecStart=/usr/bin/bash /usr/local/libexec/travian-discord-staging-sync.sh
+TimeoutStartSec=180
