@@ -1,3 +1,4 @@
+// STAGING_SYNC_CHECK_20261013: harmless marker to verify automatic VPS refresh.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
