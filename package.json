@@ -1,0 +1,11 @@
+{
+  "name": "travian-discord-vps",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "discord:staging": "node discord_defence_gateway.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.22.1"
+  }
+}
