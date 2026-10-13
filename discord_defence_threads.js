@@ -46,10 +46,10 @@ function cardText(q) {
 async function findThread(channel, q) {
   const name = threadName(q);
   const active = await channel.guild.channels.fetchActiveThreads();
-  const found = active.threads.find(t => t.parentId === channel.id && t.name === name);
+  const found = active.threads.find(t => t.parentId === channel.id && (t.name === name || t.name.includes(`#${q.id} `) || t.name.includes(`#${q.id} —`)));
   if (found) return found;
   const archived = await channel.threads.fetchArchived({ type: "public", limit: 100 });
-  return archived.threads.find(t => t.name === name) || null;
+  return archived.threads.find(t => t.name === name || t.name.includes(`#${q.id} `) || t.name.includes(`#${q.id} —`)) || null;
 }
 
 async function syncCard(thread, q, botId) {
@@ -71,6 +71,7 @@ export async function syncDefenceThreadsVps(client, requests, { publish = false 
   if (!publish) throw new Error("Discord VPS publishing is disabled until cutover");
   const channel = await client.channels.fetch(CHANNEL_ID);
   if (!channel?.threads || !channel?.send) throw new Error("Defence channel is not a text channel");
+  if (!Array.isArray(requests)) throw new Error("Invalid requests state");
   const active = activeDefenceRequests(requests);
   const activeIds = new Set(active.map(q => Number(q.id)));
   const failures = [];
