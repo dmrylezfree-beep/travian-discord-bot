@@ -16,12 +16,12 @@ function hexToBytes(hex) {
   return Uint8Array.from(hex.match(/.{2}/g).map(x => parseInt(x, 16)));
 }
 
-async function verifyDiscordRequest(request, rawBody) {
+export async function verifyDiscordRequest(request, rawBody, publicKeyHex = DISCORD_PUBLIC_KEY) {
   const signature = request.headers.get("X-Signature-Ed25519");
   const timestamp = request.headers.get("X-Signature-Timestamp");
   if (!signature || !timestamp) return false;
   try {
-    const key = await crypto.subtle.importKey("raw", hexToBytes(DISCORD_PUBLIC_KEY), { name: "Ed25519" }, false, ["verify"]);
+    const key = await crypto.subtle.importKey("raw", hexToBytes(publicKeyHex), { name: "Ed25519" }, false, ["verify"]);
     const data = new TextEncoder().encode(timestamp + rawBody);
     return await crypto.subtle.verify("Ed25519", key, hexToBytes(signature), data);
   } catch (error) {
