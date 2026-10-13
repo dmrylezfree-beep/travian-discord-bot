@@ -20,6 +20,7 @@ export function makeDefenceQueue(worker, env, file) {
     return saving;
   };
   async function init() {
+    await saving;
     try {
       const value = JSON.parse(await readFile(file,"utf8"));
       if (!Array.isArray(value)) throw Error("Invalid queue file");
@@ -35,7 +36,8 @@ export function makeDefenceQueue(worker, env, file) {
       if(!Number.isFinite(delay)||delay<0)throw Error("Invalid queue delay");
       const job = {id:randomUUID(),body,due:Date.now()+delay*1000,tries:0};
       jobs.push(job);
-      await save();
+      try { await save(); }
+      catch (error) { jobs = jobs.filter(item => item.id !== job.id); throw error; }
     }
   };
   async function run() {
