@@ -12,7 +12,9 @@ const required = ["DISCORD_BOT_TOKEN", "GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN"];
 const missing = required.filter(k => !process.env[k]);
 if (missing.length) throw new Error("Missing environment variables: " + missing.join(", "));
 
-// Cloudflare queue binding is not available in Node.js. Never advertise full\n// production readiness until a durable VPS scheduler is implemented.\nconst env = { ...process.env };
+// Cloudflare queue binding is not available in Node.js.
+// Never advertise production readiness before the scheduler is tested.
+const env = { ...process.env };
 const queue = makeDefenceQueue(worker, env, process.env.DISCORD_QUEUE_PATH || "/var/lib/travian-discord/queue.json");
 await queue.init();
 env.DEFENCE_REMINDERS = queue.binding;
