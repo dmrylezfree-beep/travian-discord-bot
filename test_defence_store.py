@@ -42,6 +42,12 @@ class StoreTests(unittest.TestCase):
     save('requests.json',a)
     with self.assertRaises(Conflict):save('requests.json',b)
     self.assertEqual(load('requests.json',[])[0]['collected_def'],0)
+ def test_concurrent_registration_cannot_claim_same_account(self):
+    a=load('discord_players.json',{});b=load('discord_players.json',{})
+    a['one']={'travian_uid':123};b['two']={'travian_uid':123}
+    save('discord_players.json',a)
+    with self.assertRaises(Conflict):save('discord_players.json',b)
+    self.assertEqual(set(load('discord_players.json',{})),{'one'})
  def test_untracked_write_and_path_traversal_rejected(self):
     with self.assertRaises(Conflict):save('players.json',{})
     with self.assertRaises(ValueError):load('../token',{})

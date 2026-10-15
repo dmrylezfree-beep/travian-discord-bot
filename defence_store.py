@@ -108,6 +108,19 @@ def commit(name, desired, base):
             result = merge(base, desired, current)
         else:
             result = merge(base, desired, current)
+        if name == 'discord_players.json':
+            # The registration lookup precedes this transaction. Recheck new
+            # account claims under the shared lock so two concurrent users
+            # cannot register the same Travian account.
+            for player_id, player in result.items():
+                uid = player.get('travian_uid') if isinstance(player, dict) else None
+                previous = current.get(player_id, {})
+                if not uid or str(uid) == str(previous.get('travian_uid', '')):
+                    continue
+                if any(other_id != player_id and isinstance(other, dict)
+                       and str(other.get('travian_uid', '')) == str(uid)
+                       for other_id, other in result.items()):
+                    raise Conflict('Travian account already registered')
         atomic_write(checked(name), result)
     return result
 
