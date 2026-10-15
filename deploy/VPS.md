@@ -11,3 +11,9 @@ An update to main is authorization to deploy the managed code automatically. Mak
 Existing map snapshot backups and their GitHub schedules are retained. Bot data backup policy is separate from code deployment; no automatic import from a backup into live state occurs.
 
 Local synchronization uses the persistent reminder queue and a periodic recovery timer. Delivery is at least once: an external message can be repeated after a crash between sending and acknowledgement. Old Cloudflare queue resources may only be retired after confirming all outstanding and delayed messages are drained.
+
+## Completed cutover (2026-10-15)
+
+The owner confirmed Discord and Telegram commands/forms work after switching. All seven services are active; state contains 27 Telegram profiles, 5 Discord profiles and 9 requests. The old defence Actions were disabled by the owner. Cloudflare production/preview URLs and automatic builds are disabled for all three legacy Workers; no cron triggers remain. The old reminder queue was empty (including delayed backlog), had no DLQ, and its consumer was detached without deleting the queue.
+
+The hourly GitHub backup now contains 21 allowlisted JSON documents plus a consistent SQLite copy at backups/vps-state/latest.json. The owner explicitly approved the current public repository. A downloaded backup passed a SQLite integrity check. Existing map snapshot backups remain enabled. The main code update timer is enabled and has successfully checked the current release; it only installs allowlisted code files after validation. Dependency changes and systemd/updater changes still require a reviewed maintenance deployment. No synthetic notification delivery was sent during this migration.
