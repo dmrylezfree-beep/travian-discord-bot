@@ -1,0 +1,9 @@
+[Unit]
+Description=Install tested Travian code updates from GitHub main
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/libexec/travian-vps-update.py
+TimeoutStartSec=600
+UMask=0077

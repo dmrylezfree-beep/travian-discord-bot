@@ -105,18 +105,8 @@ def set_language(user_id, language):
 
 
 def _persist():
-    try:
-        subprocess.run(["git", "config", "user.name", "travian-bots"], check=False, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "travian-bots@users.noreply.github.com"], check=False, capture_output=True)
-        subprocess.run(["git", "add", str(PREFERENCES_FILE)], check=False, capture_output=True)
-        status = subprocess.run(["git", "status", "--porcelain", str(PREFERENCES_FILE)], text=True, capture_output=True)
-        if not status.stdout.strip():
-            return
-        subprocess.run(["git", "commit", "-m", "Update bot language preference"], check=False, capture_output=True)
-        subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=False, capture_output=True)
-        subprocess.run(["git", "push", "origin", "HEAD:main"], check=False, capture_output=True)
-    except Exception as exc:
-        print("Language preference persistence error:", repr(exc), flush=True)
+    # Preferences are saved locally; backup is a separate maintenance job.
+    return None
 
 
 def language_keyboard(prefix="lang"):

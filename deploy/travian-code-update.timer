@@ -1,0 +1,9 @@
+[Unit]
+Description=Check GitHub for Travian code updates every five minutes
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+Unit=travian-code-update.service
+[Install]
+WantedBy=timers.target

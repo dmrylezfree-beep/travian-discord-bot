@@ -1,0 +1,6 @@
+{
+  "name": "travian-discord-gateway-candidate",
+  "private": true,
+  "type": "module",
+  "dependencies": {"discord.js": "14.22.1"}
+}

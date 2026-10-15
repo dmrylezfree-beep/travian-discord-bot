@@ -1,0 +1,8 @@
+[Unit]
+Description=Hourly backup of VPS bot state to GitHub
+[Timer]
+OnBootSec=10min
+OnUnitInactiveSec=1h
+Unit=travian-state-backup.service
+[Install]
+WantedBy=timers.target

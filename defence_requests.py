@@ -12,12 +12,14 @@ from travian_bot import parse_map_data, SERVER_URL
 SNAPSHOT_DIR = Path("data/snapshots")
 STATE_FILE = bot.DATA_DIR / "state.json"
 SERVER_TZ = ZoneInfo("Europe/London")
-DEFENCE_WORKER_URL = "https://travian-defence.dmrylezfree.workers.dev"
+DEFENCE_WORKER_URL = os.environ.get("DEFENCE_WORKER_URL", "http://127.0.0.1:18788").rstrip("/")
 # The Russian VPS may not have reliable direct HTTPS access to Cloudflare.
 # Reuse the already configured Telegram HTTPS proxy for Worker traffic unless
 # a dedicated DEFENCE_WORKER_PROXY_URL is provided.
 DEFENCE_WORKER_PROXY_URL = os.environ.get("DEFENCE_WORKER_PROXY_URL") or os.environ.get("TELEGRAM_PROXY_URL")
 DEFENCE_WORKER_PROXIES = {"https": DEFENCE_WORKER_PROXY_URL} if DEFENCE_WORKER_PROXY_URL else None
+if DEFENCE_WORKER_URL == "http://127.0.0.1:18788":
+    DEFENCE_WORKER_PROXIES = {"http": "", "https": ""}
 _snapshot_cache_path = None
 _snapshot_cache = None
 

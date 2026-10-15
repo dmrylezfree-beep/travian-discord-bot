@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup local Travian state to owner-approved public GitHub repository
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/travian-discord-bot
+EnvironmentFile=/etc/travian-bots.env
+ExecStart=/usr/bin/python3 /usr/local/libexec/travian-vps-state-backup.py
+TimeoutStartSec=300
+UMask=0077

@@ -109,7 +109,7 @@ def normalize_date_time_message(message):
     return normalized
 
 
-def process_update(update):
+def _process_update(update):
     if "callback_query" in update:
         defence.handle_update(callback=update["callback_query"])
         return True
@@ -121,6 +121,22 @@ def process_update(update):
         return True
 
     return False
+
+
+def process_update(update):
+    import fcntl
+    from defence_store import root, Conflict
+    with open(root() / '.telegram-sync.lock', 'a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            return _process_update(update)
+        except Conflict:
+            callback = update.get('callback_query') or {}
+            message = update.get('message') or callback.get('message') or {}
+            chat_id = message.get('chat', {}).get('id')
+            if chat_id:
+                bot.send(chat_id, 'Данные изменились одновременно с вашим действием. Откройте заявку заново и повторите действие.')
+            return True
 
 
 def watchdog(state, stop_event):

@@ -9,8 +9,11 @@ import requests
 
 TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
 TELEGRAM_PROXIES = {"https": TELEGRAM_PROXY_URL} if TELEGRAM_PROXY_URL else None
+DEFENCE_WORKER_URL = os.environ.get("DEFENCE_WORKER_URL", "http://127.0.0.1:18788").rstrip("/")
 DEFENCE_WORKER_PROXY_URL = os.environ.get("DEFENCE_WORKER_PROXY_URL") or TELEGRAM_PROXY_URL
 DEFENCE_WORKER_PROXIES = {"https": DEFENCE_WORKER_PROXY_URL} if DEFENCE_WORKER_PROXY_URL else None
+if DEFENCE_WORKER_URL == "http://127.0.0.1:18788":
+    DEFENCE_WORKER_PROXIES = {"http": "", "https": ""}
 
 TELEGRAM_TOKEN = os.environ.get("DEFENCE_TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 THREAD_ID = 38636
@@ -35,17 +38,13 @@ RACES = {
 
 
 def load_json(path, default):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return default
+    from defence_store import load
+    return load(Path(path).name, default)
 
 
 def save_json(path, value):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    from defence_store import save
+    save(Path(path).name, value)
 
 
 def settings():
@@ -65,68 +64,8 @@ def save_players(value):
 
 
 def persist_data():
-    git_timeout = int(os.environ.get("DEFENCE_GIT_TIMEOUT", "20"))
-
-    def run_git(args, **kwargs):
-        return subprocess.run(
-            ["git", *args],
-            timeout=git_timeout,
-            **kwargs,
-        )
-
-    try:
-        run_git(["config", "user.name", "defence-bot"], check=False, capture_output=True)
-        run_git(["config", "user.email", "defence-bot@users.noreply.github.com"], check=False, capture_output=True)
-        status = run_git(["status", "--porcelain", "data/defence"], text=True, capture_output=True)
-        if not status.stdout.strip():
-            return
-        requests_changed = any(
-            line.strip().endswith("data/defence/requests.json")
-            for line in status.stdout.splitlines()
-        )
-        run_git(["add", "data/defence"], check=True, capture_output=True)
-        run_git(["commit", "-m", "Update defence bot data"], check=False, capture_output=True)
-        pull = run_git(
-            ["pull", "--rebase", "origin", "main"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if pull.returncode != 0:
-            print(
-                "Git pull/rebase failed; local data is saved and Telegram polling will continue:",
-                (pull.stderr or pull.stdout or "").strip()[:1000],
-                flush=True,
-            )
-            return
-        push = run_git(
-            ["push", "origin", "HEAD:main"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if push.returncode == 0 and requests_changed and TELEGRAM_TOKEN:
-            try:
-                response = requests.post(
-                    "https://travian-defence.dmrylezfree.workers.dev/discord/refresh",
-                    headers={"Authorization": f"Bearer {TELEGRAM_TOKEN}"},
-                    timeout=40,
-                    proxies=DEFENCE_WORKER_PROXIES,
-                )
-                if not response.ok:
-                    print("Discord centre refresh failed:", response.status_code, response.text[:1000], flush=True)
-                else:
-                    print("Discord centre refreshed after requests.json change.", flush=True)
-            except Exception as sync_exc:
-                print("Discord centre refresh error:", sync_exc, flush=True)
-    except subprocess.TimeoutExpired as exc:
-        print(
-            f"Git persistence timeout after {git_timeout}s during {exc.cmd}; "
-            "local data is saved and Telegram polling will continue.",
-            flush=True,
-        )
-    except Exception as exc:
-        print("Git persistence error:", exc, flush=True)
+    # State is durable on VPS. GitHub backup/update jobs run separately.
+    return None
 
 
 def tg(method, **kwargs):
