@@ -1200,6 +1200,8 @@ def refresh_center(chat_id=None, create_if_missing=False):
                     details = (response.text or "").lower()
                 except Exception:
                     details = ""
+            if status_code == 400 and "message is not modified" in details:
+                return True
             stale = status_code == 400 or (
                 "message to edit not found" in details
                 or "message_id_invalid" in details

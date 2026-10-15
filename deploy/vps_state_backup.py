@@ -8,6 +8,7 @@ FILES += ['data/alliance_ops/'+name+'.json' for name in ['offers','operations','
 FILES += ['data/attacks/'+name+'.json' for name in ['offers','scouts','attacks','important_villages','preferences','scout_villages']]
 FILES += ['data/crop_fields/'+name+'.json' for name in ['state','reservations','crop_fields']]
 
+QUEUE=pathlib.Path('/var/lib/travian-defence-local/jobs.sqlite')
 URL='https://api.github.com/repos/dmrylezfree-beep/travian-discord-bot/contents/backups/vps-state/latest.json'
 
 def collect():
@@ -19,7 +20,7 @@ def collect():
   for path in FILES:
    full=APP/path
    if full.exists():documents[path]=json.loads(full.read_text())
- source=sqlite3.connect('file:/var/lib/travian-defence-local/jobs.sqlite?mode=ro',uri=True)
+ source=sqlite3.connect('file:'+str(QUEUE)+'?mode=ro',uri=True)
  with tempfile.TemporaryDirectory() as directory:
   target=sqlite3.connect(str(pathlib.Path(directory)/'queue.sqlite'))
   source.backup(target);target.close();source.close()

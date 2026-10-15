@@ -54,7 +54,7 @@ def validate(candidate,items):
  tests=sorted(str(x) for x in (candidate/'vps-runtime').glob('*.test.js'))
  if not tests:raise RuntimeError('Missing runtime tests')
  run(['/usr/bin/node','--test',*tests],cwd=candidate/'vps-runtime',env=env,timeout=120)
- run([str(APP/'.venv/bin/python'),'-m','unittest','discover','-s',str(candidate),'-p','test_defence_store.py'],env=env,timeout=60)
+ run([str(APP/'.venv/bin/python'),'-m','unittest','discover','-s',str(candidate),'-p','test_*.py'],env=env,timeout=60)
 
 def apply(candidate,items,current,commit):
  changes=[i for i in items if sha(candidate/i['source'])!=current[i['target']]]
