@@ -194,7 +194,9 @@ def personal_villages(cid,uid,action='view'):
 def personal_village(cid,uid,key):
     offer=owns_offer(uid,key)
     if not offer:send(cid,'Деревня недоступна.');return
-    send(cid,fmt_offer(offer),[[btn('🔄 Войска',f'village:army:{key}'),btn('🏟 Арена',f'village:arena:{key}')],
+    point_text='\n\n🛡 Сейв-точки: '+(', '.join(f"{p[0]}|{p[1]}" for p in offer.get('save_points',[])) or 'не заданы')
+    send(cid,fmt_offer(offer)+point_text,[[btn('🔄 Войска',f'village:army:{key}'),btn('🏟 Арена',f'village:arena:{key}')],
+         [btn('🛡 Сейв-точки',f'village:points:{key}')],
          [btn('✏️ Изменить координаты',f'village:coords:{key}')],[btn('🗑 Удалить деревню',f'village:delete:{key}')],
          [btn('⬅️ Мои деревни','village:list')]])
 
@@ -443,7 +445,7 @@ def generate_op(uid,d):
     if any(key not in offers_all for key in d.get('offers',[])):raise ValueError('Офф-деревня удалена. Выберите офферов заново.')
     arrival_dt=datetime.fromisoformat(d["arrival_iso"])
     op={"id":oid,"name":"Операция","status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
-        "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,
+        "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,"creator_username":d.get("creator_username"),"creator_name":d.get("creator_name"),
         "comment":"","offers":{},"targets":{},"attacks":{},
         "enemy_alliance_key":d["alliance_key"],"enemy_alliance":d.get("alliance_name","")}
     for ouid in d["offers"]:
@@ -688,6 +690,71 @@ def spam_hint(op,uid,real):
     return "\n".join(lines)
 
 
+def village_points_prompt(cid,uid,key):
+    offer=owns_offer(uid,key)
+    if not offer:send(cid,'Деревня недоступна.');return
+    state(uid,'village_save_points',{'key':key})
+    points=offer.get('save_points',[])
+    text='🛡 <b>Постоянные сейв-точки деревни</b>\n'+html.escape(village_label(offer))+'\nВведите до 10 координат, каждую с новой строки:\n<code>13|3\n-20 45</code>\nСписок заменит предыдущий. Для очистки отправьте <code>-</code>.'
+    if points:text+='\nСохранены: '+', '.join(f'{p[0]}|{p[1]}' for p in points)
+    send(cid,text,[[btn('Отмена',f'village:view:{key}')]])
+
+
+def save_option(op,uid,aid,point):
+    attack=op.get('attacks',{}).get(aid)
+    if op.get('status')!='published' or not attack or op_owner(op,attack['offer_id'])!=str(uid):return None
+    if attack.get('mode') not in ('destroy','capture') or attack.get('sent_at'):return None
+    key=attack['offer_id'];offer=owns_offer(uid,key)
+    if not offer or not same_origin(offer,op['offers'][key]) or point not in offer.get('save_points',[]):return None
+    departure,_=op_travel(attack,op)
+    if not departure:return None
+    start,arrival,back,distance=save_trip(op['offers'][key],point,int(offer['arena']),departure)
+    return key,start,arrival,back
+
+
+def choose_save_point(cid,uid,oid,aid,point=None):
+    op=personal_operation(uid,oid);attack=op.get('attacks',{}).get(aid) if op else None
+    if not attack or op_owner(op,attack['offer_id'])!=str(uid):send(cid,'⛔ План недоступен.');return
+    offers=load(OFFERS);key=attack['offer_id'];offer=owns_offer(uid,key)
+    if not offer:send(cid,'Деревня недоступна.');return
+    ident=f'{oid}:{aid}';reminders=offers[key].setdefault('save_reminders',{})
+    if point is None:
+        reminders.pop(ident,None);send(cid,'🔕 Напоминание о сейве отменено.')
+    else:
+        option=save_option(op,uid,aid,point)
+        if not option or option[1]<=datetime.now(TZ):send(cid,'Точка недоступна или время выхода уже прошло. Обновите план.');return
+        previous=reminders.get(ident,{})
+        if previous.get('point')!=point:reminders[ident]={'oid':oid,'aid':aid,'point':point}
+        start=option[1];due=start-timedelta(minutes=5)
+        send(cid,f"🔔 Выбрана точка <b>{point[0]}|{point[1]}</b>. Выход: <b>{start.strftime('%d.%m %H:%M:%S')}</b> (МСК). "+('Напоминание придёт в ближайшее время: до выхода меньше пяти минут.' if due<=datetime.now(TZ) else f"Напомню за 5 минут — {due.strftime('%d.%m %H:%M:%S')}."))
+    save(OFFERS,offers);persist('Update personal save reminder')
+    personal_support(cid,uid,oid,'save',aid)
+
+
+def send_save_reminders():
+    offers=load(OFFERS);ops=load(OPERATIONS);current=datetime.now(TZ)
+    for key,offer in offers.items():
+        reminders=offer.get('save_reminders',{})
+        for ident,selection in list(reminders.items()):
+            op=ops.get(selection.get('oid'),{});uid=offer_owner(key,offer);point=selection.get('point')
+            try:option=save_option(op,uid,selection.get('aid'),point)
+            except (ValueError,TypeError,KeyError):option=None
+            if not option or option[0]!=key or option[1]<=current:
+                reminders.pop(ident,None);save(OFFERS,offers);continue
+            _,start,arrival,back=option
+            marker=start.isoformat()+'|'+str(point)
+            if current<start-timedelta(minutes=5) or selection.get('sent_for')==marker:continue
+            oid=selection['oid'];aid=selection['aid']
+            text=(f"🔔 <b>Пора подготовить сейв армии</b>\n{html.escape(op.get('name','Операция'))}\n"
+                  f"🏘 Из: <b>{offer['x']}|{offer['y']}</b> → <b>{point[0]}|{point[1]}</b>\n"
+                  f"Отправить: <b>{start.strftime('%d.%m.%Y %H:%M:%S')}</b> (МСК)\n"
+                  f"Вернуться: <b>{back.strftime('%d.%m %H:%M:%S')}</b> — за минуту до реальной атаки.\n"
+                  'Скорость 3, полный поход туда и обратно.')
+            try:send(int(uid),text,[[btn('🛡 Открыть сейв',f'mine:save:{oid}:{aid}')]])
+            except Exception:print('Save reminder delivery failed; will retry',flush=True);continue
+            selection['sent_for']=marker;selection['sent_at']=now();save(OFFERS,offers)
+
+
 def personal_support(cid,uid,oid,kind="save",aid=None):
     op=personal_operation(uid,oid)
     if not op:send(cid,"⛔ Этот план недоступен.");return
@@ -706,19 +773,33 @@ def personal_support(cid,uid,oid,kind="save",aid=None):
             lines.extend([f"Скорость: <b>3</b> · Текущая арена: <b>{arena}</b>","Полный поход туда и обратно, без бонусов героя и артефактов."])
             points=offer.get('save_points',[])
             if not points:lines.append("Сейв-точки ещё не заданы.")
+            choice=offer.get('save_reminders',{}).get(f"{oid}:{real['id']}",{})
             for point in points:
                 try:start,arrival,back,distance=save_trip(origin,point,arena,departure)
                 except ValueError:continue
                 lines.extend(["",f"📍 <b>{point[0]}|{point[1]}</b> · {distance:.2f} клеток",
                               f"Уйти: <code>{start.strftime('%d.%m %H:%M:%S')}</code>"+(" — время уже прошло" if start<=datetime.now(TZ) else ""),
                               f"Прибыть в точку: {arrival.strftime('%d.%m %H:%M:%S')}",f"Вернуться: <b>{back.strftime('%d.%m %H:%M:%S')}</b>"])
+                if start>datetime.now(TZ) and owns_offer(uid,real['offer_id']) and same_origin(offer,origin):
+                    mark='✅' if choice.get('point')==point else '🔔'
+                    buttons.append([btn(f"{mark} {point[0]}|{point[1]} · {start.strftime('%d.%m %H:%M:%S')}",f"mine:choose:{oid}:{real['id']}:{point[0]}:{point[1]}")])
+            if choice:buttons.append([btn('🔕 Отменить напоминание',f"mine:unsave:{oid}:{real['id']}")])
+            lines.append('Нажмите точку, чтобы включить личное напоминание за 5 минут до выхода. Для этой атаки выбирается одна точка.')
+            if not points:lines.append('Задайте постоянные точки в настройках офф-деревни.')
             lines.extend(["","Выбирайте проверенные свободные оазисы или неактивные деревни: бот не проверяет гарнизон точки.","",spam_hint(op,uid,real)])
         else:lines.append(spam_hint(op,uid,real))
         buttons.extend([[btn(f"🎯 {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']} · {op_travel(a,op)[0].strftime('%H:%M:%S')}",f"mine:{kind}:{oid}:{a['id']}")] for a in jobs if a['id']!=real['id']])
     else:lines=["В плане нет предстоящей реальной атаки. Сейв рассчитывается для уничтожения или захвата; спам не служит временем возврата."]
-    if kind=="save":buttons.append([btn("✏️ Задать сейв-точки",f"mine:points:{oid}:{real['id'] if real else '-'}")])
     buttons.append([btn("⬅️ Весь план",f"mine:op:{oid}")])
     send(cid,"\n".join(lines),buttons)
+
+
+def creator_tag(op):
+    uid=str(op.get('created_by',''))
+    if not uid.isdigit():return 'не указан'
+    username=str(op.get('creator_username') or '').lstrip('@')
+    label='@'+username if username else str(op.get('creator_name') or 'Профиль создателя')
+    return f'<a href="tg://user?id={uid}">{html.escape(label)}</a>'
 
 
 def personal_op(cid,uid,oid,message_id=None):
@@ -732,6 +813,7 @@ def personal_op(cid,uid,oid,message_id=None):
     future=[(dt,a) for dt,a in pending if dt and dt>current]
     overdue=[(dt,a) for dt,a in pending if dt and dt<=current]
     lines=[f"⚔️ <b>{html.escape(op['name'])}</b>",
+           "Автор: "+creator_tag(op),
            f"Готовность: {'✅ подтверждена' if op.get('ready',{}).get(str(uid)) else '⏳ не подтверждена'}",
            f"Отправлено: <b>{done} из {len(jobs)}</b>",""]
     if future:
@@ -843,20 +925,19 @@ def handle_message(m):
     st=getstate(uid)
     if not st:send(cid,"Используйте /start, чтобы открыть меню.");return
     step=st["step"];d=st["data"]
-    if step=="save_points":
-        op=personal_operation(uid,d["oid"]);offers=load(OFFERS)
-        real=selected_real(op,uid,d.get('aid')) if op else None
-        key=d.get('key') or (real['offer_id'] if real else str(uid));offer=owns_offer(uid,key)
-        if not op or not offer:state(uid);send(cid,"⛔ План или офф-деревня недоступны.");return
+    if step in ('village_save_points','save_points'):
+        offers=load(OFFERS);key=d.get('key',str(uid));offer=owns_offer(uid,key)
+        if not offer:state(uid);send(cid,'Деревня недоступна.');return
         try:
             points=save_points_parse(text)
-            origin=op['offers'][key]
-            if not same_origin(offer,origin):raise ValueError('Деревня в плане изменилась. Обратитесь к координатору.')
-            if [int(origin['x']),int(origin['y'])] in points:raise ValueError("Сейв-точка не должна совпадать с вашей офф-деревней.")
-        except ValueError as exc:send(cid,"❌ "+str(exc));return
-        offers[key]['save_points']=points;save(OFFERS,offers);persist("Update alliance ops save points");state(uid)
-        send(cid,"✅ Сейв-точки сохранены." if points else "✅ Сейв-точки очищены.")
-        personal_support(cid,uid,d['oid'],"save",d.get("aid"));return
+            if [int(offer['x']),int(offer['y'])] in points:raise ValueError('Сейв-точка не должна совпадать с офф-деревней.')
+        except ValueError as exc:send(cid,'❌ '+str(exc));return
+        offers[key]['save_points']=points
+        pending=offers[key].get('save_reminders',{})
+        offers[key]['save_reminders']={ident:item for ident,item in pending.items() if item.get('point') in points}
+        save(OFFERS,offers);persist('Update permanent village save points');state(uid)
+        send(cid,'✅ Сейв-точки сохранены.' if points else '✅ Сейв-точки очищены.')
+        personal_village(cid,uid,key);return
     if step in ("reg_coords","target_coords"):
         c=coords(text)
         if not c:send(cid,"❌ Введите координаты через пробел, например <code>55 46</code>.");return
@@ -1010,20 +1091,21 @@ def callback(c):
     if x.startswith("offers:ro:view:"):
         if uid not in COORDINATORS:return
         coordinator_offer_view(cid,x.rsplit(":",1)[1]);return
+    if x.startswith(('mine:choose:','mine:unsave:')):
+        parts=x.split(':')
+        if parts[1]=='choose':
+            if len(parts)!=6:return
+            try:point=[int(parts[4]),int(parts[5])]
+            except ValueError:return
+            choose_save_point(cid,uid,parts[2],parts[3],point)
+        elif len(parts)==4:choose_save_point(cid,uid,parts[2],parts[3])
+        return
     if x.startswith(("mine:save:","mine:spam:","mine:points:")):
         parts=x.split(":");kind=parts[1];oid=parts[2];aid=parts[3] if len(parts)>3 and parts[3]!="-" else None
         op=personal_operation(uid,oid)
         if not op:send(cid,"⛔ Этот план недоступен.");return
         if kind=="points":
-            real=selected_real(op,uid,aid)
-            if not real:send(cid,'Выберите предстоящую реальную атаку.');return
-            key=real['offer_id'];offer=owns_offer(uid,key)
-            if not offer or not same_origin(offer,op['offers'][key]):send(cid,'Деревня этого плана удалена или изменена. Обратитесь к координатору.');return
-            state(uid,"save_points",{"oid":oid,"aid":real['id'],"key":key})
-            existing=offer.get('save_points',[])
-            text="🛡 <b>Сейв-точки</b>\nВведите до 10 координат, каждую с новой строки:\n<code>13|3\n-20 45</code>\nСписок заменит предыдущий. Для очистки отправьте <code>-</code>."
-            if existing:text+="\nСохранены: "+", ".join(f"{p[0]}|{p[1]}" for p in existing)
-            send(cid,text,[[btn("Отмена",f"mine:save:{oid}")]]);return
+            send(cid,'Сейв-точки теперь задаются в «Моих офф-деревнях» → нужная деревня → «Сейв-точки».');return
         state(uid);personal_support(cid,uid,oid,kind,aid);return
     if x=="mine:list":personal_list(cid,uid);return
     if x.startswith("mine:refresh:"):
@@ -1067,6 +1149,7 @@ def callback(c):
         if not offer:send(cid,'Деревня недоступна.');return
         state(uid)
         if action=='view':personal_village(cid,uid,key)
+        elif action=='points':village_points_prompt(cid,uid,key)
         elif action=='army':
             state(uid,'army',{'key':key,'tribe_id':offer['tribe_id']});send(cid,'🔄 Обновите войска этой деревни:\n<pre>'+html.escape(template(offer['tribe_id']))+'</pre>')
         elif action=='arena':state(uid,'arena',{'key':key});send(cid,'🏟 Введите уровень арены этой деревни: 0–20.')
@@ -1124,6 +1207,8 @@ def callback(c):
         if not st or st['step']!='op_pick_targets':return
         d=st['data']
         if not d.get('targets'):send(cid,'❌ Выберите хотя бы одну цель.');return
+        d['creator_username']=c['from'].get('username')
+        d['creator_name']=' '.join(str(c['from'].get(k,'')) for k in ('first_name','last_name')).strip()
         try:oid=generate_op(uid,d)
         except ValueError as exc:
             send(cid,'❌ '+str(exc))
@@ -1259,6 +1344,8 @@ def main():
                     elif "callback_query" in u:callback(u["callback_query"])
                 except Exception as e:print("update error",repr(e),flush=True)
         except Exception as e:print("poll error",repr(e),flush=True);time.sleep(5)
+        try:send_save_reminders()
+        except Exception:print('Save reminder loop failed; will retry',flush=True)
         try:send_reminders()
         except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()

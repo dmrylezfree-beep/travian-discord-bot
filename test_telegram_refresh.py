@@ -108,9 +108,9 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_callback_exposes_forms_and_cancel_clears_state(self):
   o=self.ops
   with patch.object(o,'api'):
-   c={'id':'fixture','from':{'id':1},'message':{'chat':{'id':1}},'data':'mine:points:op:real'}
-   o.callback(c);self.assertEqual(o.getstate(1)['step'],'save_points')
-   c['data']='mine:save:op:real';o.callback(c);self.assertIsNone(o.getstate(1));self.assertIn('Сейв-точки',self.sender.call_args.args[1])
+   c={'id':'fixture','from':{'id':1},'message':{'chat':{'id':1}},'data':'village:points:1'}
+   o.callback(c);self.assertEqual(o.getstate(1)['step'],'village_save_points')
+   c['data']='village:view:1';o.callback(c);self.assertIsNone(o.getstate(1));self.assertIn('Сейв-точки',self.sender.call_args.args[1])
 
  def alliance_targets(self):
   o=self.ops
@@ -238,7 +238,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o.personal_op(1,1,'op');buttons=self.sender.call_args.args[2];text=' '.join(b['text'] for row in buttons for b in row)
   self.assertIn('0|0 →',text);self.assertIn('10|0 →',text)
  def test_save_points_belong_to_selected_origin(self):
-  o=self.ops;self.add_second_village();self.click_village('mine:points:op:second_real')
+  o=self.ops;self.add_second_village();self.click_village('village:points:1_extra')
   self.message_ops('12|0')
   offers=o.load(o.OFFERS);self.assertEqual(offers['1']['save_points'],[[1,0]]);self.assertEqual(offers['1_extra']['save_points'],[[12,0]])
   o.personal_support(1,1,'op','save','second_real');self.assertIn('12|0',self.sender.call_args.args[1]);self.assertIn('10|0',self.sender.call_args.args[1])
@@ -394,5 +394,87 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.assertEqual(o.load(o.OPERATIONS)['op']['arrival'],'02.01.2030 16:00:00')
   self.click_village('obulk:op:all:-',1);self.message_ops('5',1)
   self.assertTrue(all(a['offset']==5 for a in o.load(o.OPERATIONS)['op']['attacks'].values()))
+
+ def save_clock(self,value):
+  from datetime import datetime
+  instant=datetime.fromisoformat(value)
+  class Clock(datetime):
+   @classmethod
+   def now(cls,tz=None):return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+  patcher=patch.object(self.ops,'datetime',Clock);patcher.start();self.addCleanup(patcher.stop)
+ def test_permanent_points_can_be_set_without_any_operation(self):
+  o=self.ops;o.save(o.OPERATIONS,{});self.click_village('village:points:1');self.message_ops('2|0\n3|0')
+  self.assertEqual(o.load(o.OFFERS)['1']['save_points'],[[2,0],[3,0]])
+  self.assertIn('2|0',self.sender.call_args.args[1])
+ def test_plan_shows_timed_choices_and_no_settings_button(self):
+  o=self.ops;o.personal_support(1,1,'op');buttons=self.sender.call_args.args[2]
+  callbacks=[b['callback_data'] for row in buttons for b in row]
+  self.assertIn('mine:choose:op:real:1:0',callbacks);self.assertTrue(all(not c.startswith('mine:points:') for c in callbacks))
+  label=next(b['text'] for row in buttons for b in row if b['callback_data']=='mine:choose:op:real:1:0')
+  self.assertIn('11:19:00',label)
+ def test_reminder_is_durable_and_sent_once_at_five_minutes(self):
+  o=self.ops;self.click_village('mine:choose:op:real:1:0');self.assertIn('op:real',o.load(o.OFFERS)['1']['save_reminders'])
+  self.sender.reset_mock();self.save_clock('2030-01-02T11:13:59+03:00');o.send_save_reminders();self.sender.assert_not_called()
+  self.save_clock('2030-01-02T11:14:00+03:00');o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertEqual(self.sender.call_args.args[0],1)
+  self.assertIn('11:19:00',self.sender.call_args.args[1]);self.assertIn('11:59:00',self.sender.call_args.args[1]);self.assertIn('sent_for',o.load(o.OFFERS)['1']['save_reminders']['op:real'])
+  self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+  self.click_village('mine:choose:op:real:1:0');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+ def test_replacing_selected_point_cancels_previous_time(self):
+  o=self.ops;offers=o.load(o.OFFERS);offers['1']['save_points']=[[1,0],[2,0]];o.save(o.OFFERS,offers)
+  self.click_village('mine:choose:op:real:1:0');self.click_village('mine:choose:op:real:2:0')
+  self.assertEqual(o.load(o.OFFERS)['1']['save_reminders']['op:real']['point'],[2,0])
+  self.save_clock('2030-01-02T10:34:00+03:00');self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertIn('10:39:00',self.sender.call_args.args[1])
+  self.save_clock('2030-01-02T11:14:00+03:00');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+ def test_reminder_cancel_and_point_removal(self):
+  o=self.ops;self.click_village('mine:choose:op:real:1:0');self.click_village('mine:unsave:op:real')
+  self.assertNotIn('op:real',o.load(o.OFFERS)['1']['save_reminders'])
+  self.click_village('mine:choose:op:real:1:0');self.click_village('village:points:1');self.message_ops('-')
+  self.assertEqual(o.load(o.OFFERS)['1']['save_reminders'],{})
+ def test_reminder_delivery_failure_retries_without_marking_sent(self):
+  o=self.ops;self.click_village('mine:choose:op:real:1:0');self.save_clock('2030-01-02T11:14:00+03:00')
+  self.sender.side_effect=RuntimeError('fixture offline');o.send_save_reminders()
+  self.assertNotIn('sent_for',o.load(o.OFFERS)['1']['save_reminders']['op:real'])
+  self.sender.side_effect=None;self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1)
+ def test_plan_retime_reschedules_selected_point(self):
+  o=self.ops;self.click_village('mine:choose:op:real:1:0')
+  plans=o.load(o.OPERATIONS);plans['op']['attacks']['real']['arrival_iso']='2030-01-02T13:20:00+03:00';o.save(o.OPERATIONS,plans)
+  self.save_clock('2030-01-02T11:14:00+03:00');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+  self.save_clock('2030-01-02T12:14:00+03:00');o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertIn('12:19:00',self.sender.call_args.args[1])
+ def test_invalidated_attack_or_registration_drops_reminder(self):
+  import copy
+  o=self.ops;self.click_village('mine:choose:op:real:1:0');base_offers=o.load(o.OFFERS);base_ops=o.load(o.OPERATIONS)
+  for case in ['deleted_operation','unpublished','sent','spam','removed_village','changed_origin']:
+   with self.subTest(case=case):
+    offers=copy.deepcopy(base_offers);plans=copy.deepcopy(base_ops)
+    if case=='deleted_operation':plans.pop('op')
+    elif case=='unpublished':plans['op']['status']='draft'
+    elif case=='sent':plans['op']['attacks']['real']['sent_at']='done'
+    elif case=='spam':plans['op']['attacks']['real']['mode']='spam'
+    elif case=='removed_village':offers['1']['deleted_at']='deleted'
+    else:offers['1']['x']=5
+    o.save(o.OFFERS,offers);o.save(o.OPERATIONS,plans);self.sender.reset_mock();o.send_save_reminders()
+    self.sender.assert_not_called();self.assertEqual(o.load(o.OFFERS)['1']['save_reminders'],{})
+ def test_past_save_is_not_selectable_and_never_reminded(self):
+  o=self.ops;self.save_clock('2030-01-02T11:20:00+03:00');self.click_village('mine:choose:op:real:1:0')
+  self.assertFalse(o.load(o.OFFERS)['1'].get('save_reminders'))
+  self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+ def test_within_five_minutes_selection_sends_soon(self):
+  o=self.ops;self.save_clock('2030-01-02T11:16:00+03:00');self.click_village('mine:choose:op:real:1:0')
+  self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1)
+ def test_other_user_and_unregistered_point_cannot_create_reminder(self):
+  o=self.ops;self.click_village('mine:choose:op:real:1:0',uid=2);self.click_village('mine:choose:op:real:99:99',uid=1)
+  self.assertFalse(o.load(o.OFFERS)['1'].get('save_reminders'))
+ def test_creator_telegram_tag_is_stored_and_shown_in_personal_plan(self):
+  o=self.ops;self.alliance_targets();uid=3
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  o.state(uid,'op_pick_targets',d)
+  with patch.object(o,'api'):o.callback({'id':'test','from':{'id':uid,'username':'operation_author','first_name':'Author'},'message':{'chat':{'id':uid}},'data':'opgenerate'})
+  op=next(p for p in o.load(o.OPERATIONS).values() if p.get('created_by')==3)
+  self.assertEqual(op['creator_username'],'operation_author');plans=o.load(o.OPERATIONS);plans[op['id']]['status']='published';o.save(o.OPERATIONS,plans);o.personal_op(1,1,op['id'])
+  self.assertIn('@operation_author',self.sender.call_args.args[1]);self.assertIn('tg://user?id=3',self.sender.call_args.args[1])
+ def test_legacy_creator_has_safe_clickable_profile_without_username(self):
+  o=self.ops;tag=o.creator_tag({'created_by':123,'creator_name':'A < B'})
+  self.assertIn('tg://user?id=123',tag);self.assertIn('A &lt; B',tag)
+  self.assertEqual(o.creator_tag({'created_by':'bad" id'}),'не указан')
 
 if __name__=='__main__':unittest.main()
