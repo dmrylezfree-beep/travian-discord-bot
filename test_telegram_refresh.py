@@ -49,7 +49,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
    def now(cls,tz=None):return cls(2030,1,2,8,tzinfo=ops.TZ).astimezone(tz) if tz else cls(2030,1,2,8)
   patch.object(ops,'datetime',Clock).start()
   offer=dict(x=0,y=0,arena=0,player='fixture',village='origin',tribe_id=1)
-  self.op=dict(id='op',name='Fixture',status='published',offers={'1':offer},targets={'t':dict(x=1,y=0)},attacks={})
+  self.op=dict(id='op',created_by=1,name='Fixture',status='published',offers={'1':offer},targets={'t':dict(x=1,y=0)},attacks={})
   for aid,hour,mode in [('before',11,'spam'),('real',12,'destroy'),('same',12,'spam'),('after',13,'spam')]:
    self.op['attacks'][aid]=dict(id=aid,offer_id='1',target_key='t',mode=mode,arrival_iso=f'2030-01-02T{hour}:20:00+03:00',arena=0,speed=3,waves=2,wave_plan=[{'text':'19 любых юнитов + 1 катапульта'}]*2)
   ops.save(ops.OFFERS,{'1':dict(offer,save_points=[[1,0]])});ops.save(ops.OPERATIONS,{'op':self.op})
@@ -169,10 +169,10 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_map_refresh_does_not_change_existing_operation(self):
   o=self.ops;self.alliance_targets();self.snapshot(9);before=o.load(o.OPERATIONS)
   o.refresh_target_alliances();self.assertEqual(o.load(o.OPERATIONS),before)
- def test_non_coordinator_cannot_choose_alliance(self):
+ def test_ordinary_user_can_choose_alliance(self):
   o=self.ops;self.alliance_targets();o.state(1,'op_pick_alliance',{})
   with patch.object(o,'api'):o.callback({'id':'test','from':{'id':1},'message':{'chat':{'id':1}},'data':'opalliance:2'})
-  self.assertEqual(o.getstate(1)['data'],{})
+  self.assertEqual(o.getstate(1)['data']['alliance_key'],'2')
  def test_new_target_preview_shows_alliance_and_saves_it(self):
   o=self.ops;self.snapshot(7);uid=next(iter(o.COORDINATORS));o.state(uid,'target_coords',{})
   o.handle_message({'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':'1 0'})
@@ -244,7 +244,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o.personal_support(1,1,'op','save','second_real');self.assertIn('12|0',self.sender.call_args.args[1]);self.assertIn('10|0',self.sender.call_args.args[1])
  def test_publishing_sends_one_plan_per_owner_not_per_village(self):
   o=self.ops;self.add_second_village();plans=o.load(o.OPERATIONS);plans['op']['status']='draft';o.save(o.OPERATIONS,plans);self.sender.reset_mock()
-  self.click_village('publish:op',uid=next(iter(o.COORDINATORS)))
+  self.click_village('publish:op',uid=1)
   notices=[call for call in self.sender.call_args_list if 'Ваш персональный план готов' in call.args[1]]
   self.assertEqual(len(notices),1);self.assertEqual(notices[0].args[0],1)
  def test_reminders_use_owner_and_include_origin(self):
@@ -297,5 +297,102 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_coordinate_input_accepts_common_formats(self):
   for text in ['13 3','13|3','13 | 3','13,3']:self.assertEqual(self.ops.coords(text),(13,3))
   self.assertIsNone(self.ops.coords('201|3'));self.assertIsNone(self.ops.coords('13 3 extra'))
+
+ def private_fixture(self):
+  import copy
+  o=self.ops;self.add_second_village();plans=o.load(o.OPERATIONS)
+  plans['op']['created_by']=1;plans['op']['name']='SECRET OWNER ONE'
+  for target in plans['op']['targets'].values():target.update(player='fixture target',village='target village',mode='spam')
+  plans['other']=copy.deepcopy(plans['op']);plans['other'].update(id='other',created_by=2,name='SECRET OWNER TWO')
+  plans['draft']=copy.deepcopy(plans['op']);plans['draft'].update(id='draft',created_by=1,status='draft',name='PRIVATE DRAFT')
+  o.save(o.OPERATIONS,plans);return plans
+ def test_operations_lists_only_the_current_authors_operations(self):
+  o=self.ops;self.private_fixture();o.list_ops(1)
+  text=str(self.sender.call_args);self.assertIn('SECRET OWNER ONE',text);self.assertIn('PRIVATE DRAFT',text);self.assertNotIn('SECRET OWNER TWO',text)
+  o.list_ops(2);text=str(self.sender.call_args);self.assertIn('SECRET OWNER TWO',text);self.assertNotIn('SECRET OWNER ONE',text)
+ def test_every_management_callback_denies_other_users_and_coordinator(self):
+  o=self.ops;self.private_fixture()
+  args={'op':'op','optargets':'op','opoffers':'op','optarget':'op:t','opoffer':'op:1','oa':'op:real','owaves':'op:real','oedit':'op:real:comment','otypes':'op:real','otype':'op:real:spam','owadd':'op:real','owdel':'op:real','odelask':'op:real','odelyes':'op:real','oofferedit':'op:1','oretime':'op','oall':'op','obulk':'op:all:-','oadd':'op','oaddoffer':'op:1','oaddtarget':'op:1:t','opdeleteask':'op','opdeleteyes':'op','odraftask':'op','odraftyes':'op','publish':'op','progress':'op'}
+  self.assertEqual(set(args),set(o.OP_MANAGEMENT_ACTIONS))
+  for actor in [2,next(iter(o.COORDINATORS))]:
+   for action,suffix in args.items():
+    with self.subTest(actor=actor,action=action):
+     before=o.load(o.OPERATIONS);self.sender.reset_mock();self.click_village(action+':'+suffix,uid=actor)
+     self.assertEqual(o.load(o.OPERATIONS),before);self.assertEqual(self.sender.call_count,1)
+     self.assertEqual(self.sender.call_args.args[1],'⛔ Операция недоступна.')
+ def test_direct_full_operation_views_and_mutations_check_owner(self):
+  o=self.ops;self.private_fixture();before=o.load(o.OPERATIONS)
+  for name,extra in [('show_op',()),('op_targets',()),('op_offers',()),('op_target_detail',('t',)),('op_offer_detail',('1',)),('op_attack_view',('real',)),('op_wave_view',('real',)),('op_offer_edit_menu',('1',)),('op_all_edit_menu',()),('op_new_send_picker',()),('op_new_send',('1','t')),('operation_progress',())]:
+   with self.subTest(view=name):
+    self.sender.reset_mock();getattr(o,name)(2,'op',*extra);self.assertEqual(self.sender.call_args.args[1],'⛔ Операция недоступна.')
+  self.assertEqual(o.load(o.OPERATIONS),before)
+ def test_stale_text_edit_states_cannot_modify_another_authors_operation(self):
+  o=self.ops;self.private_fixture();before=o.load(o.OPERATIONS)
+  for step,data,text in [('op_edit_value',{'oid':'op','aid':'real','field':'comment'},'stolen'),('op_change_time',{'oid':'op'},'02.01.2030 15:00:00'),('op_bulk_offset',{'oid':'op','scope':'all','ouid':'-'},'42')]:
+   for actor in [2,next(iter(o.COORDINATORS))]:
+    with self.subTest(step=step,actor=actor):
+     o.state(actor,step,data);self.message_ops(text,uid=actor)
+     self.assertEqual(o.load(o.OPERATIONS),before);self.assertIsNone(o.getstate(actor))
+ def test_ordinary_owner_can_edit_publish_and_delete_own_operations(self):
+  o=self.ops;self.private_fixture()
+  self.click_village('oedit:draft:real:comment',uid=1);self.message_ops('my comment',uid=1)
+  self.assertEqual(o.load(o.OPERATIONS)['draft']['attacks']['real']['comment'],'my comment')
+  self.click_village('publish:draft',uid=1);self.assertEqual(o.load(o.OPERATIONS)['draft']['status'],'published')
+  self.click_village('odraftyes:draft',uid=1);self.assertIn('draft',o.load(o.OPERATIONS))
+  self.click_village('opdeleteyes:draft',uid=1);self.assertNotIn('draft',o.load(o.OPERATIONS));self.assertIn('other',o.load(o.OPERATIONS))
+ def test_participant_sees_only_own_plan_but_not_foreign_management(self):
+  import copy
+  o=self.ops;plans=self.private_fixture();plans['op']['offers']['2']=dict(plans['op']['offers']['1'],telegram_id=2,x=5)
+  plans['op']['attacks']['participant']=dict(plans['op']['attacks']['real'],id='participant',offer_id='2',target_key='own-target')
+  plans['op']['targets']['own-target']=dict(plans['op']['targets']['t']);o.save(o.OPERATIONS,plans)
+  self.click_village('mine:op:op',uid=2);buttons=self.sender.call_args.args[2];callbacks=[b['callback_data'] for row in buttons for b in row]
+  self.assertIn('mine:job:op:participant',callbacks);self.assertNotIn('mine:job:op:real',callbacks)
+  self.click_village('mine:job:op:participant',uid=2);self.assertIn('5|0',self.sender.call_args.args[1])
+  self.click_village('mine:sent:op:participant',uid=2);self.assertIn('sent_at',o.load(o.OPERATIONS)['op']['attacks']['participant'])
+  before=o.load(o.OPERATIONS);self.click_village('mine:sent:op:real',uid=2);self.assertEqual(o.load(o.OPERATIONS),before)
+  self.click_village('op:op',uid=2);self.assertEqual(self.sender.call_args.args[1],'⛔ Операция недоступна.')
+  self.sender.reset_mock();self.click_village('mine:op:draft',uid=2);self.assertIn('недоступен',self.sender.call_args.args[1])
+ def test_unregistered_user_can_start_creation(self):
+  o=self.ops;self.alliance_targets();o.start(3,3);buttons=self.sender.call_args.args[2]
+  self.assertIn('ops:new',[b['callback_data'] for row in buttons for b in row]);self.assertIsNone(o.getstate(3))
+  self.click_village('ops:new',uid=3);self.assertEqual(o.getstate(3)['step'],'op_pick_alliance')
+ def test_operation_ids_do_not_collide_for_simultaneous_authors(self):
+  o=self.ops;self.alliance_targets()
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  first=o.generate_op(1,d);second=o.generate_op(2,d);third=o.generate_op(1,d)
+  self.assertEqual(len({first,second,third}),3);plans=o.load(o.OPERATIONS)
+  self.assertEqual(plans[first]['created_by'],1);self.assertEqual(plans[second]['created_by'],2)
+  self.assertNotEqual(plans[first]['name'],plans[third]['name'])
+ def test_profile_arena_update_does_not_edit_foreign_operation(self):
+  o=self.ops;plans=self.private_fixture();plans['op']['created_by']=2;o.save(o.OPERATIONS,plans);before=o.load(o.OPERATIONS)
+  self.click_village('village:arena:1',uid=1);self.message_ops('20',uid=1)
+  after=o.load(o.OPERATIONS);self.assertEqual(after['op'],before['op']);self.assertEqual(o.load(o.OFFERS)['1']['arena'],20)
+ def test_group_callback_cannot_relay_private_operation(self):
+  o=self.ops;self.private_fixture();self.sender.reset_mock()
+  with patch.object(o,'api'):o.callback({'id':'test','from':{'id':1},'message':{'chat':{'id':-100,'type':'supergroup'}},'data':'op:op'})
+  self.sender.assert_not_called()
+ def test_ownerless_legacy_operations_are_not_exposed(self):
+  o=self.ops;plans=self.private_fixture();plans['op'].pop('created_by');o.save(o.OPERATIONS,plans)
+  self.assertIsNone(o.owned_operation(1,'op'));self.assertIsNone(o.owned_operation(next(iter(o.COORDINATORS)),'op'))
+
+ def test_ordinary_unregistered_user_completes_operation_wizard(self):
+  o=self.ops;self.alliance_targets();uid=3
+  for data in ['ops:new','opalliance:2']:self.click_village(data,uid)
+  self.message_ops('02.01.2030 15:00:00',uid)
+  for data in ['opofftoggle:1','opoffdone']:self.click_village(data,uid)
+  self.message_ops('0',uid)
+  for data in ['optargetpick:1|0','opgenerate']:self.click_village(data,uid)
+  own=[op for op in o.load(o.OPERATIONS).values() if op.get('created_by')==uid]
+  self.assertEqual(len(own),1);self.assertEqual(own[0]['status'],'draft');self.assertNotIn('3',o.load(o.OFFERS))
+ def test_multiple_assigned_personal_plans_have_only_personal_links(self):
+  o=self.ops;self.private_fixture();o.personal_list(1,1)
+  buttons=self.sender.call_args.args[2];callbacks=[b['callback_data'] for row in buttons for b in row]
+  self.assertIn('mine:op:op',callbacks);self.assertIn('mine:op:other',callbacks);self.assertNotIn('mine:op:draft',callbacks)
+  self.assertTrue(all(value.startswith('mine:') or value=='menu' for value in callbacks))
+ def test_owner_can_change_time_and_bulk_offset_without_coordinator_role(self):
+  o=self.ops;self.private_fixture();self.click_village('oretime:op',1);self.message_ops('02.01.2030 16:00:00',1)
+  self.assertEqual(o.load(o.OPERATIONS)['op']['arrival'],'02.01.2030 16:00:00')
+  self.click_village('obulk:op:all:-',1);self.message_ops('5',1)
+  self.assertTrue(all(a['offset']==5 for a in o.load(o.OPERATIONS)['op']['attacks'].values()))
 
 if __name__=='__main__':unittest.main()
