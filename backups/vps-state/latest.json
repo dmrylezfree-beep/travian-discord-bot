@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-17T14:21:32.772722+00:00",
+  "created_at": "2026-10-17T15:21:44.047824+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -2636,11 +2636,6 @@
       }
     },
     "data/alliance_ops/states.json": {
-      "317595036": {
-        "data": {},
-        "step": "target_coords",
-        "updated_at": "2026-10-17T14:45:27+03:00"
-      },
       "6962496754": {
         "data": {},
         "step": "reg_coords",
