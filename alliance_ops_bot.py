@@ -462,6 +462,124 @@ def personal_list(cid,uid):
         (a.get("arrival_iso","") for a in pair[1].get("attacks",{}).values()),default=""))
     personal_op(cid,uid,oid)
 
+def save_points_parse(text):
+    if text.strip()=="-":return []
+    points=[]
+    for line in re.split(r"[;\n]+",text.strip()):
+        if not line.strip():continue
+        match=re.fullmatch(r"\s*(-?\d{1,3})\s*(?:[|,]\s*|\s+)(-?\d{1,3})\s*",line)
+        if not match:raise ValueError("Каждая точка — два числа: 13|3. Несколько точек вводите с новой строки.")
+        point=list(map(int,match.groups()))
+        if not all(-200<=n<=200 for n in point):raise ValueError("Координаты должны быть от −200 до 200.")
+        if point not in points:points.append(point)
+    if not points:raise ValueError("Введите хотя бы одну точку или «-» для очистки.")
+    if len(points)>10:raise ValueError("Можно сохранить до 10 сейв-точек.")
+    return points
+
+
+def personal_operation(uid,oid):
+    op=load(OPERATIONS).get(oid)
+    if op and op.get("status")=="published" and str(uid) in op.get("offers",{}):return op
+    return None
+
+
+def real_jobs(op,uid):
+    current=datetime.now(TZ)
+    return [a for a in personal_jobs(op,uid) if a.get("mode") in ("destroy","capture")
+            and not a.get("sent_at") and op_travel(a,op)[0] and op_travel(a,op)[0]>current]
+
+
+def selected_real(op,uid,aid=None):
+    jobs=real_jobs(op,uid)
+    return next((a for a in jobs if str(a["id"])==str(aid)),None) if aid else (jobs[0] if jobs else None)
+
+
+def save_trip(origin,point,arena,departure):
+    dx=abs(int(origin["x"])-point[0]);dy=abs(int(origin["y"])-point[1])
+    distance=(min(dx,401-dx)**2+min(dy,401-dy)**2)**0.5
+    if not distance:raise ValueError("Сейв-точка совпадает с вашей офф-деревней.")
+    seconds=round((min(distance,20)/3+max(0,distance-20)/(3*(1+int(arena)*.2)))*3600)
+    back=departure-timedelta(minutes=1)
+    return back-timedelta(seconds=2*seconds),back-timedelta(seconds=seconds),back,distance
+
+
+def spam_wave_units(text):
+    """Count only explicit supported quantities; never guess a free-form wave."""
+    infantry=catapults=0
+    for part in re.split(r"\s*\+\s*",text.strip().lower()):
+        m=re.fullmatch(r"(\d+)\s+(.+)",part)
+        if not m:return None
+        count=int(m[1]);unit=m[2].strip()
+        if re.fullmatch(r"катапульт[аы]?|катапульт|огненн\w* катапульт\w*|требушет\w*|камнем[её]т\w*|баллист\w*",unit):catapults+=count
+        elif re.fullmatch(r"пехот\w*|любых юнитов|люб\w* воин\w*|легионер\w*|преториан\w*|империан\w*|дубинщик\w*|копейщик\w*|топорщик\w*|фаланг\w*|мечник\w*|раб\w*|страж\w* аш|воин\w* хопеш|на[её]мник\w*|лучник\w*|гоплит\w*|страж\w*|щитонос\w*",unit):infantry+=count
+        else:return None
+    return infantry,catapults
+
+
+def spam_reserve(op,uid,real):
+    groups={key:{"waves":0,"infantry":0,"catapults":0,"unknown":0} for key in ("before","same","after")}
+    departure=op_travel(real,op)[0]
+    for a in personal_jobs(op,uid):
+        if a.get("mode")!="spam" or a.get("sent_at"):continue
+        dt=op_travel(a,op)[0]
+        key="before" if dt<departure else "after" if dt>departure else "same"
+        waves=a.get("wave_plan",[])
+        for wave in waves:
+            group=groups[key];group["waves"]+=1
+            units=spam_wave_units(wave.get("text",""))
+            if units is None:group["unknown"]+=1
+            else:group["infantry"]+=units[0];group["catapults"]+=units[1]
+        groups[key]["unknown"]+=max(0,int(a.get("waves",len(waves)))-len(waves))
+    return groups
+
+
+def spam_hint(op,uid,real):
+    groups=spam_reserve(op,uid,real)
+    lines=["💡 <b>Резерв для спама</b>","Только неотмеченные отправки этой операции:"]
+    for key,label in (("before","До реальной атаки — оставить дома на время сейва"),("same","Одновременно с реальной атакой"),("after","После реальной атаки — не отправлять с основным оффом")):
+        g=groups[key]
+        if key=="same" and not(g["waves"] or g["unknown"]):continue
+        lines.append(f"• {label}: <b>{g['infantry']} пехоты + {g['catapults']} катапульт</b> ({g['waves']} волн)."+(f" ⚠️ Не учтён состав {g['unknown']} волн — проверьте вручную." if g['unknown'] else ""))
+    total_infantry=sum(g['infantry'] for g in groups.values());total_catapults=sum(g['catapults'] for g in groups.values())
+    qualifier="Из распознанных волн всего" if any(g['unknown'] for g in groups.values()) else "Всего зарезервировать"
+    lines.append(f"<b>{qualifier}: {total_infantry} пехоты + {total_catapults} катапульт.</b>")
+    lines.append("Шаблон: 19 пехоты + 1 катапульта на волну; изменённый состав учитывается, если указаны количества. Запас до и после нужен суммарно: возврат спама не предполагается. Просроченные отправки без отметки тоже учтены.")
+    return "\n".join(lines)
+
+
+def personal_support(cid,uid,oid,kind="save",aid=None):
+    op=personal_operation(uid,oid)
+    if not op:send(cid,"⛔ Этот план недоступен.");return
+    real=selected_real(op,uid,aid)
+    if aid and not real:send(cid,"Эта реальная атака уже отправлена, её время прошло или план изменён.",[[btn("⬅️ Весь план",f"mine:op:{oid}")]]);return
+    jobs=real_jobs(op,uid)
+    buttons=[]
+    if real:
+        departure=op_travel(real,op)[0]
+        lines=[f"🛡 <b>Сейв-точки · {html.escape(op['name'])}</b>" if kind=="save" else f"💡 <b>Спам · {html.escape(op['name'])}</b>",
+               f"Реальная атака: <code>{html.escape(real['target_key'])}</code>",
+               f"Отправка: <b>{departure.strftime('%d.%m.%Y %H:%M:%S')}</b> (МСК)",""]
+        if kind=="save":
+            offer=load(OFFERS).get(str(uid),{})
+            origin=op['offers'][str(uid)];arena=int(offer.get('arena',origin['arena']))
+            lines.extend([f"Скорость: <b>3</b> · Текущая арена: <b>{arena}</b>","Полный поход туда и обратно, без бонусов героя и артефактов."])
+            points=offer.get('save_points',[])
+            if not points:lines.append("Сейв-точки ещё не заданы.")
+            for point in points:
+                try:start,arrival,back,distance=save_trip(origin,point,arena,departure)
+                except ValueError:continue
+                lines.extend(["",f"📍 <b>{point[0]}|{point[1]}</b> · {distance:.2f} клеток",
+                              f"Уйти: <code>{start.strftime('%d.%m %H:%M:%S')}</code>"+(" — время уже прошло" if start<=datetime.now(TZ) else ""),
+                              f"Прибыть в точку: {arrival.strftime('%d.%m %H:%M:%S')}",f"Вернуться: <b>{back.strftime('%d.%m %H:%M:%S')}</b>"])
+            lines.extend(["","Выбирайте проверенные свободные оазисы или неактивные деревни: бот не проверяет гарнизон точки.","",spam_hint(op,uid,real)])
+        else:lines.append(spam_hint(op,uid,real))
+        buttons.extend([[btn(f"🎯 {a['target_key']} · {op_travel(a,op)[0].strftime('%H:%M:%S')}",f"mine:{kind}:{oid}:{a['id']}")] for a in jobs if a['id']!=real['id']])
+    else:lines=["В плане нет предстоящей реальной атаки. Сейв рассчитывается для уничтожения или захвата; спам не служит временем возврата."]
+    if kind=="save":buttons.append([btn("✏️ Задать сейв-точки",f"mine:points:{oid}:{real['id'] if real else '-'}")])
+    buttons.append([btn("⬅️ Весь план",f"mine:op:{oid}")])
+    send(cid,"\n".join(lines),buttons)
+
+
 def personal_op(cid,uid,oid,message_id=None):
     op=load(OPERATIONS).get(oid)
     if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):
@@ -485,7 +603,8 @@ def personal_op(cid,uid,oid,message_id=None):
         lines.append(f"🔴 Просроченных без отметки: <b>{len(overdue)}</b>")
     if not pending:lines.append("✅ Все отправки отмечены выполненными.")
     lines.append(f"🔄 Обновлено: {current.strftime('%H:%M:%S')}")
-    buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")]]
+    buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")],
+             [btn("🛡 Сейв-точки",f"mine:save:{oid}"),btn("💡 Юниты для спама",f"mine:spam:{oid}")]]
     buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt<=current else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
                 for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
     if not op.get("ready",{}).get(str(uid)):
@@ -519,7 +638,8 @@ def personal_job(cid,uid,oid,aid):
     target=op["targets"][a["target_key"]]
     link=(f"https://ts8.x1.asia.travian.com/build.php?id=39&tt=2"
           f"&x={int(target['x'])}&y={int(target['y'])}&c=3&gid=16&eventType=3")
-    send(cid,msg,[[{"text":"⚔️ Открыть отправку в Travian","url":link}],
+    support=[[btn("🛡 Сейв-точки",f"mine:save:{oid}:{aid}"),btn("💡 Юниты для спама",f"mine:spam:{oid}:{aid}")]] if a.get("mode") in ("destroy","capture") else []
+    send(cid,msg,[[{"text":"⚔️ Открыть отправку в Travian","url":link}]]+support+[
                   [btn("↩ Отменить отметку" if a.get("sent_at") else "✅ Отправлено",f"mine:sent:{oid}:{aid}")],
                   [btn("⬅️ Весь план",f"mine:op:{oid}")]])
 
@@ -581,6 +701,17 @@ def handle_message(m):
     st=getstate(uid)
     if not st:send(cid,"Используйте /start, чтобы открыть меню.");return
     step=st["step"];d=st["data"]
+    if step=="save_points":
+        op=personal_operation(uid,d["oid"]);offers=load(OFFERS);offer=offers.get(str(uid))
+        if not op or not offer:state(uid);send(cid,"⛔ План или офф-деревня недоступны.");return
+        try:
+            points=save_points_parse(text)
+            origin=op['offers'][str(uid)]
+            if [int(origin['x']),int(origin['y'])] in points:raise ValueError("Сейв-точка не должна совпадать с вашей офф-деревней.")
+        except ValueError as exc:send(cid,"❌ "+str(exc));return
+        offer['save_points']=points;save(OFFERS,offers);persist("Update alliance ops save points");state(uid)
+        send(cid,"✅ Сейв-точки сохранены." if points else "✅ Сейв-точки очищены.")
+        personal_support(cid,uid,d['oid'],"save",d.get("aid"));return
     if step in ("reg_coords","target_coords"):
         c=coords(text)
         if not c:send(cid,"❌ Введите координаты через пробел, например <code>55 46</code>.");return
@@ -715,6 +846,17 @@ def callback(c):
     if x.startswith("offers:ro:view:"):
         if uid not in COORDINATORS:return
         coordinator_offer_view(cid,x.rsplit(":",1)[1]);return
+    if x.startswith(("mine:save:","mine:spam:","mine:points:")):
+        parts=x.split(":");kind=parts[1];oid=parts[2];aid=parts[3] if len(parts)>3 and parts[3]!="-" else None
+        op=personal_operation(uid,oid)
+        if not op:send(cid,"⛔ Этот план недоступен.");return
+        if kind=="points":
+            state(uid,"save_points",{"oid":oid,"aid":aid})
+            existing=load(OFFERS).get(str(uid),{}).get('save_points',[])
+            text="🛡 <b>Сейв-точки</b>\nВведите до 10 координат, каждую с новой строки:\n<code>13|3\n-20 45</code>\nСписок заменит предыдущий. Для очистки отправьте <code>-</code>."
+            if existing:text+="\nСохранены: "+", ".join(f"{p[0]}|{p[1]}" for p in existing)
+            send(cid,text,[[btn("Отмена",f"mine:save:{oid}")]]);return
+        state(uid);personal_support(cid,uid,oid,kind,aid);return
     if x=="mine:list":personal_list(cid,uid);return
     if x.startswith("mine:refresh:"):
         personal_op(cid,uid,x.split(":",2)[2],c["message"]["message_id"]);return
