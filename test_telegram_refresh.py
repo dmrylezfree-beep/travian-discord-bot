@@ -39,7 +39,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   import tempfile
   self.ops=ops;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
   root=Path(self.tmp.name)
-  for key,name in [('DATA','.'),('OFFERS','offers.json'),('TARGETS','targets.json'),('STATES','states.json'),('OPERATIONS','operations.json')]:
+  for key,name in [('DATA','.'),('OFFERS','offers.json'),('TARGETS','targets.json'),('STATES','states.json'),('OPERATIONS','operations.json'),('SNAPSHOTS','snapshots')]:
    patcher=patch.object(ops,key,root/name);patcher.start();self.addCleanup(patcher.stop)
   self.sender=patch.object(ops,'send').start();self.addCleanup(patch.stopall)
   patch.object(ops,'persist').start()
@@ -111,5 +111,74 @@ class AllianceOpsSupportTests(unittest.TestCase):
    c={'id':'fixture','from':{'id':1},'message':{'chat':{'id':1}},'data':'mine:points:op:real'}
    o.callback(c);self.assertEqual(o.getstate(1)['step'],'save_points')
    c['data']='mine:save:op:real';o.callback(c);self.assertIsNone(o.getstate(1));self.assertIn('Сейв-точки',self.sender.call_args.args[1])
+
+ def alliance_targets(self):
+  o=self.ops
+  base=dict(x=1,y=0,player='P',village='V',village_id=11,tribe_id=1,type='Офф',priority=5,comment='keep')
+  targets={'1|0':dict(base,alliance_id=2,alliance='Enemy'),
+           '2|0':dict(base,x=2,alliance_id=3,alliance='Other'),
+           '3|0':dict(base,x=3,alliance_id=0,alliance=''),
+           '4|0':dict(base,x=4)}
+  o.save(o.TARGETS,targets);return targets
+ def snapshot(self,alliance=2):
+  o=self.ops;o.SNAPSHOTS.mkdir()
+  path=o.SNAPSHOTS/'map_2030-01-02.sql'
+  path.write_text(f"INSERT INTO x_world VALUES (1,1,0,1,11,'V',7,'P',{alliance},'Enemy',300);\n")
+  return path
+ def test_alliance_is_detected_from_map_and_preserves_target_notes(self):
+  o=self.ops;self.alliance_targets();self.snapshot(7)
+  target,_=o.village_at(1,0);self.assertEqual(target['alliance_id'],7);self.assertEqual(target['alliance'],'Enemy')
+  targets=o.refresh_target_alliances();self.assertEqual(targets['1|0']['alliance_id'],7)
+  self.assertEqual(targets['1|0']['priority'],5);self.assertEqual(targets['1|0']['comment'],'keep')
+  self.assertEqual(o.target_alliance_key(targets['2|0']),'unknown')
+ def test_alliance_groups_keep_unallied_and_unknown_separate(self):
+  o=self.ops;targets=self.alliance_targets();o.op_alliance_picker(1,{})
+  buttons=self.sender.call_args.args[2];callbacks=[b['callback_data'] for row in buttons for b in row]
+  for key in ['2','3','0','unknown']:self.assertIn('opalliance:'+key,callbacks)
+  self.assertEqual(o.target_alliance_name(targets['3|0']),'Без альянса')
+  self.assertEqual(o.target_alliance_name(targets['4|0']),'Альянс не определён')
+ def test_wizard_starts_with_alliance_and_filters_targets(self):
+  o=self.ops;self.alliance_targets();uid=next(iter(o.COORDINATORS))
+  def click(data):o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
+  with patch.object(o,'api'):
+   click('ops:new');self.assertEqual(o.getstate(uid)['step'],'op_pick_alliance')
+   click('opalliance:2');self.assertEqual(o.getstate(uid)['step'],'op_arrival')
+   o.handle_message({'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':'02.01.2030 15:00:00'})
+   click('opofftoggle:1');click('opoffdone')
+   o.handle_message({'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':'0'})
+   self.assertEqual(o.getstate(uid)['step'],'op_pick_targets')
+   callbacks=[b['callback_data'] for row in self.sender.call_args.args[2] for b in row]
+   self.assertIn('optargetpick:1|0',callbacks);self.assertNotIn('optargetpick:2|0',callbacks)
+   click('optargetpick:2|0');self.assertEqual(o.getstate(uid)['data']['targets'],{})
+   click('optargetpick:1|0');click('opgenerate')
+  ops=o.load(o.OPERATIONS);drafts=[p for p in ops.values() if p['status']=='draft'];self.assertEqual(len(drafts),1)
+  self.assertEqual(set(drafts[0]['targets']),{'1|0'});self.assertEqual(drafts[0]['enemy_alliance_key'],'2')
+  self.assertEqual(drafts[0]['enemy_alliance'],'Enemy');self.assertIn('Enemy',o.op_summary(drafts[0]))
+ def test_switching_alliance_clears_selection_but_keeps_schedule_and_offers(self):
+  o=self.ops;self.alliance_targets();uid=next(iter(o.COORDINATORS))
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  o.state(uid,'op_pick_targets',d)
+  with patch.object(o,'api'):
+   for data in ['opalliance:back','opalliance:3']:o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
+  actual=o.getstate(uid)['data'];self.assertEqual(actual['targets'],{});self.assertEqual(actual['offers'],['1']);self.assertEqual(actual['arrival_iso'],d['arrival_iso'])
+ def test_draft_rejects_alliance_change_before_generation(self):
+  o=self.ops;self.alliance_targets();self.snapshot(9)
+  d={'alliance_key':'2','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  with self.assertRaises(ValueError):o.generate_op(1,d)
+  self.assertEqual(set(o.load(o.OPERATIONS)),{'op'})
+ def test_map_refresh_does_not_change_existing_operation(self):
+  o=self.ops;self.alliance_targets();self.snapshot(9);before=o.load(o.OPERATIONS)
+  o.refresh_target_alliances();self.assertEqual(o.load(o.OPERATIONS),before)
+ def test_non_coordinator_cannot_choose_alliance(self):
+  o=self.ops;self.alliance_targets();o.state(1,'op_pick_alliance',{})
+  with patch.object(o,'api'):o.callback({'id':'test','from':{'id':1},'message':{'chat':{'id':1}},'data':'opalliance:2'})
+  self.assertEqual(o.getstate(1)['data'],{})
+ def test_new_target_preview_shows_alliance_and_saves_it(self):
+  o=self.ops;self.snapshot(7);uid=next(iter(o.COORDINATORS));o.state(uid,'target_coords',{})
+  o.handle_message({'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':'1 0'})
+  self.assertIn('Альянс: <b>Enemy</b>',self.sender.call_args.args[1])
+  with patch.object(o,'api'):
+   for data in ['newtype:Офф','newprio:5']:o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
+  self.assertEqual(o.load(o.TARGETS)['1|0']['alliance_id'],7)
 
 if __name__=='__main__':unittest.main()
