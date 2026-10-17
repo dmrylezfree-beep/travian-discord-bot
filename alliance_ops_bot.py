@@ -1,4 +1,4 @@
-import os, re, json, time, html, subprocess
+import os, re, json, time, html, subprocess, uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import requests
@@ -123,7 +123,7 @@ def state(uid,step=None,data=None):
     save(STATES,s)
 def getstate(uid):return load(STATES).get(str(uid))
 def coords(t):
-    m=re.fullmatch(r"\s*(-?\d{1,3})\s+(?:\|\s*)?(-?\d{1,3})\s*",t)
+    m=re.fullmatch(r"\s*(-?\d{1,3})(?:\s*[|,]\s*|\s+)(-?\d{1,3})\s*",t)
     if not m:return None
     x,y=map(int,m.groups())
     return (x,y) if -200<=x<=200 and -200<=y<=200 else None
@@ -140,8 +140,67 @@ def parse_army(text,tid):
         found[n]=int(v)
     if not found:return None,"Не удалось распознать шаблон войск."
     return {n:found.get(n,0) for n in names},None
+def offer_owner(key,offer):
+    return str(offer.get('telegram_id') or str(key).split('_',1)[0])
+
+
+def active_offers():
+    return {key:o for key,o in load(OFFERS).items() if not o.get('deleted_at')}
+
+
+def own_offers(uid):
+    return {key:o for key,o in active_offers().items() if offer_owner(key,o)==str(uid)}
+
+
+def owns_offer(uid,key):
+    offer=active_offers().get(key)
+    return offer if offer and offer_owner(key,offer)==str(uid) else None
+
+
+def op_owner(op,key):
+    return offer_owner(key,op.get('offers',{}).get(str(key),{}))
+
+
+def op_members(op):
+    return {op_owner(op,key) for key in op.get('offers',{})}
+
+
+def same_origin(a,b):
+    return (int(a['x']),int(a['y']))==(int(b['x']),int(b['y']))
+
+
+def current_plan_offer(op,key):
+    snapshot=op['offers'][key];current=load(OFFERS).get(key,{})
+    return current if current and same_origin(current,snapshot) else snapshot
+
+
+def village_label(o):
+    return f"{o.get('player','?')} · {o['x']}|{o['y']}"
+
+
+def village_error(uid,v,key=None):
+    for other,o in active_offers().items():
+        if other!=key and same_origin(o,v):return 'Эта офф-деревня уже зарегистрирована.'
+    return None
+
+
+def personal_villages(cid,uid,action='view'):
+    offers=own_offers(uid)
+    buttons=[[btn(village_label(o),f'village:{action}:{key}')] for key,o in offers.items()]
+    buttons.extend([[btn('➕ Добавить офф-деревню','village:add')],[btn('⬅️ Меню','menu')]])
+    send(cid,'🏘 <b>Мои офф-деревни</b>\nВыберите деревню. Войска, арена и сейв-точки хранятся отдельно.',buttons)
+
+
+def personal_village(cid,uid,key):
+    offer=owns_offer(uid,key)
+    if not offer:send(cid,'Деревня недоступна.');return
+    send(cid,fmt_offer(offer),[[btn('🔄 Войска',f'village:army:{key}'),btn('🏟 Арена',f'village:arena:{key}')],
+         [btn('✏️ Изменить координаты',f'village:coords:{key}')],[btn('🗑 Удалить деревню',f'village:delete:{key}')],
+         [btn('⬅️ Мои деревни','village:list')]])
+
+
 def menu(uid):
-    rows=[[btn("📋 Мой план","mine:list")],[btn("🔄 Обновить войска","offer:army"),btn("🏟 Изменить арену","offer:arena")]]
+    rows=[[btn("📋 Мой план","mine:list")],[btn("🏘 Мои офф-деревни","village:list")],[btn("➕ Добавить офф-деревню","village:add")]]
     if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Операции","ops:list"),btn("📝 Создать черновик","ops:new")],[btn("⚔️ Список офферов","offers:ro:list")]]
     return rows
 def fmt_offer(o):
@@ -152,13 +211,13 @@ def fmt_offer(o):
     lines.append(f"\nОбновлено: <code>{o.get('army',{}).get('updated_at','—')}</code>")
     return "\n".join(lines)
 def start(cid,uid):
-    if str(uid) not in load(OFFERS) and uid not in COORDINATORS:
+    if not own_offers(uid) and uid not in COORDINATORS:
         state(uid,"reg_coords");send(cid,"⚔️ <b>Регистрация оффера</b>\n\nВведите координаты своей офф-деревни через пробел.\nНапример: <code>55 46</code>");return
-    o=load(OFFERS).get(str(uid))
-    detail=fmt_offer(o) if o else "Режим координатора. Офф-деревня не зарегистрирована."
+    offers=own_offers(uid)
+    detail="Офф-деревень: <b>"+str(len(offers))+"</b>\n"+"\n".join(html.escape(village_label(o)) for o in offers.values()) if offers else "Режим координатора. Офф-деревня не зарегистрирована."
     send(cid,"⚔️ <b>Центр операций альянса</b>\n\n"+detail+"\n\nВыберите действие:",menu(uid))
 def coordinator_offer_list(cid):
-    offers=load(OFFERS)
+    offers=active_offers()
     if not offers:
         send(cid,"⚔️ Зарегистрированных офферов пока нет.",[[btn("⬅️ Меню","menu")]])
         return
@@ -167,9 +226,9 @@ def coordinator_offer_list(cid):
         troops=o.get("army",{}).get("troops",{})
         total=sum(int(v) for v in troops.values())
         name=html.escape(str(o.get("player","?")))
-        rows.append([btn(f"{name} · {total:,} войск".replace(","," "),f"offers:ro:view:{uid}")])
+        rows.append([btn(f"{name} {o['x']}|{o['y']} · {total:,} войск".replace(","," "),f"offers:ro:view:{uid}")])
     rows.append([btn("⬅️ Меню","menu")])
-    send(cid,f"⚔️ <b>Зарегистрированные офферы</b>\\nВсего: {len(offers)}. Нажмите на игрока для просмотра армии.",rows)
+    send(cid,f"⚔️ <b>Офф-деревни игроков</b>\nВсего деревень: {len(offers)}. Выберите деревню для просмотра армии.",rows)
 
 def coordinator_offer_view(cid,offer_uid):
     o=load(OFFERS).get(str(offer_uid))
@@ -265,7 +324,7 @@ def op_offers(cid,oid):
     for uid,o in op["offers"].items():
         n=sum(1 for a in op["attacks"].values() if a["offer_id"]==uid)
         off=o.get("offset",0); sign="+" if off>0 else ""
-        rows.append([btn(f"{o['player']} · {sign}{off} сек · {n}",f"opoffer:{oid}:{uid}")])
+        rows.append([btn(f"{village_label(o)} · {sign}{off} сек · {n}",f"opoffer:{oid}:{uid}")])
     rows.append([btn("⬅️ К операции",f"op:{oid}")])
     send(cid,"👥 <b>Офферы операции</b>",rows)
 
@@ -291,7 +350,7 @@ def op_offer_detail(cid,oid,uid):
     rows += [[btn("⏱ Смещение оффера",f"oofferedit:{oid}:{uid}")],[btn("⬅️ К офферам",f"opoffers:{oid}")]];send(cid,"\n".join(lines),rows)
 
 def op_offer_picker(cid,d):
-    offers=load(OFFERS); selected=set(d.get("offers",[])); rows=[]
+    offers=active_offers(); selected=set(d.get("offers",[])); rows=[]
     for uid,o in offers.items():
         mark="✅" if uid in selected else "⬜"
         rows.append([btn(f"{mark} {o['player']} {o['x']}|{o['y']}",f"opofftoggle:{uid}")])
@@ -358,9 +417,10 @@ def op_target_picker(cid,d):
     send(cid,f"🎯 <b>Цели операции · {html.escape(d.get('alliance_name',''))}</b>\n\nНажмите, чтобы добавить или убрать цель. Все отправки создаются как спам; реальные атаки можно настроить в черновике."+('\nЦелей в этой группе больше нет — выберите другой альянс.' if not eligible else ''),buttons)
 
 def generate_op(uid,d):
-    offers_all=load(OFFERS); targets_all=refresh_target_alliances(); oid=op_id()
+    offers_all=active_offers(); targets_all=refresh_target_alliances(); oid=op_id()
     if not d.get('targets') or 'alliance_key' not in d or any(key not in targets_all or target_alliance_key(targets_all[key])!=d['alliance_key'] for key in d['targets']):
         raise ValueError('Цели или их альянс изменились. Выберите альянс и цели заново.')
+    if any(key not in offers_all for key in d.get('offers',[])):raise ValueError('Офф-деревня удалена. Выберите офферов заново.')
     arrival_dt=datetime.fromisoformat(d["arrival_iso"])
     op={"id":oid,"name":"Операция","status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
         "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,
@@ -368,7 +428,7 @@ def generate_op(uid,d):
         "enemy_alliance_key":d["alliance_key"],"enemy_alliance":d.get("alliance_name","")}
     for ouid in d["offers"]:
         o=offers_all[ouid]
-        op["offers"][ouid]={"player":o["player"],"village":o["village"],"x":o["x"],"y":o["y"],"arena":o["arena"],
+        op["offers"][ouid]={"telegram_id":int(offer_owner(ouid,o)),"save_points":o.get("save_points",[]),"player":o["player"],"village":o["village"],"x":o["x"],"y":o["y"],"arena":o["arena"],
                             "offset":int(d["offsets"].get(ouid,0)),"army_snapshot":o.get("army",{})}
     for key in d["targets"]:
         t=targets_all[key]; op["targets"][key]={**t,"mode":"spam"}
@@ -395,9 +455,9 @@ def op_store(ops, msg="Edit operation"):
     for oid,op in ops.items():
         old=previous.get(oid,{})
         if old.get("status")!="published" or op.get("status")!="published":continue
-        for uid in op.get("offers",{}):
-            old_jobs={k:v for k,v in old.get("attacks",{}).items() if v.get("offer_id")==uid}
-            new_jobs={k:v for k,v in op.get("attacks",{}).items() if v.get("offer_id")==uid}
+        for uid in op_members(op)|op_members(old):
+            old_jobs={k:v for k,v in old.get("attacks",{}).items() if op_owner(old,v.get("offer_id"))==uid}
+            new_jobs={k:v for k,v in op.get("attacks",{}).items() if op_owner(op,v.get("offer_id"))==uid}
             if {k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for")} for k,a in old_jobs.items()}=={k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for")} for k,a in new_jobs.items()} or not (old_jobs or new_jobs):continue
             op.setdefault("ready",{}).pop(uid,None)
             for a in new_jobs.values():
@@ -463,7 +523,7 @@ def op_all_edit_menu(cid,oid):
 def op_new_send_picker(cid,oid):
     op=load(OPERATIONS).get(oid)
     if not op:return
-    send(cid,"➕ <b>Новая отправка</b>\nВыберите оффера.",[[btn(o["player"],f"oaddoffer:{oid}:{uid}")] for uid,o in op["offers"].items()]+[[btn("⬅️ Операция",f"op:{oid}")]])
+    send(cid,"➕ <b>Новая отправка</b>\nВыберите оффера.",[[btn(village_label(o),f"oaddoffer:{oid}:{uid}")] for uid,o in op["offers"].items()]+[[btn("⬅️ Операция",f"op:{oid}")]])
 
 def op_new_send(cid,oid,ouid,key):
     ops=load(OPERATIONS);op=ops.get(oid)
@@ -478,7 +538,7 @@ def op_new_send(cid,oid,ouid,key):
 
 
 def personal_jobs(op,uid):
-    jobs=[a for a in op.get("attacks",{}).values() if str(a.get("offer_id"))==str(uid)]
+    jobs=[a for a in op.get("attacks",{}).values() if op_owner(op,a.get("offer_id"))==str(uid)]
     return sorted(jobs,key=lambda a:(op_travel(a,op)[0] or datetime.max.replace(tzinfo=TZ),str(a["id"])))
 
 def cleanup_expired_operations():
@@ -507,8 +567,8 @@ def cleanup_expired_operations():
 def personal_list(cid,uid):
     ops=cleanup_expired_operations()
     available=[(oid,op) for oid,op in ops.items()
-               if op.get("status")=="published" and str(uid) in op.get("offers",{})
-               and any(str(a.get("offer_id"))==str(uid) for a in op.get("attacks",{}).values())]
+               if op.get("status")=="published" and str(uid) in op_members(op)
+               and any(op_owner(op,a.get("offer_id"))==str(uid) for a in op.get("attacks",{}).values())]
     if not available:
         send(cid,"📋 Сейчас у вас нет актуального плана.",[[btn("⬅️ Меню","menu")]])
         return
@@ -533,7 +593,7 @@ def save_points_parse(text):
 
 def personal_operation(uid,oid):
     op=load(OPERATIONS).get(oid)
-    if op and op.get("status")=="published" and str(uid) in op.get("offers",{}):return op
+    if op and op.get("status")=="published" and str(uid) in op_members(op):return op
     return None
 
 
@@ -574,7 +634,7 @@ def spam_reserve(op,uid,real):
     groups={key:{"waves":0,"infantry":0,"catapults":0,"unknown":0} for key in ("before","same","after")}
     departure=op_travel(real,op)[0]
     for a in personal_jobs(op,uid):
-        if a.get("mode")!="spam" or a.get("sent_at"):continue
+        if a.get("mode")!="spam" or a.get("sent_at") or a["offer_id"]!=real["offer_id"]:continue
         dt=op_travel(a,op)[0]
         key="before" if dt<departure else "after" if dt>departure else "same"
         waves=a.get("wave_plan",[])
@@ -589,7 +649,7 @@ def spam_reserve(op,uid,real):
 
 def spam_hint(op,uid,real):
     groups=spam_reserve(op,uid,real)
-    lines=["💡 <b>Резерв для спама</b>","Только неотмеченные отправки этой операции:"]
+    lines=["💡 <b>Резерв для спама</b>","Только неотмеченные отправки этой офф-деревни в операции:"]
     for key,label in (("before","До реальной атаки — оставить дома на время сейва"),("same","Одновременно с реальной атакой"),("after","После реальной атаки — не отправлять с основным оффом")):
         g=groups[key]
         if key=="same" and not(g["waves"] or g["unknown"]):continue
@@ -611,11 +671,11 @@ def personal_support(cid,uid,oid,kind="save",aid=None):
     if real:
         departure=op_travel(real,op)[0]
         lines=[f"🛡 <b>Сейв-точки · {html.escape(op['name'])}</b>" if kind=="save" else f"💡 <b>Спам · {html.escape(op['name'])}</b>",
+               f"Офф-деревня: <b>{html.escape(village_label(op['offers'][real['offer_id']]))}</b>",
                f"Реальная атака: <code>{html.escape(real['target_key'])}</code>",
                f"Отправка: <b>{departure.strftime('%d.%m.%Y %H:%M:%S')}</b> (МСК)",""]
         if kind=="save":
-            offer=load(OFFERS).get(str(uid),{})
-            origin=op['offers'][str(uid)];arena=int(offer.get('arena',origin['arena']))
+            origin=op['offers'][real['offer_id']];offer=current_plan_offer(op,real['offer_id']);arena=int(offer.get('arena',origin['arena']))
             lines.extend([f"Скорость: <b>3</b> · Текущая арена: <b>{arena}</b>","Полный поход туда и обратно, без бонусов героя и артефактов."])
             points=offer.get('save_points',[])
             if not points:lines.append("Сейв-точки ещё не заданы.")
@@ -627,7 +687,7 @@ def personal_support(cid,uid,oid,kind="save",aid=None):
                               f"Прибыть в точку: {arrival.strftime('%d.%m %H:%M:%S')}",f"Вернуться: <b>{back.strftime('%d.%m %H:%M:%S')}</b>"])
             lines.extend(["","Выбирайте проверенные свободные оазисы или неактивные деревни: бот не проверяет гарнизон точки.","",spam_hint(op,uid,real)])
         else:lines.append(spam_hint(op,uid,real))
-        buttons.extend([[btn(f"🎯 {a['target_key']} · {op_travel(a,op)[0].strftime('%H:%M:%S')}",f"mine:{kind}:{oid}:{a['id']}")] for a in jobs if a['id']!=real['id']])
+        buttons.extend([[btn(f"🎯 {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']} · {op_travel(a,op)[0].strftime('%H:%M:%S')}",f"mine:{kind}:{oid}:{a['id']}")] for a in jobs if a['id']!=real['id']])
     else:lines=["В плане нет предстоящей реальной атаки. Сейв рассчитывается для уничтожения или захвата; спам не служит временем возврата."]
     if kind=="save":buttons.append([btn("✏️ Задать сейв-точки",f"mine:points:{oid}:{real['id'] if real else '-'}")])
     buttons.append([btn("⬅️ Весь план",f"mine:op:{oid}")])
@@ -636,7 +696,7 @@ def personal_support(cid,uid,oid,kind="save",aid=None):
 
 def personal_op(cid,uid,oid,message_id=None):
     op=load(OPERATIONS).get(oid)
-    if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):
+    if not op or op.get("status")!="published" or str(uid) not in op_members(op):
         send(cid,"⛔ Этот план недоступен.");return
     jobs=personal_jobs(op,uid)
     done=sum(bool(a.get("sent_at")) for a in jobs)
@@ -659,7 +719,7 @@ def personal_op(cid,uid,oid,message_id=None):
     lines.append(f"🔄 Обновлено: {current.strftime('%H:%M:%S')}")
     buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")],
              [btn("🛡 Сейв-точки",f"mine:save:{oid}"),btn("💡 Юниты для спама",f"mine:spam:{oid}")]]
-    buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt<=current else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
+    buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt<=current else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
                 for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
     if not op.get("ready",{}).get(str(uid)):
         buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
@@ -677,13 +737,13 @@ def personal_op(cid,uid,oid,message_id=None):
 
 def personal_job(cid,uid,oid,aid):
     op=load(OPERATIONS).get(oid)
-    if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):return
+    if not op or op.get("status")!="published" or str(uid) not in op_members(op):return
     a=op["attacks"].get(aid)
-    if not a or str(a["offer_id"])!=str(uid):return
+    if not a or op_owner(op,a["offer_id"])!=str(uid):return
     departure,dist=op_travel(a,op)
     waves="\n".join(f"{i}. {html.escape(w.get('text','—'))}" for i,w in enumerate(a.get("wave_plan",[]),1))
     msg=(f"🎯 <b>{html.escape(op['name'])} · {a['target_key']}</b>\n"
-         f"{op_mode_name(a['mode'])}\n"
+         f"{op_mode_name(a['mode'])}\nОфф-деревня: <b>{html.escape(village_label(op['offers'][a['offer_id']]))}</b>\n"
          f"Отправление: <code>{departure.strftime('%d.%m.%Y %H:%M:%S') if departure else '—'}</code>\n"
          f"Прибытие: <code>{a['arrival']}</code>\n"
          f"Арена: {a['arena']} · Скорость: {a['speed']} · Расстояние: {dist:.2f}\n\n"
@@ -702,10 +762,10 @@ def operation_progress(cid,oid):
     if not op:return
     lines=[f"📊 <b>{html.escape(op['name'])}</b>"]
     for uid,o in op["offers"].items():
-        jobs=personal_jobs(op,uid)
+        jobs=[a for a in personal_jobs(op,op_owner(op,uid)) if a["offer_id"]==uid]
         done=sum(bool(a.get("sent_at")) for a in jobs)
-        ready="✅" if op.get("ready",{}).get(uid) else "⏳"
-        lines.append(f"{ready} {html.escape(o['player'])}: {done}/{len(jobs)}")
+        ready="✅" if op.get("ready",{}).get(op_owner(op,uid)) else "⏳"
+        lines.append(f"{ready} {html.escape(village_label(o))}: {done}/{len(jobs)}")
     send(cid,"\n".join(lines),[[btn("⬅️ Операция",f"op:{oid}")]])
 
 def send_reminders():
@@ -722,7 +782,7 @@ def send_reminders():
             seconds=(departure-current).total_seconds()
             marker=departure.isoformat()
             if not 0<seconds<=300 or a.get("reminder_sent_for")==marker:continue
-            grouped.setdefault(str(a["offer_id"]),[]).append((departure,a,marker))
+            grouped.setdefault(op_owner(op,a["offer_id"]),[]).append((departure,a,marker))
         for offer_uid,jobs in grouped.items():
             jobs.sort(key=lambda item:(item[0],str(item[1]["id"])))
             lines=[f"⏰ <b>{html.escape(op['name'])}: отправки в ближайшие 5 минут</b>"]
@@ -730,15 +790,15 @@ def send_reminders():
             for departure,a,marker in jobs:
                 target=op["targets"].get(a["target_key"])
                 if not target:continue
-                lines.append(f"\\n🎯 <code>{a['target_key']}</code> · <b>{departure.strftime('%H:%M:%S')}</b>"
+                lines.append(f"\n🏘 {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → 🎯 <code>{a['target_key']}</code> · <b>{departure.strftime('%H:%M:%S')}</b>"
                              f" · {op_mode_name(a['mode'])} · {len(a.get('wave_plan',[]))} волн · арена {a['arena']}")
                 link=(f"https://ts8.x1.asia.travian.com/build.php?id=39&tt=2"
                       f"&x={int(target['x'])}&y={int(target['y'])}&c=3&gid=16&eventType=3")
                 buttons.append([{"text":f"⚔️ {departure.strftime('%H:%M:%S')} → {a['target_key']} · Travian","url":link}])
-                buttons.append([btn(f"📋 Задание {departure.strftime('%H:%M:%S')} · {a['target_key']}",f"mine:job:{oid}:{a['id']}")])
+                buttons.append([btn(f"📋 Задание {departure.strftime('%H:%M:%S')} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")])
             if not buttons:continue
             try:
-                send(int(offer_uid),"\\n".join(lines),buttons)
+                send(int(offer_uid),"\n".join(lines),buttons)
                 for departure,a,marker in jobs:
                     a["reminder_sent_for"]=marker
                 changed=True
@@ -756,14 +816,17 @@ def handle_message(m):
     if not st:send(cid,"Используйте /start, чтобы открыть меню.");return
     step=st["step"];d=st["data"]
     if step=="save_points":
-        op=personal_operation(uid,d["oid"]);offers=load(OFFERS);offer=offers.get(str(uid))
+        op=personal_operation(uid,d["oid"]);offers=load(OFFERS)
+        real=selected_real(op,uid,d.get('aid')) if op else None
+        key=d.get('key') or (real['offer_id'] if real else str(uid));offer=owns_offer(uid,key)
         if not op or not offer:state(uid);send(cid,"⛔ План или офф-деревня недоступны.");return
         try:
             points=save_points_parse(text)
-            origin=op['offers'][str(uid)]
+            origin=op['offers'][key]
+            if not same_origin(offer,origin):raise ValueError('Деревня в плане изменилась. Обратитесь к координатору.')
             if [int(origin['x']),int(origin['y'])] in points:raise ValueError("Сейв-точка не должна совпадать с вашей офф-деревней.")
         except ValueError as exc:send(cid,"❌ "+str(exc));return
-        offer['save_points']=points;save(OFFERS,offers);persist("Update alliance ops save points");state(uid)
+        offers[key]['save_points']=points;save(OFFERS,offers);persist("Update alliance ops save points");state(uid)
         send(cid,"✅ Сейв-точки сохранены." if points else "✅ Сейв-точки очищены.")
         personal_support(cid,uid,d['oid'],"save",d.get("aid"));return
     if step in ("reg_coords","target_coords"):
@@ -773,7 +836,10 @@ def handle_message(m):
         if not v:send(cid,f"❌ Деревня <code>{c[0]}|{c[1]}</code> не найдена в последнем снимке мира.");return
         if step=="reg_coords":
             if v["tribe_id"] not in TROOPS:send(cid,"❌ Для этой расы пока нет шаблона войск.");return
-            state(uid,"reg_arena",{"village":v});send(cid,f"✅ Найдено: <b>{html.escape(v['player'])}</b> — {html.escape(v['village'])}\nРаса: <b>{TRIBES.get(v['tribe_id'])}</b>\n\nВведите уровень арены от <b>0</b> до <b>20</b>.");return
+            error=village_error(uid,v,d.get('key'))
+            if error:send(cid,'❌ '+error);return
+            if d.get('key') and not owns_offer(uid,d['key']):state(uid);send(cid,'Деревня недоступна.');return
+            state(uid,"reg_arena",{"village":v,"key":d.get('key')});send(cid,f"✅ Найдено: <b>{html.escape(v['player'])}</b> — {html.escape(v['village'])}\nРаса: <b>{TRIBES.get(v['tribe_id'])}</b>\n\nВведите уровень арены от <b>0</b> до <b>20</b>.");return
         d={"village":v};state(uid,"target_type",d)
         send(cid,f"🎯 <b>Новая цель</b>\n{html.escape(v['player'])} — {html.escape(v['village'])} <code>{v['x']}|{v['y']}</code>\nАльянс: <b>{html.escape(target_alliance_name(v))}</b>\n\nВыберите тип:",[[btn(x,f"newtype:{x}")] for x in TARGET_TYPES]);return
     if step=="reg_arena":
@@ -783,20 +849,28 @@ def handle_message(m):
     if step in ("reg_army","army"):
         tid=d["village"]["tribe_id"] if step=="reg_army" else d["tribe_id"];army,err=parse_army(text,tid)
         if err:send(cid,"❌ "+html.escape(err));return
-        os_=load(OFFERS);k=str(uid)
-        if step=="reg_army":
-            v=d["village"];os_[k]={"telegram_id":uid,**v,"arena":d["arena"],"registered_at":now(),"army":{"troops":army,"updated_at":now()}}
-        else:os_[k]["army"]={"troops":army,"updated_at":now()}
+        os_=load(OFFERS);k=d.get('key') or str(uid)
+        if step=='reg_army':
+            v=d['village'];error=village_error(uid,v,d.get('key'))
+            if error:send(cid,'❌ '+error);return
+            if d.get('key') and not owns_offer(uid,d['key']):state(uid);send(cid,'Деревня недоступна.');return
+            if not d.get('key') and k in os_:k=str(uid)+'_'+uuid.uuid4().hex[:8]
+            os_[k]={"telegram_id":uid,**v,"arena":d["arena"],"registered_at":now(),"army":{"troops":army,"updated_at":now()}}
+        else:
+            if not owns_offer(uid,k):state(uid);send(cid,'Деревня недоступна.');return
+            os_[k]['army']={'troops':army,'updated_at':now()}
         save(OFFERS,os_);state(uid);persist("Update alliance ops offers");send(cid,"✅ Данные сохранены.\n\n"+fmt_offer(os_[k]),menu(uid));return
     if step=="arena":
         if not text.isdigit() or not 0<=int(text)<=20:send(cid,"❌ Арена должна быть числом 0–20.");return
-        os_=load(OFFERS);os_[str(uid)]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena")
+        key=d.get('key',str(uid))
+        if not owns_offer(uid,key):state(uid);send(cid,'Деревня недоступна.');return
+        os_=load(OFFERS);os_[key]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena")
         ops=load(OPERATIONS);affected=0
         for op in ops.values():
-            if op.get("status")!="published" or str(uid) not in op.get("offers",{}):continue
-            op["offers"][str(uid)]["arena"]=int(text)
+            if op.get("status")!="published" or key not in op.get("offers",{}) or not same_origin(os_[key],op["offers"][key]):continue
+            op["offers"][key]["arena"]=int(text)
             for a in op["attacks"].values():
-                if str(a["offer_id"])==str(uid) and not a.get("sent_at"):
+                if str(a["offer_id"])==key and not a.get("sent_at"):
                     a["arena"]=int(text);a.pop("reminder_sent_for",None);affected+=1
         if affected:op_store(ops)
         send(cid,f"✅ Арена обновлена. Пересчитано отправок: {affected}.",menu(uid));return
@@ -813,7 +887,7 @@ def handle_message(m):
         ouid=d["offset_uid"];d["offsets"][ouid]=off
         remaining=[x for x in d["offers"] if x not in d["offsets"]]
         if remaining:
-            nxt=remaining[0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ Смещение для <b>{html.escape(o['player'])}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
+            nxt=remaining[0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ Смещение для <b>{html.escape(village_label(o))}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
         d.pop("offset_uid",None);d["targets"]={}
         if 'alliance_key' in d:state(uid,'op_pick_targets',d);op_target_picker(cid,d)
         else:state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d)
@@ -908,8 +982,12 @@ def callback(c):
         op=personal_operation(uid,oid)
         if not op:send(cid,"⛔ Этот план недоступен.");return
         if kind=="points":
-            state(uid,"save_points",{"oid":oid,"aid":aid})
-            existing=load(OFFERS).get(str(uid),{}).get('save_points',[])
+            real=selected_real(op,uid,aid)
+            if not real:send(cid,'Выберите предстоящую реальную атаку.');return
+            key=real['offer_id'];offer=owns_offer(uid,key)
+            if not offer or not same_origin(offer,op['offers'][key]):send(cid,'Деревня этого плана удалена или изменена. Обратитесь к координатору.');return
+            state(uid,"save_points",{"oid":oid,"aid":real['id'],"key":key})
+            existing=offer.get('save_points',[])
             text="🛡 <b>Сейв-точки</b>\nВведите до 10 координат, каждую с новой строки:\n<code>13|3\n-20 45</code>\nСписок заменит предыдущий. Для очистки отправьте <code>-</code>."
             if existing:text+="\nСохранены: "+", ".join(f"{p[0]}|{p[1]}" for p in existing)
             send(cid,text,[[btn("Отмена",f"mine:save:{oid}")]]);return
@@ -922,13 +1000,13 @@ def callback(c):
         _,_,oid,aid=x.split(":",3);personal_job(cid,uid,oid,aid);return
     if x.startswith("mine:ready:"):
         oid=x.split(":",2)[2];ops=load(OPERATIONS);op=ops.get(oid)
-        if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):return
+        if not op or op.get("status")!="published" or str(uid) not in op_members(op):return
         op.setdefault("ready",{})[str(uid)]=now();op_store(ops);personal_op(cid,uid,oid);return
     if x.startswith("mine:sent:"):
         _,_,oid,aid=x.split(":",3);ops=load(OPERATIONS);op=ops.get(oid)
-        if not op or op.get("status")!="published" or str(uid) not in op.get("offers",{}):return
+        if not op or op.get("status")!="published" or str(uid) not in op_members(op):return
         a=op["attacks"].get(aid)
-        if not a or str(a.get("offer_id"))!=str(uid):return
+        if not a or op_owner(op,a.get("offer_id"))!=str(uid):return
         if a.get("sent_at"):a.pop("sent_at")
         else:a["sent_at"]=now()
         op_store(ops);personal_job(cid,uid,oid,aid);return
@@ -938,7 +1016,7 @@ def callback(c):
         if not op:return
         op["status"]="published";op.setdefault("published_at",now());op_store(ops)
         ok=0;failed=[]
-        for ouid in op["offers"]:
+        for ouid in op_members(op):
             try:
                 send(int(ouid),f"📢 <b>{html.escape(op['name'])} опубликована!</b>\nВаш персональный план готов.",[[btn("📋 Открыть план",f"mine:op:{oid}")]])
                 ok+=1
@@ -947,13 +1025,25 @@ def callback(c):
     if x.startswith("progress:"):
         if uid in COORDINATORS:operation_progress(cid,x.split(":",1)[1])
         return
-    if x=="offer:view":
-        o=load(OFFERS).get(str(uid));send(cid,fmt_offer(o),menu(uid)) if o else start(cid,uid);return
-    if x=="offer:army":
-        o=load(OFFERS).get(str(uid))
-        if not o:start(cid,uid);return
-        state(uid,"army",{"tribe_id":o["tribe_id"]});send(cid,f"🔄 <b>Обновление войск</b>\n\n<pre>{html.escape(template(o['tribe_id']))}</pre>");return
-    if x=="offer:arena":state(uid,"arena");send(cid,"🏟 Введите новый уровень арены 0–20.");return
+    if x in ('village:list','offer:view','offer:army','offer:arena'):
+        state(uid);personal_villages(cid,uid,x.split(':')[1] if x.startswith('offer:') and x!='offer:view' else 'view');return
+    if x=='village:add':
+        state(uid,'reg_coords',{});send(cid,'➕ Введите координаты новой офф-деревни через пробел.');return
+    if x.startswith('village:'):
+        parts=x.split(':');action=parts[1];key=parts[2] if len(parts)>2 else ''
+        offer=owns_offer(uid,key)
+        if not offer:send(cid,'Деревня недоступна.');return
+        state(uid)
+        if action=='view':personal_village(cid,uid,key)
+        elif action=='army':
+            state(uid,'army',{'key':key,'tribe_id':offer['tribe_id']});send(cid,'🔄 Обновите войска этой деревни:\n<pre>'+html.escape(template(offer['tribe_id']))+'</pre>')
+        elif action=='arena':state(uid,'arena',{'key':key});send(cid,'🏟 Введите уровень арены этой деревни: 0–20.')
+        elif action=='coords':
+            state(uid,'reg_coords',{'key':key});send(cid,'✏️ Введите новые координаты. Затем укажите арену и войска новой деревни. Сейв-точки будут очищены. Уже созданные планы сохранят прежние координаты; для изменения плана обратитесь к координатору.')
+        elif action=='delete':send(cid,'Удалить эту офф-деревню из регистрации? В уже созданных планах она сохранится.',[[btn('🗑 Да, удалить',f'village:remove:{key}')],[btn('Отмена',f'village:view:{key}')]])
+        elif action=='remove':
+            offers=load(OFFERS);offers[key]['deleted_at']=now();save(OFFERS,offers);persist('Remove registered offence village');personal_villages(cid,uid)
+        return
     if x.startswith(("targets","target","newtype:","newprio:","settype:","setprio:","confirmdelete:","ops","op","oa:","ow","oe","ot","od","ob","oall:","oofferedit:","oadd")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
 
     if x=="ops:list":list_ops(cid);return
@@ -973,14 +1063,18 @@ def callback(c):
             state(uid,'op_arrival',d);send(cid,'🕐 <b>Новая операция</b>\nАльянс: <b>'+html.escape(d['alliance_name'])+'</b>\nВведите дату и время прибытия.\nФормат: <code>05.10.2026 20:00:00</code>')
         return
     if x.startswith("opofftoggle:"):
-        st=getstate(uid);d=st["data"];ouid=x.split(":",1)[1]
+        st=getstate(uid)
+        if not st or st['step']!='op_pick_offers':return
+        d=st['data'];ouid=x.split(':',1)[1]
+        if ouid not in active_offers():send(cid,'Офф-деревня больше недоступна.');op_offer_picker(cid,d);return
         if ouid in d["offers"]:d["offers"].remove(ouid);d["offsets"].pop(ouid,None)
         else:d["offers"].append(ouid)
         state(uid,"op_pick_offers",d);op_offer_picker(cid,d);return
     if x=="opoffdone":
         st=getstate(uid);d=st["data"]
-        if not d.get("offers"):send(cid,"❌ Выберите хотя бы одного оффера.");return
-        nxt=d["offers"][0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ <b>Смещения офферов</b>\n\nВведите смещение для <b>{html.escape(o['player'])}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
+        d['offers']=[key for key in d.get('offers',[]) if key in active_offers()]
+        if not d.get("offers"):state(uid,'op_pick_offers',d);send(cid,"❌ Выберите хотя бы одну офф-деревню.");op_offer_picker(cid,d);return
+        nxt=d["offers"][0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ <b>Смещения офферов</b>\n\nВведите смещение для <b>{html.escape(village_label(o))}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
     if x.startswith("optargetpick:"):
         if uid not in COORDINATORS:return
         st=getstate(uid)
@@ -1001,7 +1095,11 @@ def callback(c):
         if not d.get('targets'):send(cid,'❌ Выберите хотя бы одну цель.');return
         try:oid=generate_op(uid,d)
         except ValueError as exc:
-            d['targets']={};state(uid,'op_pick_alliance',d);send(cid,'❌ '+str(exc));op_alliance_picker(cid,d);return
+            send(cid,'❌ '+str(exc))
+            if any(key not in active_offers() for key in d.get('offers',[])):
+                d['offers']=[];d['offsets']={};state(uid,'op_pick_offers',d);op_offer_picker(cid,d)
+            else:d['targets']={};state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d)
+            return
         state(uid);show_op(cid,oid);return
     if x.startswith("optargets:"):op_targets(cid,x.split(":",1)[1]);return
     if x.startswith("opoffers:"):op_offers(cid,x.split(":",1)[1]);return

@@ -181,4 +181,121 @@ class AllianceOpsSupportTests(unittest.TestCase):
    for data in ['newtype:Офф','newprio:5']:o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
   self.assertEqual(o.load(o.TARGETS)['1|0']['alliance_id'],7)
 
+ def add_second_village(self):
+  o=self.ops;offers=o.load(o.OFFERS)
+  self.op.update(arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+03:00',base_speed=3)
+  for a in self.op['attacks'].values():a.update(arrival='02.01.2030 12:20:00',offset=0,offer_player='fixture')
+  offers['1_extra']=dict(offers['1'],telegram_id=1,x=10,y=0,arena=10,village='second',save_points=[[11,0]])
+  o.save(o.OFFERS,offers);self.op['offers']['1_extra']=dict(offers['1_extra'],offset=0)
+  for aid,attack in list(self.op['attacks'].items()):self.op['attacks']['second_'+aid]=dict(attack,id='second_'+aid,offer_id='1_extra')
+  o.save(o.OPERATIONS,{'op':self.op});return '1_extra'
+ def click_village(self,data,uid=1):
+  with patch.object(self.ops,'api'):self.ops.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
+ def message_ops(self,text,uid=1):
+  self.ops.handle_message({'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':text})
+ def test_multiple_villages_registration_preserves_first(self):
+  o=self.ops;before=o.load(o.OFFERS)['1'];v=dict(before,x=10,y=10,village='second')
+  with patch.object(o,'village_at',return_value=(v,None)):
+   self.click_village('village:add');self.message_ops('10 10');self.message_ops('15');self.message_ops('Легионер: 123')
+  offers=o.own_offers(1);self.assertEqual(len(offers),2);self.assertEqual(offers['1'],before)
+  second=next(v for k,v in offers.items() if k!='1');self.assertEqual(second['arena'],15);self.assertEqual(second['army']['troops']['Легионер'],123)
+ def test_duplicate_registration_does_not_overwrite_other_owner(self):
+  o=self.ops;v=o.load(o.OFFERS)['1'];original=o.load(o.OFFERS)
+  with patch.object(o,'village_at',return_value=(v,None)):
+   self.click_village('village:add',uid=2);self.message_ops('0 0',uid=2)
+  self.assertEqual(o.load(o.OFFERS),original);self.assertIn('уже зарегистрирована',self.sender.call_args.args[1])
+ def test_edit_coordinates_keeps_id_and_existing_plan_snapshot(self):
+  o=self.ops;self.add_second_village();before=o.load(o.OPERATIONS);v=dict(x=30,y=30,village='moved',player='fixture',tribe_id=1)
+  self.click_village('village:coords:1_extra')
+  with patch.object(o,'village_at',return_value=(v,None)):
+   self.message_ops('30 30');self.message_ops('5');self.message_ops('Легионер: 88')
+  self.assertEqual(o.own_offers(1)['1_extra']['x'],30);self.assertNotIn('save_points',o.own_offers(1)['1_extra'])
+  self.assertEqual(o.load(o.OPERATIONS),before)
+  self.assertEqual(o.current_plan_offer(self.op,'1_extra')['x'],10)
+ def test_delete_requires_confirmation_and_preserves_other_village(self):
+  o=self.ops;self.add_second_village();before=o.load(o.OPERATIONS)
+  self.click_village('village:delete:1_extra');self.assertIn('1_extra',o.active_offers())
+  self.click_village('village:remove:1_extra');self.assertNotIn('1_extra',o.active_offers());self.assertIn('1',o.own_offers(1))
+  self.assertEqual(o.load(o.OPERATIONS),before);self.assertEqual(len(o.personal_jobs(self.op,1)),8)
+ def test_non_owner_cannot_edit_delete_update_or_send(self):
+  o=self.ops;self.add_second_village();before=o.load(o.OFFERS)
+  for action in ['coords','remove','army','arena']:
+   self.click_village(f'village:{action}:1_extra',uid=2)
+  self.assertEqual(o.load(o.OFFERS),before)
+  self.click_village('mine:sent:op:second_real',uid=2)
+  self.assertNotIn('sent_at',o.load(o.OPERATIONS)['op']['attacks']['second_real'])
+ def test_army_and_arena_update_only_selected_village(self):
+  o=self.ops;self.add_second_village();before=o.load(o.OFFERS)['1']
+  self.click_village('village:army:1_extra');self.message_ops('Легионер: 456')
+  self.click_village('village:arena:1_extra');self.message_ops('17')
+  self.assertEqual(o.load(o.OFFERS)['1'],before);self.assertEqual(o.load(o.OFFERS)['1_extra']['arena'],17)
+  attacks=o.load(o.OPERATIONS)['op']['attacks'];self.assertEqual(attacks['second_real']['arena'],17);self.assertEqual(attacks['real']['arena'],0)
+ def test_personal_plan_collects_two_villages_and_spam_is_separate(self):
+  o=self.ops;self.add_second_village()
+  self.assertEqual(len(o.personal_jobs(self.op,1)),8);self.assertEqual(o.op_members(self.op),{'1'})
+  groups=o.spam_reserve(self.op,1,self.op['attacks']['real']);self.assertEqual(sum(g['infantry'] for g in groups.values()),114)
+  o.personal_job(1,1,'op','second_real');self.assertIn('10|0',self.sender.call_args.args[1])
+  o.personal_op(1,1,'op');buttons=self.sender.call_args.args[2];text=' '.join(b['text'] for row in buttons for b in row)
+  self.assertIn('0|0 →',text);self.assertIn('10|0 →',text)
+ def test_save_points_belong_to_selected_origin(self):
+  o=self.ops;self.add_second_village();self.click_village('mine:points:op:second_real')
+  self.message_ops('12|0')
+  offers=o.load(o.OFFERS);self.assertEqual(offers['1']['save_points'],[[1,0]]);self.assertEqual(offers['1_extra']['save_points'],[[12,0]])
+  o.personal_support(1,1,'op','save','second_real');self.assertIn('12|0',self.sender.call_args.args[1]);self.assertIn('10|0',self.sender.call_args.args[1])
+ def test_publishing_sends_one_plan_per_owner_not_per_village(self):
+  o=self.ops;self.add_second_village();plans=o.load(o.OPERATIONS);plans['op']['status']='draft';o.save(o.OPERATIONS,plans);self.sender.reset_mock()
+  self.click_village('publish:op',uid=next(iter(o.COORDINATORS)))
+  notices=[call for call in self.sender.call_args_list if 'Ваш персональный план готов' in call.args[1]]
+  self.assertEqual(len(notices),1);self.assertEqual(notices[0].args[0],1)
+ def test_reminders_use_owner_and_include_origin(self):
+  o=self.ops;self.add_second_village()
+  # Make both real departures fall within five minutes of the fixed 08:00 clock.
+  for key,a in self.op['attacks'].items():
+   seconds=1200 if a['offer_id']=='1' else 10800
+   from datetime import timedelta
+   a['arrival_iso']=(o.datetime.now(o.TZ)+timedelta(seconds=seconds+120)).isoformat()
+  o.save(o.OPERATIONS,{'op':self.op});self.sender.reset_mock();o.send_reminders()
+  self.assertTrue(self.sender.called);self.assertTrue(all(call.args[0]==1 for call in self.sender.call_args_list))
+  text=' '.join(call.args[1] for call in self.sender.call_args_list);self.assertIn('10|0',text);self.assertIn('0|0',text)
+ def test_second_village_only_plan_access_and_sent_mark(self):
+  o=self.ops;self.add_second_village();self.op['offers'].pop('1');self.op['attacks']={k:a for k,a in self.op['attacks'].items() if a['offer_id']=='1_extra'};o.save(o.OPERATIONS,{'op':self.op})
+  self.assertIsNotNone(o.personal_operation(1,'op'));self.click_village('mine:sent:op:second_real')
+  self.assertIn('sent_at',o.load(o.OPERATIONS)['op']['attacks']['second_real'])
+ def test_deleted_village_is_not_in_draft_picker_or_new_draft(self):
+  o=self.ops;self.add_second_village();self.click_village('village:remove:1_extra');o.op_offer_picker(1,{})
+  callbacks=[b['callback_data'] for row in self.sender.call_args.args[2] for b in row];self.assertNotIn('opofftoggle:1_extra',callbacks)
+  self.alliance_targets();d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1_extra'],'offsets':{},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  with self.assertRaises(ValueError):o.generate_op(1,d)
+ def test_old_single_village_data_works_without_migration(self):
+  o=self.ops;self.assertEqual(set(o.own_offers(1)),{'1'});self.assertEqual(o.op_members(self.op),{'1'})
+  o.start(1,1);self.assertIn('Офф-деревень: <b>1</b>',self.sender.call_args.args[1])
+  o.personal_list(1,1);self.assertIn('Fixture',self.sender.call_args.args[1])
+
+ def test_draft_with_two_villages_preserves_owner_and_origins(self):
+  o=self.ops;self.add_second_village();self.alliance_targets()
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1','1_extra'],'offsets':{'1':0,'1_extra':2},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  oid=o.generate_op(1,d);op=o.load(o.OPERATIONS)[oid]
+  self.assertEqual(set(op['offers']),{'1','1_extra'});self.assertEqual(o.op_members(op),{'1'})
+  self.assertEqual(op['offers']['1_extra']['telegram_id'],1);self.assertEqual(op['offers']['1_extra']['save_points'],[[11,0]])
+  self.assertEqual(len(o.personal_jobs(op,1)),2);self.assertEqual({a['offer_id'] for a in op['attacks'].values()},{'1','1_extra'})
+ def test_deleted_primary_can_register_again_without_reusing_snapshot_key(self):
+  o=self.ops;self.click_village('village:remove:1');v=dict(x=5,y=5,player='fixture',village='replacement',tribe_id=1)
+  with patch.object(o,'village_at',return_value=(v,None)):
+   self.click_village('village:add');self.message_ops('5|5');self.message_ops('4');self.message_ops('Легионер: 55')
+  self.assertEqual(len(o.own_offers(1)),1);self.assertNotIn('1',o.own_offers(1));self.assertEqual(o.load(o.OPERATIONS)['op']['offers']['1']['x'],0)
+ def test_changed_origin_arena_does_not_retime_previous_origin(self):
+  o=self.ops;self.add_second_village();offers=o.load(o.OFFERS);offers['1_extra']['x']=30;o.save(o.OFFERS,offers)
+  before=o.load(o.OPERATIONS);self.click_village('village:arena:1_extra');self.message_ops('20')
+  self.assertEqual(o.load(o.OPERATIONS),before)
+ def test_plan_change_notifies_owner_once_for_two_villages(self):
+  o=self.ops;self.add_second_village();plans=o.load(o.OPERATIONS);plans['op']['ready']={'1':'yes'};o.save(o.OPERATIONS,plans)
+  plans=o.load(o.OPERATIONS)
+  for attack in plans['op']['attacks'].values():attack['comment']='changed'
+  self.sender.reset_mock();o.op_store(plans)
+  messages=[c for c in self.sender.call_args_list if 'план изменён' in c.args[1]]
+  self.assertEqual(len(messages),1);self.assertEqual(messages[0].args[0],1);self.assertNotIn('1',o.load(o.OPERATIONS)['op']['ready'])
+ def test_coordinate_input_accepts_common_formats(self):
+  for text in ['13 3','13|3','13 | 3','13,3']:self.assertEqual(self.ops.coords(text),(13,3))
+  self.assertIsNone(self.ops.coords('201|3'));self.assertIsNone(self.ops.coords('13 3 extra'))
+
 if __name__=='__main__':unittest.main()
