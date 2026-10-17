@@ -1,5 +1,5 @@
 import './runtime_network.js';
-import worker from './defence-worker.js';
+import worker, {reconcileDefenceRequests} from './defence-worker.js';
 import {localSyncWorker} from './local_sync_worker.js';
 import {makeSqliteQueue} from './sqlite_queue.js';
 import {createLocalService} from './local_service.js';
@@ -31,9 +31,18 @@ env.DEFENCE_REMINDERS = queue.binding;
 env.LOCAL_SYNC = () => queue.binding.send({type:"telegram_sync"});
 const server = createLocalService(worker,env,background);
 let stopping = false;
+let reconcileTimer, reconcileTask, lastReconciledSignature;
+function reconcile() {
+  if(stopping||reconcileTask)return;
+  reconcileTask=reconcileDefenceRequests(env,lastReconciledSignature)
+    .then(signature=>{lastReconciledSignature=signature;})
+    .finally(()=>{reconcileTask=undefined;});
+  background(reconcileTask);
+}
 async function stop() {
   if (stopping) return;
   stopping = true;
+  clearInterval(reconcileTimer);
   const deadline=setTimeout(()=>process.exit(1),23000); deadline.unref();
   await new Promise(resolve=>server.close(resolve));
   await Promise.allSettled([...tasks]);
@@ -44,6 +53,8 @@ try {
   server.listen(18788,'127.0.0.1');
   await once(server,'listening');
   queue.start();
+  reconcileTimer=setInterval(reconcile,30000);
+  reconcile();
   console.log('Local defence API and persistent queue ready on 127.0.0.1:18788.');
 } catch {console.error();process.exitCode=1;await stop();}
 for (const signal of ['SIGTERM','SIGINT']) process.on(signal,stop);

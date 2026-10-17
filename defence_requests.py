@@ -11,7 +11,7 @@ from travian_bot import parse_map_data, SERVER_URL
 
 SNAPSHOT_DIR = Path("data/snapshots")
 STATE_FILE = bot.DATA_DIR / "state.json"
-SERVER_TZ = ZoneInfo("Europe/London")
+SERVER_TZ = ZoneInfo("UTC")
 DEFENCE_WORKER_URL = os.environ.get("DEFENCE_WORKER_URL", "http://127.0.0.1:18788").rstrip("/")
 # The Russian VPS may not have reliable direct HTTPS access to Cloudflare.
 # Reuse the already configured Telegram HTTPS proxy for Worker traffic unless
@@ -1122,6 +1122,7 @@ def active_requests_text(requests):
             attack = None
         if attack is not None and attack <= now:
             req["status"] = "expired"
+            req["expired_at"] = now.strftime("%Y-%m-%d %H:%M:%S")
             changed = True
             continue
         active.append(req)

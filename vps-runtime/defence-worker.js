@@ -94,11 +94,11 @@ async function findDefenceThread(env,q){
   const active=await discordApi(env,"/guilds/"+DISCORD_GUILD_ID+"/threads/active");
   let t=(active?.threads||[]).find(x=>String(x.name||"")===defenceThreadName(q));
   if(t)return t;
- }catch(e){console.error("Discord active threads read failed:",e);}
+ }catch(e){console.error("Discord active threads read failed:",e);if(env.STRICT_DEFENCE_SYNC)throw e;}
  try{
   const archived=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/threads/archived/public?limit=100");
   return (archived?.threads||[]).find(x=>String(x.name||"")===defenceThreadName(q))||null;
- }catch(e){console.error("Discord archived threads read failed:",e);return null;}
+ }catch(e){console.error("Discord archived threads read failed:",e);if(env.STRICT_DEFENCE_SYNC)throw e;return null;}
 }
 async function syncDefenceThreads(env,requests,allRequests=[]){
  const role=await defenderRole(env).catch(e=>{console.error("Defender role lookup failed:",e);return null;});
@@ -107,12 +107,12 @@ async function syncDefenceThreads(env,requests,allRequests=[]){
  for(const q of allRequests||[]){
   if(activeIds.has(Number(q.id)))continue;
   const thread=await findDefenceThread(env,q);
-  if(!thread)continue;
+  if(!thread||thread.thread_metadata?.archived)continue;
   try{
    const messages=await discordApi(env,"/channels/"+thread.id+"/messages?limit=50");
    const cards=(messages||[]).filter(m=>String(m.author?.id||"")===DISCORD_APPLICATION_ID&&String(m.content||"").startsWith("🛡 **DEFENCE REQUEST #"+q.id));
    const card=cards[0];
-   const status=Number(q.collected_def||0)>=Number(q.required_def||0)?"✅ COVERED / 防衛完了":q.status!=="active"?"⛔ CLOSED / 終了":"⌛ EXPIRED / 期限切れ";
+   const status=Number(q.collected_def||0)>=Number(q.required_def||0)?"✅ COVERED / 防衛完了":q.status==="expired"?"⌛ EXPIRED / 期限切れ":q.status!=="active"?"⛔ CLOSED / 終了":"⌛ EXPIRED / 期限切れ";
    const body={content:defenceThreadText(q)+"\n\n"+status,components:[],allowed_mentions:{parse:[]}};
    if(card)await discordApi(env,"/channels/"+thread.id+"/messages/"+card.id,"PATCH",body);
    else await discordApi(env,"/channels/"+thread.id+"/messages","POST",body);
@@ -121,7 +121,7 @@ async function syncDefenceThreads(env,requests,allRequests=[]){
     catch(e){console.error("Duplicate defence card delete failed #"+q.id+":",e);}
    }
    await discordApi(env,"/channels/"+thread.id,"PATCH",{archived:true});
-  }catch(e){console.error("Defence thread close failed #"+q.id+":",e);}
+  }catch(e){console.error("Defence thread close failed #"+q.id+":",e);if(env.STRICT_DEFENCE_SYNC)throw e;}
  }
  for(const q of requests||[]){
   let thread=await findDefenceThread(env,q);
@@ -150,7 +150,7 @@ async function syncDefenceThreads(env,requests,allRequests=[]){
     try{await discordApi(env,"/channels/"+thread.id+"/messages/"+duplicate.id,"DELETE");}
     catch(e){console.error("Duplicate defence card delete failed #"+q.id+":",e);}
    }
-  }catch(e){console.error("Defence thread sync failed #"+q.id+":",e);}
+  }catch(e){console.error("Defence thread sync failed #"+q.id+":",e);if(env.STRICT_DEFENCE_SYNC)throw e;}
  }
 }
 
@@ -189,7 +189,7 @@ async function refreshDiscordCentre(env){
   try{await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/pins/"+m.id,"PUT");}catch(e){console.error("Discord centre pin failed:",e);}
   console.log("Discord defence centre created:",m.id);
  }
- try{await syncDefenceThreads(env,requests,allRequests);}catch(e){console.error("Discord thread rebuild failed:",e);}
+ try{await syncDefenceThreads(env,requests,allRequests);}catch(e){console.error("Discord thread rebuild failed:",e);if(env.STRICT_DEFENCE_SYNC)throw e;}
  return messageId;
 }
 function ghDecode(s){const b=atob(String(s||"").replace(/\s/g,""));return new TextDecoder().decode(Uint8Array.from(b,x=>x.charCodeAt(0)));}
@@ -211,10 +211,10 @@ const DEF_UNITS={
 };
 const DEF_SPEEDS={legionnaire:6,praetorian:5,equites_caesaris:10,spearman:7,paladin:10,phalanx:7,druidrider:16,haeduan:13};
 const DEF_CAV=new Set(["equites_caesaris","paladin","druidrider","haeduan"]);
-const SERVER_TIME_ZONE="Europe/London";
-function londonParts(ms){const parts=new Intl.DateTimeFormat("en-GB",{timeZone:SERVER_TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(ms));return Object.fromEntries(parts.filter(p=>p.type!=="literal").map(p=>[p.type,Number(p.value)]));}
-function parseServerTime(s){const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);if(!m)return NaN;const w={year:+m[1],month:+m[2],day:+m[3],hour:+m[4],minute:+m[5],second:+m[6]},wall=Date.UTC(w.year,w.month-1,w.day,w.hour,w.minute,w.second);let guess=wall;for(let i=0;i<3;i++){const p=londonParts(guess),shown=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);guess+=wall-shown;}const p=londonParts(guess);return p.year===w.year&&p.month===w.month&&p.day===w.day&&p.hour===w.hour&&p.minute===w.minute&&p.second===w.second?guess:NaN;}
-function formatServerTime(ms){const p=londonParts(ms),pad=n=>String(n).padStart(2,"0");return p.year+"-"+pad(p.month)+"-"+pad(p.day)+" "+pad(p.hour)+":"+pad(p.minute)+":"+pad(p.second);}
+const SERVER_TIME_ZONE="UTC";
+function serverTimeParts(ms){const parts=new Intl.DateTimeFormat("en-GB",{timeZone:SERVER_TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(ms));return Object.fromEntries(parts.filter(p=>p.type!=="literal").map(p=>[p.type,Number(p.value)]));}
+export function parseServerTime(s){const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);if(!m)return NaN;const w={year:+m[1],month:+m[2],day:+m[3],hour:+m[4],minute:+m[5],second:+m[6]},wall=Date.UTC(w.year,w.month-1,w.day,w.hour,w.minute,w.second);let guess=wall;for(let i=0;i<3;i++){const p=serverTimeParts(guess),shown=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);guess+=wall-shown;}const p=serverTimeParts(guess);return p.year===w.year&&p.month===w.month&&p.day===w.day&&p.hour===w.hour&&p.minute===w.minute&&p.second===w.second?guess:NaN;}
+export function formatServerTime(ms){const p=serverTimeParts(ms),pad=n=>String(n).padStart(2,"0");return p.year+"-"+pad(p.month)+"-"+pad(p.day)+" "+pad(p.hour)+":"+pad(p.minute)+":"+pad(p.second);}
 function timeOnly(s){return String(s||"").split(" ")[1]||String(s||"");}
 function mapDist(x1,y1,x2,y2){let dx=Math.abs(x2-x1),dy=Math.abs(y2-y1);dx=Math.min(dx,401-dx);dy=Math.min(dy,401-dy);return Math.sqrt(dx*dx+dy*dy);}
 function travelSecs(distance,speed,arena=0){const first=Math.min(distance,20),second=Math.max(0,distance-20);return first*3600/speed+(second?second*3600/(speed*(1+Number(arena||0)*0.20)):0);}
@@ -611,7 +611,7 @@ const MAX_QUEUE_DELAY_SECONDS = 86400;
 
 function serverNowText() { return formatServerTime(Date.now()); }
 function secondsUntilServer(localText) {
-  return Math.floor((parseServerTime(String(localText||""))-Date.now())/1000);
+  return Math.ceil((parseServerTime(String(localText||""))-Date.now())/1000);
 }
 
 async function queueReminder(env, payload) {
@@ -626,14 +626,14 @@ async function queueReminder(env, payload) {
   }
 }
 
-async function queueDiscordExpiry(env, requestItem) {
+export async function queueDiscordExpiry(env, requestItem) {
   const attackAt = String(requestItem.attack_time || "");
   const attackMs = parseServerTime(attackAt);
   if (!Number.isFinite(attackMs)) return;
   await queueReminder(env, {
     kind: "discord_request_expiry",
     request_id: Number(requestItem.id),
-    reminder_at: formatServerTime(attackMs + 90 * 1000)
+    reminder_at: formatServerTime(attackMs)
   });
 }
 
@@ -642,10 +642,18 @@ async function handleDiscordExpiry(env, item) {
     const rq = await ghJson(env, "data/defence/requests.json");
     const list = Array.isArray(rq.data) ? rq.data : [];
     const q = list.find(x => Number(x.id) === Number(item.request_id));
-    if (!q || q.status !== "active") return;
+    if (!q) return;
+    // Telegram or a previous attempt may already have committed expiry.
+    // The visible Discord state still needs to be reconciled before ack.
+    if (q.status !== "active") {
+      await dispatchDiscordSync(env);
+      await refreshDiscordCentre({...env, STRICT_DEFENCE_SYNC:true});
+      return;
+    }
     const remaining = secondsUntilServer(q.attack_time);
+    if (!Number.isFinite(remaining)) throw new Error("Invalid request attack_time");
     if (Number.isFinite(remaining) && remaining > 0) {
-      item.reminder_at = formatServerTime(parseServerTime(q.attack_time) + 90 * 1000);
+      item.reminder_at = formatServerTime(parseServerTime(q.attack_time));
       await queueReminder(env, item);
       return;
     }
@@ -654,7 +662,7 @@ async function handleDiscordExpiry(env, item) {
     try {
       await ghSave(env, "data/defence/requests.json", list, rq.sha, "Expire defence request #"+q.id);
       await dispatchDiscordSync(env);
-      await refreshDiscordCentre(env);
+      await refreshDiscordCentre({...env, STRICT_DEFENCE_SYNC:true});
       return;
     } catch (error) {
       if (attempt === 3) throw error;
@@ -760,18 +768,11 @@ async function loadActiveRequests(env) {
   const requests = (await ghJson(env,"data/defence/requests.json")).data;
   if (!Array.isArray(requests)) return [];
 
-  // Travian Asia server time is UTC. Do not use Europe/London here:
-  // during British Summer Time London is UTC+1 and requests disappear
-  // from Discord one hour too early.
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const nowText = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
-
-  return requests.filter(req =>
-    req && req.status === "active" &&
+  const now=Date.now();
+  return requests.filter(req => req && req.status === "active" &&
     Number(req.required_def || 0) > Number(req.collected_def || 0) &&
-    String(req.attack_time || "") > nowText
-  );
+    Number.isFinite(parseServerTime(req.attack_time)) && parseServerTime(req.attack_time) > now);
+
 }
 
 async function sendStartMenu(env, message) {
@@ -1156,3 +1157,22 @@ export default {
     }
   }
 };
+
+export async function reconcileDefenceRequests(env, previousSignature=null) {
+  const loaded=await ghJson(env,"data/defence/requests.json");
+  const list=Array.isArray(loaded.data)?loaded.data:[];
+  let changed=false;
+  for(const request of list) {
+    const attack=parseServerTime(request.attack_time);
+    if(request.status==="active"&&Number.isFinite(attack)&&attack<=Date.now()) {
+      request.status="expired";request.expired_at=serverNowText();changed=true;
+    }
+  }
+  if(changed)await ghSave(env,"data/defence/requests.json",list,loaded.sha,"Expire elapsed defence requests");
+  const signature=JSON.stringify(list.map(q=>[q.id,q.status,q.attack_time,q.attack_time_display,
+    q.target_x,q.target_y,q.target_player,q.required_def,q.collected_def,q.contributions]));
+  if(signature===previousSignature)return signature;
+  await refreshDiscordCentre({...env,STRICT_DEFENCE_SYNC:true});
+  await dispatchDiscordSync(env);
+  return signature;
+}
