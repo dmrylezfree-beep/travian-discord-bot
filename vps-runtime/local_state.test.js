@@ -90,3 +90,21 @@ test('expiry reconciles existing Discord threads, retries committed expiry, and 
   await rm(dir,{recursive:true,force:true});
  }
 });
+
+test('Telegram request-sync retries preserve one committed request and its contributions',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-confirm-'));const oldDir=process.env.DEFENCE_DATA_DIR;process.env.DEFENCE_DATA_DIR=dir;
+ const oldFetch=globalThis.fetch;globalThis.fetch=async()=>{throw Error('fixture external calls disabled');};
+ const env={TELEGRAM_BOT_TOKEN:'fixture',DEFENCE_REMINDERS:{send:async()=>{}}};const background=[];
+ const ctx={waitUntil(p){background.push(Promise.resolve(p).catch(()=>{}));}};
+ const incoming={id:null,submission_key:'telegram:-100:111:55',requester_id:55,target_x:15,target_y:3,attack_time:'2030-01-02 22:00:00',required_def:2000,status:'active'};
+ const submit=async()=>{
+  const response=await worker.fetch(new Request('http://127.0.0.1/discord/request-sync',{method:'POST',headers:{Authorization:'Bearer fixture','Content-Type':'application/json'},body:JSON.stringify({request:incoming})}),env,ctx);
+  assert.equal(response.status,200);return response.json();
+ };
+ try{
+  const first=await submit();const current=await readState('data/defence/requests.json');current.data[0].contributions=[{user_id:99,def_points:100}];current.data[0].collected_def=100;await saveState('data/defence/requests.json',current.data,current.sha);
+  const second=await submit();assert.equal(first.request.id,second.request.id);assert.equal(second.request.collected_def,100);
+  const saved=await readState('data/defence/requests.json');assert.equal(saved.data.length,1);assert.equal(saved.data[0].contributions.length,1);
+  await Promise.allSettled(background);
+ }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});

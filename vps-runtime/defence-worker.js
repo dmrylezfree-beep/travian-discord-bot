@@ -921,6 +921,10 @@ export default {
           try {
             const current = await ghJson(env, "data/defence/requests.json");
             const requests = Array.isArray(current.data) ? current.data : [];
+            if (allocateId && incoming.submission_key) {
+              const existing=requests.find(q=>q.submission_key===incoming.submission_key&&String(q.requester_id)===String(incoming.requester_id));
+              if(existing){Object.assign(incoming,existing);saved=true;break;}
+            }
             if (allocateId) {
               incoming.id = Math.max(0, ...requests.map(q => Number(q.id) || 0)) + 1;
             }

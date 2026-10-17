@@ -1438,7 +1438,11 @@ def process_text(message):
         player["state"]["required_def"] = required
         player["state"]["type"] = "request_confirm"
         save_request_wizard_state(data)
-        bot.send(chat_id, request_summary(player), confirm_keyboard())
+        confirmation=bot.send(chat_id, request_summary(player), confirm_keyboard())
+        if isinstance(confirmation,dict) and confirmation.get('message_id'):
+            player['state']['confirmation_message_id']=confirmation['message_id']
+            player['state']['confirmation_chat_id']=chat_id
+            save_request_wizard_state(data)
         return
 
     return _original_process_text(message)
@@ -1878,38 +1882,66 @@ def callback_query(q):
         return
 
     if action == "request_confirm":
-        state = player.get("state") or {}
-        if state.get("type") != "request_confirm":
-            bot.edit(chat_id, msg_id, "❌ Данные заявки устарели. Создайте заявку заново.", request_menu())
+        submission_key=f"telegram:{chat_id}:{msg_id}:{user['id']}"
+        requests=bot.load_json(bot.REQUESTS_FILE,[])
+        if not isinstance(requests,list):requests=[]
+        saved=next((r for r in requests if r.get('submission_key')==submission_key and str(r.get('requester_id'))==str(user['id'])),None)
+        receipt=player.get('last_request_confirmation') or {}
+        if saved is None and receipt.get('submission_key')==submission_key:
+            saved=next((r for r in requests if r.get('id')==receipt.get('request_id')),None)
+        if saved is not None:
+            current_state=player.get('state') or {}
+            if current_state.get('type')=='request_confirm' and current_state.get('confirmation_message_id',msg_id)==msg_id and current_state.get('confirmation_chat_id',chat_id)==chat_id:
+                player['state']=None
+            player['last_request_confirmation']={'submission_key':submission_key,'request_id':saved['id']}
+            save_request_wizard_state(data)
+            try:bot.edit(chat_id,msg_id,f"<b>✅ Заявка #{saved['id']} уже создана.</b>\n\nПовторно создавать её не нужно.",request_menu())
+            except Exception:print('Request already committed; repeated confirmation edit skipped',flush=True)
+            try:refresh_center(chat_id=chat_id,create_if_missing=True)
+            except Exception:print('Request committed; centre refresh deferred',flush=True)
             return
-        requests = bot.load_json(bot.REQUESTS_FILE, [])
-        if not isinstance(requests, list):
-            requests = []
-        req = {
-            "id": None,
-            "requester_id": int(user["id"]),
-            "requester_username": user.get("username", ""),
-            "requester_first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""),
-            "target_x": state["target_x"],
-            "target_y": state["target_y"],
-            "target_player": state["target_player"],
-            "attack_time": state["attack_time"],
-            "attack_time_display": state["attack_time_display"],
-            "required_def": state["required_def"],
-            "status": "active",
-            "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
-        }
-        if sync_request_to_worker(req) is None or req.get("id") is None:
-            bot.edit(chat_id, msg_id, "❌ Не удалось сохранить заявку. Попробуйте ещё раз.", request_menu())
+        state=player.get('state') or {}
+        bound_message=state.get('confirmation_message_id')
+        bound_chat=state.get('confirmation_chat_id')
+        if state.get('type')!='request_confirm' or (bound_message is not None and (bound_message!=msg_id or bound_chat!=chat_id)):
+            # Old/shared confirmation buttons must never overwrite a successful
+            # confirmation or submit the user's newer unrelated wizard.
+            bot.answer_callback(q.get('id'),'Это старое подтверждение. Откройте актуальную форму заявки.')
             return
-        requests.append(req)
-        bot.save_json(bot.REQUESTS_FILE, requests)
-        notify_eligible_defenders(req)
-        refresh_optimal_plans(chat_id=chat_id)
-        player["state"] = None
+        fields=('target_x','target_y','attack_time','required_def')
+        saved=next((r for r in requests if r.get('status')=='active' and str(r.get('requester_id'))==str(user['id']) and all(r.get(k)==state.get(k) for k in fields)),None)
+        created=saved is None
+        if saved is None:
+            req={
+                'id':None,'submission_key':submission_key,
+                'requester_id':int(user['id']),'requester_username':user.get('username',''),
+                'requester_first_name':bot.telegram_member_tag(user.get('id')) or user.get('first_name',''),
+                'target_x':state['target_x'],'target_y':state['target_y'],'target_player':state['target_player'],
+                'attack_time':state['attack_time'],'attack_time_display':state['attack_time_display'],
+                'required_def':state['required_def'],'status':'active',
+                'created_at':datetime.now(SERVER_TZ).strftime('%Y-%m-%d %H:%M:%S')}
+            result=sync_request_to_worker(req)
+            if result is None or req.get('id') is None:
+                # A timeout may happen after the local service committed.
+                current=bot.load_json(bot.REQUESTS_FILE,[])
+                req=next((r for r in current if r.get('submission_key')==submission_key),None)
+                if req is None:
+                    bot.answer_callback(q.get('id'),'Не удалось подтвердить сохранение. Нажмите эту же кнопку ещё раз — новая заявка не создастся.')
+                    return
+            saved=req
+        player['last_request_confirmation']={'submission_key':submission_key,'request_id':saved['id']}
+        player['state']=None
         save_request_wizard_state(data)
-        bot.edit(chat_id, msg_id, "<b>✅ Заявка создана.</b>\n\nОна добавлена в закреплённый Центр дефа.", request_menu())
-        refresh_center(chat_id=chat_id, create_if_missing=True)
+        # Acknowledge the committed request before slow notification/planning work.
+        try:bot.edit(chat_id,msg_id,f"<b>✅ Заявка #{saved['id']} создана.</b>\n\nОна добавлена в Центр дефа.",request_menu())
+        except Exception:print('Request committed; confirmation edit will recover on retry',flush=True)
+        try:refresh_center(chat_id=chat_id,create_if_missing=True)
+        except Exception:print('Request committed; centre refresh deferred',flush=True)
+        if created:
+            try:notify_eligible_defenders(saved)
+            except Exception:print('Request committed; notification step failed',flush=True)
+            try:refresh_optimal_plans(chat_id=chat_id)
+            except Exception:print('Request committed; planning refresh deferred',flush=True)
         return
 
     return _original_callback_query(q)

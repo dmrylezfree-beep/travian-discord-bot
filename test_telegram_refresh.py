@@ -497,4 +497,50 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.assertEqual(o.load(o.OFFERS),before)
   self.click_village('savepoint:add:1');self.click_village('village:points:1');self.assertIsNone(o.getstate(1));self.assertEqual(o.load(o.OFFERS),before)
 
+
+class DefenceConfirmationTests(unittest.TestCase):
+ def setUp(self):
+  import copy
+  self.copy=copy.deepcopy;self.db=[];self.defence=defence
+  self.form=dict(type='request_confirm',confirmation_chat_id=-100,confirmation_message_id=111,target_x=15,target_y=3,target_player='fixture',attack_time='2030-01-02 22:00:00',attack_time_display='02.01.2030 22:00:00',required_def=2000)
+  self.player={'state':self.copy(self.form)};self.data={'55':self.player}
+  from contextlib import ExitStack
+  self.stack=ExitStack();self.addCleanup(self.stack.close)
+  def mocked(obj,name,**kwargs):return self.stack.enter_context(patch.object(obj,name,**kwargs))
+  mocked(defence.bot,'get_player',return_value=(self.data,self.player));mocked(defence,'sync_player_race');mocked(defence.bot,'telegram_member_tag',return_value='fixture')
+  mocked(defence.bot,'load_json',side_effect=lambda *args:self.copy(self.db));self.save=mocked(defence,'save_request_wizard_state')
+  self.edit=mocked(defence.bot,'edit');self.answer=mocked(defence.bot,'answer_callback');self.notify=mocked(defence,'notify_eligible_defenders');self.plan=mocked(defence,'refresh_optimal_plans');self.centre=mocked(defence,'refresh_center')
+  def commit(req):
+   req['id']=17;self.db.append(self.copy(req));return req
+  self.sync=mocked(defence,'sync_request_to_worker',side_effect=commit)
+  self.q={'id':'test','from':{'id':55},'data':'request_confirm','message':{'chat':{'id':-100,'type':'supergroup'},'message_id':111,'message_thread_id':defence.bot.THREAD_ID}}
+ def test_repeated_confirmation_returns_saved_request_not_stale_error(self):
+  defence.callback_query(self.q);defence.callback_query(self.q)
+  self.assertEqual(len(self.db),1);self.assertEqual(self.sync.call_count,1);self.assertEqual(self.notify.call_count,1)
+  self.assertIsNone(self.player['state']);self.assertIn('#17',self.edit.call_args.args[2]);self.assertNotIn('устарели',self.edit.call_args.args[2])
+ def test_lost_response_recovers_committed_request(self):
+  commit=self.sync.side_effect
+  def lost(req):commit(req);return None
+  self.sync.side_effect=lost;defence.callback_query(self.q);defence.callback_query(self.q)
+  self.assertEqual(len(self.db),1);self.assertIsNone(self.player['state'])
+ def test_failed_save_keeps_form_for_safe_retry(self):
+  original=self.sync.side_effect;self.sync.side_effect=lambda req:None
+  defence.callback_query(self.q);self.assertEqual(self.db,[]);self.assertEqual(self.player['state']['type'],'request_confirm')
+  self.edit.assert_not_called();self.sync.side_effect=original;defence.callback_query(self.q);self.assertEqual(len(self.db),1)
+ def test_unrelated_old_message_does_not_submit_or_erase_new_form(self):
+  self.player['state']['confirmation_message_id']=222;before=self.copy(self.player['state']);defence.callback_query(self.q)
+  self.assertEqual(self.player['state'],before);self.sync.assert_not_called();self.edit.assert_not_called()
+ def test_replay_of_saved_message_does_not_clear_new_form(self):
+  defence.callback_query(self.q);self.player['state']=dict(self.form,confirmation_message_id=222);before=self.copy(self.player['state']);defence.callback_query(self.q)
+  self.assertEqual(self.player['state'],before);self.assertEqual(len(self.db),1)
+ def test_existing_identical_active_request_is_reused(self):
+  self.db.append(dict(self.form,id=14,requester_id=55,status='active'))
+  defence.callback_query(self.q);self.assertEqual(len(self.db),1);self.sync.assert_not_called();self.notify.assert_not_called();self.assertIn('#14',self.edit.call_args.args[2])
+ def test_unknown_stale_callback_never_overwrites_public_message(self):
+  self.player['state']=None;defence.callback_query(self.q);self.edit.assert_not_called();self.sync.assert_not_called()
+ def test_confirmation_is_shown_before_slow_side_effects_and_failures(self):
+  def notification(req):
+   self.assertIsNone(self.player['state']);self.assertTrue(self.edit.called);raise RuntimeError('fixture offline')
+  self.notify.side_effect=notification;defence.callback_query(self.q);self.assertEqual(len(self.db),1);self.assertIn('✅',self.edit.call_args.args[2])
+
 if __name__=='__main__':unittest.main()
