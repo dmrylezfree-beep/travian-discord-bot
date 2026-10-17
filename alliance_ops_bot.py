@@ -216,7 +216,7 @@ def owned_operation(uid,oid):
 
 
 def menu(uid):
-    rows=[[btn("📋 Мой план","mine:list")],[btn("🏘 Мои офф-деревни","village:list")],[btn("➕ Добавить офф-деревню","village:add")],
+    rows=[[btn("📋 Мой план","mine:list")],[btn("🏘 Мои офф-деревни","village:list")],
           [btn("⚔️ Мои операции","ops:list"),btn("📝 Создать операцию","ops:new")]]
     if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Список офферов","offers:ro:list")]]
     return rows
