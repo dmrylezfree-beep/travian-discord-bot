@@ -24,7 +24,7 @@ def delete_webhook():
 def update_thread_id(update):
     message = update.get("message") or update.get("edited_message") or {}
     if message:
-        return message.get("message_thread_id")
+        return message.get("message_thread_id") or (message.get("pinned_message") or {}).get("message_thread_id")
     callback = update.get("callback_query") or {}
     message = callback.get("message") or {}
     return message.get("message_thread_id")

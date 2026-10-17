@@ -1250,7 +1250,24 @@ def refresh_center(chat_id=None, create_if_missing=False):
     return True
 
 
+def adopt_pinned_centre(message):
+    pinned=message.get('pinned_message')
+    if not isinstance(pinned,dict):return False
+    chat=message.get('chat',{})
+    topic=pinned.get('message_thread_id') or message.get('message_thread_id')
+    bot_id=str(bot.TELEGRAM_TOKEN or '').split(':',1)[0]
+    if chat.get('type')=='private' or topic!=bot.THREAD_ID or not bot_id.isdigit():return False
+    if str(pinned.get('from',{}).get('id'))!=bot_id or not str(pinned.get('text','')).startswith('🛡 ЦЕНТР ДЕФА'):return False
+    state=load_state()
+    if str(state.get('center_chat_id'))!=str(chat.get('id')) or not pinned.get('message_id'):return False
+    if state.get('center_message_id')!=pinned['message_id']:
+        state['center_message_id']=pinned['message_id'];save_state(state)
+    refresh_center(chat_id=chat['id'],create_if_missing=True)
+    return True
+
+
 def process_text(message):
+    if adopt_pinned_centre(message):return
     user = message.get("from", {})
     text = (message.get("text") or "").strip()
     is_private = message.get("chat", {}).get("type") == "private"

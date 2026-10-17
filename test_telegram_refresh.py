@@ -543,4 +543,35 @@ class DefenceConfirmationTests(unittest.TestCase):
    self.assertIsNone(self.player['state']);self.assertTrue(self.edit.called);raise RuntimeError('fixture offline')
   self.notify.side_effect=notification;defence.callback_query(self.q);self.assertEqual(len(self.db),1);self.assertIn('✅',self.edit.call_args.args[2])
 
+
+class PinnedCentreTests(unittest.TestCase):
+ def setUp(self):
+  import copy
+  from contextlib import ExitStack
+  self.copy=copy.deepcopy;self.stack=ExitStack();self.addCleanup(self.stack.close)
+  self.state={'center_chat_id':-100,'center_message_id':10}
+  self.stack.enter_context(patch.object(defence.bot,'TELEGRAM_TOKEN','123:fixture'))
+  self.stack.enter_context(patch.object(defence,'load_state',return_value=self.state))
+  self.save=self.stack.enter_context(patch.object(defence,'save_state'))
+  self.refresh=self.stack.enter_context(patch.object(defence,'refresh_center'))
+  self.message={'chat':{'id':-100,'type':'supergroup'},'pinned_message':{'message_id':20,'message_thread_id':defence.bot.THREAD_ID,'from':{'id':123},'text':'🛡 ЦЕНТР ДЕФА\nАктивных заявок нет.'}}
+ def test_new_pin_is_adopted_and_refreshed(self):
+  self.assertTrue(defence.adopt_pinned_centre(self.message));self.assertEqual(self.state['center_message_id'],20)
+  self.save.assert_called_once();self.refresh.assert_called_once_with(chat_id=-100,create_if_missing=True)
+ def test_pin_service_message_works_without_text_or_outer_topic(self):
+  import defence_poll
+  self.assertEqual(defence_poll.update_thread_id({'message':self.message}),defence.bot.THREAD_ID)
+  defence.process_text(self.message);self.assertEqual(self.state['center_message_id'],20);self.refresh.assert_called_once()
+ def test_other_bot_topic_chat_and_non_centre_pins_are_ignored(self):
+  for variant in ['bot','topic','chat','text']:
+   message=self.copy(self.message)
+   if variant=='bot':message['pinned_message']['from']['id']=456
+   elif variant=='topic':message['pinned_message']['message_thread_id']=4444
+   elif variant=='chat':message['chat']['id']=-200
+   else:message['pinned_message']['text']='Other pinned message'
+   with self.subTest(variant=variant):self.assertFalse(defence.adopt_pinned_centre(message))
+  self.save.assert_not_called();self.refresh.assert_not_called()
+ def test_same_pin_refreshes_without_rewriting_or_repinning(self):
+  self.state['center_message_id']=20;self.assertTrue(defence.adopt_pinned_centre(self.message));self.save.assert_not_called();self.refresh.assert_called_once()
+
 if __name__=='__main__':unittest.main()
