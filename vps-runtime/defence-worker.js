@@ -67,13 +67,23 @@ function langButtons(){return [{type:1,components:[{type:2,style:1,custom_id:"de
 function regButton(l){return [{type:1,components:[{type:2,style:3,custom_id:"def_register_"+l,label:DTXT[l].reg,emoji:{name:"🛡️"}}]}];}
 function sendDefButtons(requests,l){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_send_"+q.id+"_"+l,label:(l==="ja"?"防衛兵を送る #":"Send Defence #")+q.id,emoji:{name:"🛡️"}}]}));}
 function publicCentreButtons(requests){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る #"+q.id}]}));}
-function publicCentreText(requests){const a=["🛡 **WORLD Defence**",""];if(!(requests||[]).length)a.push("No active defence requests / 現在、防衛要請はありません。");for(const q of requests||[]){a.push("🟢 **#"+q.id+"**  **"+q.target_x+"|"+q.target_y+"**","⚔️ "+(q.attack_time_display||q.attack_time),"🛡 "+Number(q.collected_def||0).toLocaleString()+" / "+Number(q.required_def||0).toLocaleString(),"");}return a.join("\n");}
+export function targetLink(q){
+ if(q.target_x==null||q.target_y==null)return '—';
+ const x=Number(q.target_x),y=Number(q.target_y);
+ if(!Number.isInteger(x)||!Number.isInteger(y)||Math.abs(x)>200||Math.abs(y)>200)return '—';
+ return `[${x}|${y}](https://ts8.x1.asia.travian.com/karte.php?x=${x}&y=${y})`;
+}
+export function defenceMentionRoles(roles){
+ const names=['leader','manager','attacker','defender'];
+ return names.flatMap(name=>(roles||[]).filter(r=>String(r.name||'').trim().toLowerCase()===name));
+}
+function publicCentreText(requests){const a=["🛡 **WORLD Defence**",""];if(!(requests||[]).length)a.push("No active defence requests / 現在、防衛要請はありません。");for(const q of requests||[]){a.push("🟢 **#"+q.id+"**  **"+targetLink(q)+"**","⚔️ "+(q.attack_time_display||q.attack_time),"🛡 "+Number(q.collected_def||0).toLocaleString()+" / "+Number(q.required_def||0).toLocaleString(),"");}return a.join("\n");}
 function defenceThreadName(q){return ("🛡 DEF #"+q.id+" — "+q.target_x+"|"+q.target_y).slice(0,100);}
 function defenceThreadText(q){
  const required=Number(q.required_def||0),collected=Number(q.collected_def||0),missing=Math.max(0,required-collected);
  return [
   "🛡 **DEFENCE REQUEST #"+q.id+" / 防衛要請 #"+q.id+"**","",
-  "🎯 **"+q.target_x+"|"+q.target_y+"**",
+  "🎯 **"+targetLink(q)+"**",
   "⚔️ **Attack / 攻撃:** "+(q.attack_time_display||q.attack_time),
   "",
   "🛡 **REQUEST / 必要:** "+required.toLocaleString(),
@@ -85,9 +95,9 @@ function defenceThreadComponents(q){
  if(q.status!=="active"||Number(q.collected_def||0)>=Number(q.required_def||0))return [];
  return [{type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る"}]}];
 }
-async function defenderRole(env){
+async function defenceRoles(env){
  const roles=await discordApi(env,"/guilds/"+DISCORD_GUILD_ID+"/roles");
- return (roles||[]).find(r=>String(r.name||"").toLowerCase()==="defender")||null;
+ return defenceMentionRoles(roles);
 }
 async function findDefenceThread(env,q){
  try{
@@ -101,7 +111,7 @@ async function findDefenceThread(env,q){
  }catch(e){console.error("Discord archived threads read failed:",e);if(env.STRICT_DEFENCE_SYNC)throw e;return null;}
 }
 async function syncDefenceThreads(env,requests,allRequests=[]){
- const role=await defenderRole(env).catch(e=>{console.error("Defender role lookup failed:",e);return null;});
+ const roles=await defenceRoles(env).catch(e=>{console.error("Defence role lookup failed:",e);return [];});
  const activeIds=new Set((requests||[]).map(q=>Number(q.id)));
  // Close threads whose request is no longer actionable (covered, cancelled or expired).
  for(const q of allRequests||[]){
@@ -127,15 +137,15 @@ async function syncDefenceThreads(env,requests,allRequests=[]){
   let thread=await findDefenceThread(env,q);
   if(!thread){
    const starter=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages","POST",{
-    content:"🛡 **New defence request / 新しい防衛要請**\n🎯 **"+q.target_x+"|"+q.target_y+"**",
+    content:"🛡 **New defence request / 新しい防衛要請**\n🎯 **"+targetLink(q)+"**",
     allowed_mentions:{parse:[]}
    });
    thread=await discordApi(env,"/channels/"+DISCORD_DEFENCE_CHANNEL_ID+"/messages/"+starter.id+"/threads","POST",{name:defenceThreadName(q),auto_archive_duration:1440});
    // Notify defenders only after the request thread exists, so the mention
    // belongs to the actual defence discussion rather than the parent channel.
-   if(role)await discordApi(env,"/channels/"+thread.id+"/messages","POST",{
-    content:"<@&"+role.id+"> 🛡 **New defence request / 新しい防衛要請**",
-    allowed_mentions:{roles:[role.id]}
+   if(roles.length)await discordApi(env,"/channels/"+thread.id+"/messages","POST",{
+    content:roles.map(role=>"<@&"+role.id+">").join(" ")+" 🛡 **New defence request / 新しい防衛要請**",
+    allowed_mentions:{parse:[],roles:roles.map(role=>String(role.id))}
    });
   }
   try{
@@ -201,7 +211,7 @@ function mapVillage(text,x,y){const rows=text.match(/\([^;\n]*?\)(?=,|;|\s*$)/g)
 async function getMap(){const r=await fetch(TRAVIAN_MAP_URL,{headers:{"User-Agent":"travian-defence"}});if(!r.ok)throw new Error("map.sql "+r.status);return r.text();}
 function tribeName(n,l){const a=l==="ja"?{1:"ローマン",2:"チュートン",3:"ガウル",6:"エジプト",7:"フン",8:"スパルタ"}:{1:"Romans",2:"Teutons",3:"Gauls",6:"Egyptians",7:"Huns",8:"Spartans"};return a[n]||String(n);}
 async function uidUsed(env,uid,dp,myId,map){for(const [id,p] of Object.entries(dp))if(id!==myId&&Number(p?.travian_uid)===uid)return true;const tp=(await ghJson(env,TELEGRAM_PLAYERS_PATH)).data||{};for(const p of Object.values(tp)){if(Number(p?.travian_uid)===uid)return true;for(const v of p?.villages||[]){const m=String(v.coordinates||"").match(/^\s*(-?\d+)\s+(-?\d+)\s*$/);if(m&&mapVillage(map,+m[1],+m[2])?.uid===uid)return true;}}return false;}
-async function centreData(env,p){const l=p.language==="ja"?"ja":"en",t=DTXT[l];let rs=[];try{rs=await loadActiveRequests(env);}catch{}let a=["🛡 **WORLD Defence**","","👤 **"+t.account+":** "+p.player_name,"🏘 **"+t.village+":** "+(p.villages?.[0]?.coordinates||"—"),"⚔️ **"+t.tribe+":** "+tribeName(p.tribe,l),"","**"+t.active+":**"];if(!rs.length)a.push(t.none);for(const q of rs)a.push("🟢 **#"+q.id+"** — "+q.target_x+"|"+q.target_y+" — 🛡 "+Number(q.collected_def||0).toLocaleString()+"/"+Number(q.required_def||0).toLocaleString()+" — ⚔️ "+(q.attack_time_display||q.attack_time));return {text:a.join("\n"),requests:rs,lang:l};}
+async function centreData(env,p){const l=p.language==="ja"?"ja":"en",t=DTXT[l];let rs=[];try{rs=await loadActiveRequests(env);}catch{}let a=["🛡 **WORLD Defence**","","👤 **"+t.account+":** "+p.player_name,"🏘 **"+t.village+":** "+(p.villages?.[0]?.coordinates||"—"),"⚔️ **"+t.tribe+":** "+tribeName(p.tribe,l),"","**"+t.active+":**"];if(!rs.length)a.push(t.none);for(const q of rs)a.push("🟢 **#"+q.id+"** — "+targetLink(q)+" — 🛡 "+Number(q.collected_def||0).toLocaleString()+"/"+Number(q.required_def||0).toLocaleString()+" — ⚔️ "+(q.attack_time_display||q.attack_time));return {text:a.join("\n"),requests:rs,lang:l};}
 
 
 const DEF_UNITS={
@@ -478,8 +488,8 @@ export async function handleDiscordInteraction(i, env, ctx) {
      else {
        const res=await saveDiscordPledge(env,p,id,rid,l,n,idx,routeIdx);
        if(res.error) content=res.error;
-       else if(withVillage){const leg=res.plan[0];content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;}
-       else content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;
+       else if(withVillage){const leg=res.plan[0];content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+targetLink(res.q)+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;}
+       else content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+targetLink(res.q)+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;
      }
      await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
    }catch(e){console.error("Fast-path pledge failed:",e);}})());
@@ -549,7 +559,7 @@ export async function handleDiscordInteraction(i, env, ctx) {
      const res=await saveDiscordPledge(env,p,id,rid,l,n,idx);
      let content;
      if(res.error) content=res.error;
-     else {const leg=res.plan[0];content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;}
+     else {const leg=res.plan[0];content=(l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n🏘 **"+String(leg.village).replace(" ","|")+"**\n🚨 "+(l==="ja"?"送信期限":"Send by")+": **"+leg.deadline+"**\n🎯 **"+targetLink(res.q)+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def;}
      await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
    }catch(e){console.error("Deferred Discord village pledge failed:",e);}})());
    return Response.json({type:5,data:{flags:64}});
@@ -559,7 +569,7 @@ export async function handleDiscordInteraction(i, env, ctx) {
    const m=i.data.custom_id.match(/^def_srcskip_(\d+)_(en|ja)_a(\d+)$/),rid=+m[1],l=m[2],n=+m[3],token=i.token,appId=i.application_id;
    ctx.waitUntil((async()=>{try{
      const res=await saveDiscordPledge(env,p,id,rid,l,n,null);
-     const content=res.error||((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+res.q.target_x+"|"+res.q.target_y+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
+     const content=res.error||((l==="ja"?"✅ **防衛を登録しました**":"✅ **Defence added**")+"\n\n🛡 **"+res.amount+"**\n⏱ "+(l==="ja"?"村を選択していないため、送信時刻は計算されません。":"No village selected — departure time was not calculated.")+"\n🎯 **"+targetLink(res.q)+"**\n📊 "+res.q.collected_def+" / "+res.q.required_def);
      await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components:[]})});
    }catch(e){console.error("Deferred Discord pledge failed:",e);}})());
    return Response.json({type:5,data:{flags:64}});
@@ -675,7 +685,7 @@ async function sendDiscordReminder(env,item){
   const l=item.language==="ja"?"ja":"en";
   const dm=await discordApi(env,"/users/@me/channels","POST",{recipient_id:String(item.discord_id)});
   const coords=String(item.village||"?").replace(" ","|");
-  const target=String(item.target_x)+"|"+String(item.target_y);
+  const target=targetLink(item);
   const text=l==="ja"
     ? "🚨 **防衛兵を送る時間です**\n\n🏘 **"+coords+"** → 🎯 **"+target+"**\n🛡 **"+Number(item.def_points||0).toLocaleString()+"** 防衛ポイント\n⚡ "+(item.gear_label||"No hero")+"\n\n🚨 **送信期限: "+(item.deadline||"?")+"**\n⚔️ 攻撃: **"+(item.attack_time_display||item.attack_time||"?")+"**\n\n⏱ 送信期限まで約5分です。"
     : "🚨 **TIME TO SEND DEFENCE**\n\n🏘 **"+coords+"** → 🎯 **"+target+"**\n🛡 **"+Number(item.def_points||0).toLocaleString()+"** defence points\n⚡ "+(item.gear_label||"No hero")+"\n\n🚨 **SEND BY: "+(item.deadline||"?")+"**\n⚔️ Attack: **"+(item.attack_time_display||item.attack_time||"?")+"**\n\n⏱ About 5 minutes remain to send.";

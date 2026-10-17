@@ -108,3 +108,42 @@ test('Telegram request-sync retries preserve one committed request and its contr
   await Promise.allSettled(background);
  }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
 });
+
+import {targetLink,defenceMentionRoles} from './defence-worker.js';
+test('target links point to the current world and validate coordinates',()=>{
+ assert.equal(targetLink({target_x:-15,target_y:3}),'[-15|3](https://ts8.x1.asia.travian.com/karte.php?x=-15&y=3)');
+ for(const q of [{target_x:null,target_y:3},{target_x:201,target_y:0},{target_x:'[bad]',target_y:3}])assert.equal(targetLink(q),'—');
+});
+test('defence alerts select all four requested roles without unrelated mentions',()=>{
+ const selected=defenceMentionRoles([{id:'4',name:'Defender'},{id:'5',name:'Everyone Else'},{id:'2',name:' MANAGER '},{id:'1',name:'Leader'},{id:'3',name:'attacker'}]);
+ assert.deepEqual(selected.map(r=>r.id),['1','2','3','4']);
+});
+test('new request pings the four roles once; subsequent refreshes only update links',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-mentions-'));const oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;process.env.DEFENCE_DATA_DIR=dir;
+ let thread=false,card=false;const pings=[];let centre='',starter='',cardContent='';const author={id:'1555623257724682402'};
+ const q={id:9,status:'active',target_x:-15,target_y:3,attack_time:'2031-01-02 12:00:00',required_def:1000,collected_def:0};
+ globalThis.fetch=async(url,options={})=>{
+  assert.ok(String(url).startsWith('https://discord.com/api/v10/'));const path=String(url).split('/api/v10')[1],method=options.method||'GET';const body=options.body?JSON.parse(options.body):{};let result;
+  if(path.endsWith('/roles'))result=['Leader','Manager','Attacker','Defender','Other'].map((name,i)=>({id:String(i+1),name}));
+  else if(path.endsWith('/threads/active'))result={threads:thread?[{id:'thread',name:'🛡 DEF #9 — -15|3',thread_metadata:{archived:false}}]:[]};
+  else if(path.includes('/threads/archived/public'))result={threads:[]};
+  else if(path.endsWith('/pins')&&method==='GET')result=[{id:'centre',author,content:'🛡 **WORLD Defence**'}];
+  else if(path.endsWith('/messages/centre')&&method==='PATCH'){centre=body.content;result={id:'centre'};}
+  else if(path.endsWith('/pins/centre')&&method==='PUT')result={};
+  else if(path==='/channels/1430982180401578153/messages'&&method==='POST'){starter=body.content;result={id:'starter'};}
+  else if(path.endsWith('/messages/starter/threads')&&method==='POST'){thread=true;result={id:'thread'};}
+  else if(path==='/channels/thread/messages'&&method==='POST'){
+   if(body.content.includes('<@&'))pings.push(body);else{card=true;cardContent=body.content;}result={id:'card'};
+  }else if(path==='/channels/thread/messages?limit=50')result=card?[{id:'card',author,content:'🛡 **DEFENCE REQUEST #9'}]:[];
+  else if(path==='/channels/thread/messages/card'&&method==='PATCH'){cardContent=body.content;result={id:'card'};}
+  else throw Error('Unexpected external operation '+method+' '+path);
+  return Response.json(result);
+ };
+ try{
+  await saveState('data/defence/requests.json',[q],[]);const env={DISCORD_BOT_TOKEN:'fixture',LOCAL_SYNC:async()=>{}};
+  const signature=await reconcileDefenceRequests(env);await reconcileDefenceRequests(env,signature);await reconcileDefenceRequests(env);
+  assert.equal(pings.length,1);assert.deepEqual(pings[0].allowed_mentions,{parse:[],roles:['1','2','3','4']});
+  assert.equal(pings[0].content.startsWith('<@&1> <@&2> <@&3> <@&4>'),true);
+  for(const content of [centre,starter,cardContent])assert.ok(content.includes(targetLink(q)));
+ }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});
