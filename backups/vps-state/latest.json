@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-17T13:21:29.538867+00:00",
+  "created_at": "2026-10-17T14:21:32.772722+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -766,6 +766,33 @@
           {
             "coordinates": "11 52",
             "name": "00",
+            "arena": 0,
+            "troops": {},
+            "hero": {
+              "present": false
+            }
+          }
+        ],
+        "hero_inventory": {
+          "standards": [],
+          "boots": [],
+          "maps": []
+        },
+        "state": null
+      },
+      "325316780941639692": {
+        "discord_id": "325316780941639692",
+        "discord_username": "kenichi2797",
+        "discord_global_name": "kenichi",
+        "language": "ja",
+        "travian_uid": 3208,
+        "player_name": "kenichi",
+        "race": "gaul",
+        "tribe": 3,
+        "villages": [
+          {
+            "coordinates": "84 9",
+            "name": "01時空間村@観戦垢",
             "arena": 0,
             "troops": {},
             "hero": {
