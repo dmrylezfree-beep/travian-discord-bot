@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-17T09:20:48.037398+00:00",
+  "created_at": "2026-10-17T10:21:12.765699+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -599,6 +599,22 @@
         "telegram_id": 545074834,
         "username": "Yaroslav9728",
         "first_name": "Yaroslav(OneWayTicket)",
+        "race": null,
+        "villages": [],
+        "substitutes": [],
+        "state": null,
+        "private_chat_id": null,
+        "private_notifications": true,
+        "hero_inventory": {
+          "standards": [],
+          "boots": [],
+          "maps": []
+        }
+      },
+      "993572860": {
+        "telegram_id": 993572860,
+        "username": "",
+        "first_name": "Алекс",
         "race": null,
         "villages": [],
         "substitutes": [],
