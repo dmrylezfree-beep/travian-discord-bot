@@ -690,14 +690,19 @@ def spam_hint(op,uid,real):
     return "\n".join(lines)
 
 
-def village_points_prompt(cid,uid,key):
+def village_points_prompt(cid,uid,key,delete=False):
     offer=owns_offer(uid,key)
     if not offer:send(cid,'Деревня недоступна.');return
-    state(uid,'village_save_points',{'key':key})
+    state(uid)
     points=offer.get('save_points',[])
-    text='🛡 <b>Постоянные сейв-точки деревни</b>\n'+html.escape(village_label(offer))+'\nВведите до 10 координат, каждую с новой строки:\n<code>13|3\n-20 45</code>\nСписок заменит предыдущий. Для очистки отправьте <code>-</code>.'
-    if points:text+='\nСохранены: '+', '.join(f'{p[0]}|{p[1]}' for p in points)
-    send(cid,text,[[btn('Отмена',f'village:view:{key}')]])
+    text='🛡 <b>Сейв-точки деревни</b>\n'+html.escape(village_label(offer))+'\n\n'+('\n'.join(f'📍 {p[0]}|{p[1]}' for p in points) if points else 'Сейв-точки пока не заданы.')
+    if delete:
+        text+='\n\nВыберите точку для удаления. Её напоминания будут отменены.'
+        buttons=[[btn(f'🗑 {point[0]}|{point[1]}',f'savepoint:remove:{key}:{point[0]}:{point[1]}')] for point in points]
+        buttons.append([btn('⬅️ Сейв-точки',f'village:points:{key}')])
+    else:
+        buttons=[[btn('➕ Добавить сейв-точку',f'savepoint:add:{key}')],[btn('🗑 Удалить сейв-точку',f'savepoint:delete:{key}')]]
+    buttons.append([btn('⬅️ К деревне',f'village:view:{key}')]);send(cid,text,buttons)
 
 
 def save_option(op,uid,aid,point):
@@ -925,6 +930,17 @@ def handle_message(m):
     st=getstate(uid)
     if not st:send(cid,"Используйте /start, чтобы открыть меню.");return
     step=st["step"];d=st["data"]
+    if step=='add_save_point':
+        key=d['key'];offer=owns_offer(uid,key)
+        if not offer:state(uid);send(cid,'Деревня недоступна.');return
+        point=coords(text)
+        if not point:send(cid,'❌ Введите координаты одной точки: <code>13|3</code>.');return
+        point=list(point);points=offer.get('save_points',[])
+        if point==[int(offer['x']),int(offer['y'])]:send(cid,'❌ Точка совпадает с офф-деревней.');return
+        if point in points:send(cid,'Эта сейв-точка уже добавлена.');return
+        if len(points)>=10:send(cid,'Уже сохранено 10 точек. Сначала удалите ненужную.',[[btn('⬅️ Сейв-точки',f'village:points:{key}')]]);return
+        offers=load(OFFERS);offers[key]['save_points']=points+[point];save(OFFERS,offers);persist('Add village save point')
+        send(cid,f'✅ Добавлена сейв-точка {point[0]}|{point[1]}.');village_points_prompt(cid,uid,key);return
     if step in ('village_save_points','save_points'):
         offers=load(OFFERS);key=d.get('key',str(uid));offer=owns_offer(uid,key)
         if not offer:state(uid);send(cid,'Деревня недоступна.');return
@@ -1091,6 +1107,23 @@ def callback(c):
     if x.startswith("offers:ro:view:"):
         if uid not in COORDINATORS:return
         coordinator_offer_view(cid,x.rsplit(":",1)[1]);return
+    if x.startswith('savepoint:'):
+        parts=x.split(':')
+        if len(parts)<3:return
+        action,key=parts[1:3];offer=owns_offer(uid,key)
+        if not offer:send(cid,'Деревня недоступна.');return
+        if action=='add':
+            state(uid,'add_save_point',{'key':key});send(cid,'➕ Введите координаты одной сейв-точки, например <code>13|3</code>.',[[btn('Отмена',f'village:points:{key}')]])
+        elif action=='delete':village_points_prompt(cid,uid,key,delete=True)
+        elif action=='remove' and len(parts)==5:
+            try:point=[int(parts[3]),int(parts[4])]
+            except ValueError:return
+            offers=load(OFFERS);points=offers[key].get('save_points',[])
+            if point not in points:send(cid,'Эта точка уже удалена.');village_points_prompt(cid,uid,key);return
+            offers[key]['save_points']=[p for p in points if p!=point]
+            offers[key]['save_reminders']={ident:item for ident,item in offers[key].get('save_reminders',{}).items() if item.get('point')!=point}
+            save(OFFERS,offers);persist('Remove village save point');send(cid,f'✅ Удалена сейв-точка {point[0]}|{point[1]}.');village_points_prompt(cid,uid,key)
+        return
     if x.startswith(('mine:choose:','mine:unsave:')):
         parts=x.split(':')
         if parts[1]=='choose':

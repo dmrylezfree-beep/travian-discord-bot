@@ -108,8 +108,8 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_callback_exposes_forms_and_cancel_clears_state(self):
   o=self.ops
   with patch.object(o,'api'):
-   c={'id':'fixture','from':{'id':1},'message':{'chat':{'id':1}},'data':'village:points:1'}
-   o.callback(c);self.assertEqual(o.getstate(1)['step'],'village_save_points')
+   c={'id':'fixture','from':{'id':1},'message':{'chat':{'id':1}},'data':'savepoint:add:1'}
+   o.callback(c);self.assertEqual(o.getstate(1)['step'],'add_save_point')
    c['data']='village:view:1';o.callback(c);self.assertIsNone(o.getstate(1));self.assertIn('Сейв-точки',self.sender.call_args.args[1])
 
  def alliance_targets(self):
@@ -238,9 +238,9 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o.personal_op(1,1,'op');buttons=self.sender.call_args.args[2];text=' '.join(b['text'] for row in buttons for b in row)
   self.assertIn('0|0 →',text);self.assertIn('10|0 →',text)
  def test_save_points_belong_to_selected_origin(self):
-  o=self.ops;self.add_second_village();self.click_village('village:points:1_extra')
+  o=self.ops;self.add_second_village();self.click_village('savepoint:add:1_extra')
   self.message_ops('12|0')
-  offers=o.load(o.OFFERS);self.assertEqual(offers['1']['save_points'],[[1,0]]);self.assertEqual(offers['1_extra']['save_points'],[[12,0]])
+  offers=o.load(o.OFFERS);self.assertEqual(offers['1']['save_points'],[[1,0]]);self.assertEqual(offers['1_extra']['save_points'],[[11,0],[12,0]])
   o.personal_support(1,1,'op','save','second_real');self.assertIn('12|0',self.sender.call_args.args[1]);self.assertIn('10|0',self.sender.call_args.args[1])
  def test_publishing_sends_one_plan_per_owner_not_per_village(self):
   o=self.ops;self.add_second_village();plans=o.load(o.OPERATIONS);plans['op']['status']='draft';o.save(o.OPERATIONS,plans);self.sender.reset_mock()
@@ -403,8 +403,8 @@ class AllianceOpsSupportTests(unittest.TestCase):
    def now(cls,tz=None):return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
   patcher=patch.object(self.ops,'datetime',Clock);patcher.start();self.addCleanup(patcher.stop)
  def test_permanent_points_can_be_set_without_any_operation(self):
-  o=self.ops;o.save(o.OPERATIONS,{});self.click_village('village:points:1');self.message_ops('2|0\n3|0')
-  self.assertEqual(o.load(o.OFFERS)['1']['save_points'],[[2,0],[3,0]])
+  o=self.ops;o.save(o.OPERATIONS,{});self.click_village('savepoint:add:1');self.message_ops('2|0');self.click_village('savepoint:add:1');self.message_ops('3|0')
+  self.assertEqual(o.load(o.OFFERS)['1']['save_points'],[[1,0],[2,0],[3,0]])
   self.assertIn('2|0',self.sender.call_args.args[1])
  def test_plan_shows_timed_choices_and_no_settings_button(self):
   o=self.ops;o.personal_support(1,1,'op');buttons=self.sender.call_args.args[2]
@@ -428,7 +428,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_reminder_cancel_and_point_removal(self):
   o=self.ops;self.click_village('mine:choose:op:real:1:0');self.click_village('mine:unsave:op:real')
   self.assertNotIn('op:real',o.load(o.OFFERS)['1']['save_reminders'])
-  self.click_village('mine:choose:op:real:1:0');self.click_village('village:points:1');self.message_ops('-')
+  self.click_village('mine:choose:op:real:1:0');self.click_village('savepoint:remove:1:1:0')
   self.assertEqual(o.load(o.OFFERS)['1']['save_reminders'],{})
  def test_reminder_delivery_failure_retries_without_marking_sent(self):
   o=self.ops;self.click_village('mine:choose:op:real:1:0');self.save_clock('2030-01-02T11:14:00+03:00')
@@ -476,5 +476,25 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o=self.ops;tag=o.creator_tag({'created_by':123,'creator_name':'A < B'})
   self.assertIn('tg://user?id=123',tag);self.assertIn('A &lt; B',tag)
   self.assertEqual(o.creator_tag({'created_by':'bad" id'}),'не указан')
+
+ def test_individual_point_menu_and_validation(self):
+  o=self.ops;self.click_village('village:points:1')
+  callbacks=[b['callback_data'] for row in self.sender.call_args.args[2] for b in row]
+  self.assertIn('savepoint:add:1',callbacks);self.assertIn('savepoint:delete:1',callbacks);self.assertIsNone(o.getstate(1))
+  self.click_village('savepoint:add:1');before=o.load(o.OFFERS)
+  for text in ['2|0\n3|0','1|0','0|0','201|0']:
+   self.message_ops(text);self.assertEqual(o.load(o.OFFERS),before)
+  self.message_ops('2|0');self.assertEqual(o.load(o.OFFERS)['1']['save_points'],[[1,0],[2,0]])
+ def test_delete_only_selected_point_and_its_reminder(self):
+  o=self.ops;offers=o.load(o.OFFERS);offers['1']['save_points']=[[1,0],[2,0]];offers['1']['save_reminders']={'first':{'point':[1,0]},'second':{'point':[2,0]}};o.save(o.OFFERS,offers)
+  self.click_village('savepoint:delete:1');callbacks=[b['callback_data'] for row in self.sender.call_args.args[2] for b in row]
+  self.assertIn('savepoint:remove:1:1:0',callbacks)
+  self.click_village('savepoint:remove:1:1:0');offer=o.load(o.OFFERS)['1'];self.assertEqual(offer['save_points'],[[2,0]]);self.assertEqual(set(offer['save_reminders']),{'second'})
+  self.click_village('savepoint:remove:1:1:0');self.assertEqual(o.load(o.OFFERS)['1'],offer)
+ def test_other_user_cannot_change_points_and_cancel_preserves_list(self):
+  o=self.ops;before=o.load(o.OFFERS)
+  for action in ['savepoint:add:1','savepoint:delete:1','savepoint:remove:1:1:0']:self.click_village(action,uid=2)
+  self.assertEqual(o.load(o.OFFERS),before)
+  self.click_village('savepoint:add:1');self.click_village('village:points:1');self.assertIsNone(o.getstate(1));self.assertEqual(o.load(o.OFFERS),before)
 
 if __name__=='__main__':unittest.main()
