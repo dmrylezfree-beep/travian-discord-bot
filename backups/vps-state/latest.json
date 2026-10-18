@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-18T14:29:13.007031+00:00",
+  "created_at": "2026-10-18T15:29:15.981448+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -2939,7 +2939,7 @@
       "63|65": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-17.sql",
+        "alliance_snapshot": "map_2026-10-18.sql",
         "comment": "",
         "created_at": "2026-10-10T17:45:56+03:00",
         "map_missing": false,
