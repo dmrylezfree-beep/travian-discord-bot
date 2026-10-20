@@ -36,3 +36,38 @@ export async function dispatchLocalSync(env) {
   });
   if(!response.ok)throw Error('Local sync scheduling failed');
 }
+
+// Gateway interactions and the local reconciler run in separate processes.
+// Hold a kernel lock over the complete read/find/create/update sequence.
+// The child releases it on stdin EOF, including when the Node parent exits.
+export function withDiscordSyncLock(run) {
+  const script = `import os,sys,fcntl
+root=os.environ.get('DEFENCE_DATA_DIR','/opt/travian-discord-bot/data/defence')
+with open(os.path.join(root,'.discord-sync.lock'),'a') as lock:
+ os.chmod(lock.name,0o600)
+ fcntl.flock(lock,fcntl.LOCK_EX)
+ print('locked',flush=True)
+ sys.stdin.buffer.read()
+`;
+  return new Promise((resolve,reject)=>{
+    const child=spawn(process.env.DEFENCE_PYTHON || '/opt/travian-discord-bot/.venv/bin/python',
+      ['-c',script],{stdio:['pipe','pipe','ignore']});
+    let acquired=false,settled=false,result,failure,output='';
+    const timer=setTimeout(()=>{failure=Error('Discord sync lock timeout');child.kill('SIGKILL');},120000);
+    const finish=error=>{
+      if(settled)return;
+      settled=true;clearTimeout(timer);
+      if(failure||error)reject(failure||error);else resolve(result);
+    };
+    child.stdin.on('error',()=>{});
+    child.on('error',()=>finish(Error('Discord sync lock unavailable')));
+    child.on('close',code=>finish(code===0&&acquired?null:Error('Discord sync lock failed')));
+    child.stdout.on('data',chunk=>{
+      output+=chunk;
+      if(acquired||!output.includes('locked\n'))return;
+      acquired=true;clearTimeout(timer);
+      Promise.resolve().then(run).then(value=>{result=value;},error=>{failure=error;})
+        .finally(()=>child.stdin.end());
+    });
+  });
+}

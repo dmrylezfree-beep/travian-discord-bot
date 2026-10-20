@@ -118,9 +118,9 @@ test('defence alerts select all four requested roles without unrelated mentions'
  const selected=defenceMentionRoles([{id:'4',name:'Defender'},{id:'5',name:'Everyone Else'},{id:'2',name:' MANAGER '},{id:'1',name:'Leader'},{id:'3',name:'attacker'}]);
  assert.deepEqual(selected.map(r=>r.id),['1','2','3','4']);
 });
-test('new request pings the four roles once; subsequent refreshes only update links',async()=>{
+test('concurrent request refreshes create one thread, card and role notification',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'travian-mentions-'));const oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;process.env.DEFENCE_DATA_DIR=dir;
- let thread=false,card=false;const pings=[];let centre='',starter='',cardContent='';const author={id:'1555623257724682402'};
+ let thread=false,card=false,threadCreates=0,cardCreates=0;const pings=[];let centre='',starter='',cardContent='';const author={id:'1555623257724682402'};
  const q={id:9,status:'active',target_x:-15,target_y:3,attack_time:'2031-01-02 12:00:00',required_def:1000,collected_def:0};
  globalThis.fetch=async(url,options={})=>{
   assert.ok(String(url).startsWith('https://discord.com/api/v10/'));const path=String(url).split('/api/v10')[1],method=options.method||'GET';const body=options.body?JSON.parse(options.body):{};let result;
@@ -131,9 +131,9 @@ test('new request pings the four roles once; subsequent refreshes only update li
   else if(path.endsWith('/messages/centre')&&method==='PATCH'){centre=body.content;result={id:'centre'};}
   else if(path.endsWith('/pins/centre')&&method==='PUT')result={};
   else if(path==='/channels/1430982180401578153/messages'&&method==='POST'){starter=body.content;result={id:'starter'};}
-  else if(path.endsWith('/messages/starter/threads')&&method==='POST'){thread=true;result={id:'thread'};}
+  else if(path.endsWith('/messages/starter/threads')&&method==='POST'){threadCreates++;thread=true;result={id:'thread'};}
   else if(path==='/channels/thread/messages'&&method==='POST'){
-   if(body.content.includes('<@&'))pings.push(body);else{card=true;cardContent=body.content;}result={id:'card'};
+   if(body.content.includes('<@&'))pings.push(body);else{cardCreates++;await new Promise(resolve=>setTimeout(resolve,30));card=true;cardContent=body.content;}result={id:'card'};
   }else if(path==='/channels/thread/messages?limit=50')result=card?[{id:'card',author,content:'🛡 **DEFENCE REQUEST #9'}]:[];
   else if(path==='/channels/thread/messages/card'&&method==='PATCH'){cardContent=body.content;result={id:'card'};}
   else throw Error('Unexpected external operation '+method+' '+path);
@@ -141,9 +141,31 @@ test('new request pings the four roles once; subsequent refreshes only update li
  };
  try{
   await saveState('data/defence/requests.json',[q],[]);const env={DISCORD_BOT_TOKEN:'fixture',LOCAL_SYNC:async()=>{}};
-  const signature=await reconcileDefenceRequests(env);await reconcileDefenceRequests(env,signature);await reconcileDefenceRequests(env);
+  const [signature]=await Promise.all([reconcileDefenceRequests(env),reconcileDefenceRequests(env),reconcileDefenceRequests(env)]);await reconcileDefenceRequests(env,signature);await reconcileDefenceRequests(env);
+  assert.equal(threadCreates,1);assert.equal(cardCreates,1);
   assert.equal(pings.length,1);assert.deepEqual(pings[0].allowed_mentions,{parse:[],roles:['1','2','3','4']});
   assert.equal(pings[0].content.startsWith('<@&1> <@&2> <@&3> <@&4>'),true);
   for(const content of [centre,starter,cardContent])assert.ok(content.includes(targetLink(q)));
  }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});
+
+import {spawn} from 'node:child_process';
+import {withDiscordSyncLock} from './local_state.js';
+test('Discord refresh lock excludes separate Node processes and releases after errors',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-discord-lock-'));const oldDir=process.env.DEFENCE_DATA_DIR;process.env.DEFENCE_DATA_DIR=dir;
+ const code=`import {withDiscordSyncLock} from ${JSON.stringify(new URL('./local_state.js',import.meta.url).href)};
+ import {open,unlink} from 'node:fs/promises';
+ for(let i=0;i<4;i++)await withDiscordSyncLock(async()=>{
+  const guard=process.env.DEFENCE_DATA_DIR+'/exclusive';const file=await open(guard,'wx');
+  try{await new Promise(resolve=>setTimeout(resolve,30));}finally{await file.close();await unlink(guard);}
+ });`;
+ const run=()=>new Promise((resolve,reject)=>{
+  const child=spawn(process.execPath,['--input-type=module','-e',code],{stdio:'ignore'});
+  child.on('error',reject);child.on('close',exit=>exit===0?resolve():reject(Error('Concurrent lock failed')));
+ });
+ try{
+  await Promise.all([run(),run()]);
+  await assert.rejects(()=>withDiscordSyncLock(async()=>{throw Error('fixture failure');}),/fixture failure/);
+  assert.equal(await withDiscordSyncLock(async()=>42),42);
+ }finally{if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
 });

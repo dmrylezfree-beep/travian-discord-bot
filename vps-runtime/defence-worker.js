@@ -1,4 +1,4 @@
-import {readState, saveState, dispatchLocalSync} from "./local_state.js";
+import {readState, saveState, dispatchLocalSync, withDiscordSyncLock} from "./local_state.js";
 const THREAD_ID = 38636;
 const GITHUB_OWNER = "dmrylezfree-beep";
 const GITHUB_REPO = "travian-discord-bot";
@@ -180,6 +180,9 @@ async function findDiscordCentre(env){
  return centre||null;
 }
 async function refreshDiscordCentre(env){
+ return withDiscordSyncLock(()=>refreshDiscordCentreLocked(env));
+}
+async function refreshDiscordCentreLocked(env){
  const requests=await loadActiveRequests(env);
  let allRequests=[];try{const rq=await ghJson(env,"data/defence/requests.json");allRequests=Array.isArray(rq.data)?rq.data:[];}catch(e){console.error("All defence requests load failed:",e);}
  // Restore the public centre first. Thread creation is secondary and must not
