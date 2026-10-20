@@ -574,4 +574,33 @@ class PinnedCentreTests(unittest.TestCase):
  def test_same_pin_refreshes_without_rewriting_or_repinning(self):
   self.state['center_message_id']=20;self.assertTrue(defence.adopt_pinned_centre(self.message));self.save.assert_not_called();self.refresh.assert_called_once()
 
+class DefenceGuideTests(unittest.TestCase):
+ def test_guide_is_in_both_telegram_main_menus(self):
+  for menu in (defence.bot.main_menu(),defence.request_menu(),defence.bot.settings_kb()):
+   self.assertIn('def_guide',[b['callback_data'] for row in menu['inline_keyboard'] for b in row])
+ def test_all_pages_are_bounded_and_have_navigation(self):
+  bot=defence.bot
+  for n in range(len(bot.DEFENCE_GUIDE)):
+   text,markup=bot.defence_guide_page(n)
+   self.assertLess(len(text),4096);self.assertIn(f'{n+1}/{len(bot.DEFENCE_GUIDE)}',text)
+   buttons=[b['callback_data'] for row in markup['inline_keyboard'] for b in row]
+   self.assertIn('menu',buttons)
+   if n:self.assertIn(f'def_guide:{n-1}',buttons)
+   if n+1<len(bot.DEFENCE_GUIDE):self.assertIn(f'def_guide:{n+1}',buttons)
+   else:self.assertNotIn(f'def_guide:{n+1}',buttons)
+  self.assertEqual(bot.defence_guide_page('bad'),bot.defence_guide_page(0))
+  self.assertEqual(bot.defence_guide_page(999),bot.defence_guide_page(len(bot.DEFENCE_GUIDE)-1))
+ def test_private_paging_never_reads_or_changes_player_or_request_state(self):
+  q={'id':'fixture','from':{'id':1},'data':'def_guide:2','message':{'chat':{'id':1,'type':'private'},'message_id':2}}
+  with patch.object(defence.bot,'answer_callback'),patch.object(defence.bot,'edit') as edit,patch.object(defence.bot,'get_player',side_effect=AssertionError('Profile access')),patch.object(defence.bot,'save_json',side_effect=AssertionError('State write')):
+   defence.callback_query(q);edit.assert_called_once();self.assertIn('3/',edit.call_args.args[2])
+ def test_group_guide_goes_privately_without_editing_pinned_centre(self):
+  q={'id':'fixture','from':{'id':1},'data':'def_guide','message':{'chat':{'id':-100,'type':'supergroup'},'message_id':87479,'message_thread_id':defence.bot.THREAD_ID}}
+  with patch.object(defence.bot,'answer_callback'),patch.object(defence.bot,'edit') as edit,patch.object(defence.bot,'send_private') as send,patch.object(defence.bot,'get_player',side_effect=AssertionError('Profile access')):
+   defence.callback_query(q);edit.assert_not_called();send.assert_called_once();self.assertEqual(send.call_args.args[0],1)
+ def test_blocked_private_chat_provides_start_hint(self):
+  q={'id':'fixture','from':{'id':1},'data':'def_guide','message':{'chat':{'id':-100,'type':'supergroup'},'message_id':87479,'message_thread_id':defence.bot.THREAD_ID}}
+  with patch.object(defence.bot,'answer_callback') as answer,patch.object(defence.bot,'edit') as edit,patch.object(defence.bot,'send_private',side_effect=RuntimeError('blocked')):
+   defence.callback_query(q);edit.assert_not_called();self.assertIn('/start',answer.call_args.args[1])
+
 if __name__=='__main__':unittest.main()

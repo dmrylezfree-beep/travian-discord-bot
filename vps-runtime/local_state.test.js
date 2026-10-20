@@ -169,3 +169,38 @@ test('Discord refresh lock excludes separate Node processes and releases after e
   assert.equal(await withDiscordSyncLock(async()=>42),42);
  }finally{if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
 });
+
+import {discordGuidePage,handleDiscordInteraction} from './defence-worker.js';
+test('English and Japanese tutorials page privately without network or state writes',async()=>{
+ const oldFetch=globalThis.fetch;globalThis.fetch=async()=>{throw Error('Tutorial must not call external APIs');};
+ const base={type:3,guild_id:'1430982178074005507',channel_id:'1430982180401578153',member:{user:{id:'fixture'}}};
+ try{
+  for(const l of ['en','ja']){
+   const opened=await (await handleDiscordInteraction({...base,data:{custom_id:'def_guide_open_'+l}},{},{})).json();
+   assert.equal(opened.type,4);assert.equal(opened.data.flags,64);assert.match(opened.data.content,/1\/8/);
+   for(let n=0;n<8;n++){
+    const response=await (await handleDiscordInteraction({...base,data:{custom_id:'def_guide_page_'+n+'_'+l}},{},{})).json();
+    assert.equal(response.type,7);assert.deepEqual(response.data,discordGuidePage(n,l));assert.ok(response.data.content.length<2000);
+    const buttons=response.data.components.flatMap(row=>row.components);assert.ok(buttons.some(b=>b.custom_id==='def_guide_home_'+l));
+    assert.equal(buttons.some(b=>b.custom_id==='def_guide_page_'+(n+1)+'_'+l),n<7);
+    assert.equal(buttons.some(b=>b.custom_id==='def_guide_page_'+(n-1)+'_'+l),n>0);
+   }
+  }
+ }finally{globalThis.fetch=oldFetch;}
+});
+test('tutorial exit restores registration or personal menu with Discord component limits',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-guide-'));const oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;process.env.DEFENCE_DATA_DIR=dir;
+ globalThis.fetch=async()=>{throw Error('Menu must not send messages');};
+ const base={type:3,guild_id:'1430982178074005507',channel_id:'1430982180401578153',member:{user:{id:'123'},permissions:'8192'},data:{custom_id:'def_guide_home_en'}};
+ const check=components=>{assert.ok(components.length<=5);for(const row of components){assert.ok(row.components.length>0&&row.components.length<=5);}};
+ try{
+  let r=await (await handleDiscordInteraction(base,{},{})).json();assert.equal(r.type,7);check(r.data.components);
+  assert.ok(r.data.components.flatMap(row=>row.components).some(b=>b.custom_id==='def_guide_open_en'));
+  await saveState('data/defence/discord_players.json',{'123':{travian_uid:1,player_name:'Fixture',language:'ja',villages:[]}},{});
+  const qs=Array.from({length:5},(_,n)=>({id:n+1,status:'active',attack_time:'2035-01-01 12:00:00',requester_id:'123',requester_platform:'discord',target_x:1,target_y:2,required_def:1000,collected_def:0}));
+  await saveState('data/defence/requests.json',qs,[]);
+  r=await (await handleDiscordInteraction(base,{},{})).json();assert.equal(r.type,7);check(r.data.components);
+  const buttons=r.data.components.flatMap(row=>row.components);assert.ok(buttons.some(b=>b.custom_id==='def_guide_open_ja'));
+  assert.ok(buttons.some(b=>b.custom_id==='def_create_ja'));assert.ok(buttons.some(b=>b.custom_id==='def_delete_menu_ja'));
+ }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});

@@ -63,10 +63,21 @@ const DTXT = {
 };
 function dReply(content,components=[]){return Response.json({type:4,data:{content,components,flags:64}});}
 function dUser(i){return String(i.member?.user?.id||i.user?.id||"");}
-function langButtons(){return [{type:1,components:[{type:2,style:1,custom_id:"def_lang_en",label:"English",emoji:{name:"🇬🇧"}},{type:2,style:1,custom_id:"def_lang_ja",label:"日本語",emoji:{name:"🇯🇵"}}]}];}
+const DEFENCE_GUIDE = {"en": [["Getting started", "The bot helps the alliance organise defence: it lists requests, records pledged defence points and calculates departure times.\n\nUse /def in the defence channel. Choose English and register your Travian account using the coordinates of your WORLD village. One Travian account cannot be registered twice, including across Telegram and Discord.\n\nYou must send troops yourself in Travian. Recording help in the bot does not send any troops."], ["Villages and troops", "In your /def menu use Add village to add your defence villages. Enter coordinates and the correct Tournament Square level.\n\nUse Troops, choose a village and enter the available units. Keep these numbers up to date: the bot does not read your current army from the game."], ["Hero and gear", "Use Hero & gear to set the hero’s village and the gear you have: standards, boots and maps.\n\nWhen choosing a departure option, select the setup you will actually use in the game. Hero bonuses only apply when you send the hero with the troops."], ["Reading defence requests", "The defence channel and each request thread show the target, attack time, required defence, pledged defence and the remaining need. Click the target coordinates to open the Travian map.\n\nPledged defence means help recorded in the bot; it does not confirm that reinforcements have arrived. The initial alert mentions Leader, Manager, Attacker and Defender."], ["Creating or deleting a request", "If you have the Manage Messages permission, your /def menu includes Create defence request. Enter the target coordinates, full attack date and time, and required defence points. Check the entries before submitting.\n\nUse Travian server time (UTC), not your local clock. Delete my request lets you cancel your own active Discord requests after confirmation."], ["Offering defence", "Click Send Defence on a request or in your /def menu. Enter the defence points you can provide, then choose a village and an available departure option.\n\nSelecting a village lets the bot calculate the departure deadline. Confirm without village records your help without a calculated departure time or a timed departure reminder.\n\nRecord the same help only once."], ["Departure time and reminders", "The bot uses distance, troop speed, Tournament Square level and the selected hero setup to calculate when you must send. It can send a private reminder 5 minutes before that deadline. Allow direct messages from the bot.\n\nAll displayed attack and departure times use Travian server time (UTC). Before sending reinforcements, check the actual arrival time and troop composition in the game. Do not wait for a reminder if departure is already close."], ["After the attack and daily checklist", "When enough defence points are pledged, the request closes. When the attack time passes, an active request expires, its Send Defence button is removed and its thread is archived. Cancel your own request earlier if it is no longer needed.\n\nBefore helping, check your village coordinates, Tournament Square level, available troops and hero setup. Use Change language to switch English/Japanese.\n\nYou can reopen this guide from the main menu at any time."]], "ja": [["はじめに", "このボットは同盟の防衛を整理します。要請の一覧、登録された防衛ポイント、出発時刻の計算を確認できます。\n\n防衛チャンネルで /def を使い、日本語を選び、自分の村の座標からTravianアカウントを登録してください。\n\n兵士は自分でTravianから送ります。ボットへの登録だけでは兵士は出発しません。"], ["村と兵士の設定", "/def のメニューで「村を追加」から防衛に使う村を登録し、座標と闘技場のレベルを正しく入力してください。\n\n兵士の設定で村を選び、利用できる各兵種の数を入力します。ボットはゲーム内の現在の兵士数を自動取得しないため、変更があれば更新してください。"], ["英雄と装備", "「英雄と装備」で英雄がいる村と、所持する旗・靴・地図を設定してください。\n\n出発方法を選ぶときは、実際にゲームで使う装備を選びます。英雄のボーナスは、英雄を兵士と一緒に送る場合に適用されます。"], ["防衛要請の見方", "防衛チャンネルと各要請スレッドには、対象の座標、攻撃時刻、必要な防衛ポイント、登録済みのポイント、不足分が表示されます。座標を押すとTravianの地図が開きます。\n\n登録済みのポイントは援軍の到着確認ではありません。最初の通知はLeader・Manager・Attacker・Defenderをメンションします。"], ["要請の作成と削除", "「メッセージの管理」権限がある場合、/def に要請作成ボタンが表示されます。対象座標、攻撃の日付と時刻、必要な防衛ポイントを入力し、送信前に確認してください。\n\n時刻は端末の現地時間ではなくTravianサーバー時刻（UTC）です。自分がDiscordで作成した有効な要請は、削除メニューから確認後に取り消せます。"], ["援軍を登録する", "要請または /def の「防衛兵を送る」を押し、提供する防衛ポイントを入力して、出発する村と移動方法を選びます。\n\n村を選ぶと出発期限を計算できます。村を選ばずに確認した場合、援軍の登録だけが行われ、出発時刻の計算や出発リマインダーはありません。\n\n同じ援軍を二重に登録しないでください。"], ["出発時刻とリマインダー", "距離、兵士の速度、闘技場、選択した英雄の装備から出発期限を計算します。期限の5分前に個人メッセージで通知できるため、ボットからのDMを許可してください。\n\n攻撃・出発時刻はTravianサーバー時刻（UTC）です。ゲームで実際の兵士編成と到着時刻を確認し、援軍として送ってください。出発が近い場合は通知を待たないでください。"], ["攻撃後と確認事項", "必要な防衛ポイントが集まると要請は終了します。攻撃時刻を過ぎた有効な要請は期限切れになり、送信ボタンが消えてスレッドがアーカイブされます。不要になった自分の要請は、それより前でも削除できます。\n\n村の座標、闘技場、利用できる兵士、英雄の装備を確認しましょう。言語変更で英語・日本語を切り替えられます。\n\nこのガイドはメインメニューから何度でも開けます。"]]};
+function guideButton(l){return {type:2,style:2,custom_id:"def_guide_open_"+l,label:l==="ja"?"📖 使い方":"📖 Instructions"};}
+export function discordGuidePage(page,l){
+ l=l==="ja"?"ja":"en";const pages=DEFENCE_GUIDE[l];page=Number(page);
+ page=Number.isInteger(page)?Math.max(0,Math.min(page,pages.length-1)):0;
+ const [title,body]=pages[page],buttons=[];
+ if(page>0)buttons.push({type:2,style:2,custom_id:"def_guide_page_"+(page-1)+"_"+l,label:l==="ja"?"⬅️ 戻る":"⬅️ Back"});
+ if(page+1<pages.length)buttons.push({type:2,style:1,custom_id:"def_guide_page_"+(page+1)+"_"+l,label:l==="ja"?"次へ ➡️":"Next ➡️"});
+ buttons.push({type:2,style:2,custom_id:"def_guide_home_"+l,label:l==="ja"?"メインメニュー":"Main menu"});
+ return {content:"📖 **"+(l==="ja"?"使い方":"Instructions")+" · "+(page+1)+"/"+pages.length+"**\n\n**"+(page+1)+". "+title+"**\n\n"+body,components:[{type:1,components:buttons}]};
+}
+function langButtons(){return [{type:1,components:[{type:2,style:1,custom_id:"def_lang_en",label:"English",emoji:{name:"🇬🇧"}},{type:2,style:1,custom_id:"def_lang_ja",label:"日本語",emoji:{name:"🇯🇵"}}]},{type:1,components:[guideButton("en"),guideButton("ja")]}];}
 function regButton(l){return [{type:1,components:[{type:2,style:3,custom_id:"def_register_"+l,label:DTXT[l].reg,emoji:{name:"🛡️"}}]}];}
 function sendDefButtons(requests,l){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_send_"+q.id+"_"+l,label:(l==="ja"?"防衛兵を送る #":"Send Defence #")+q.id,emoji:{name:"🛡️"}}]}));}
-function publicCentreButtons(requests){return (requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る #"+q.id}]}));}
+function publicCentreButtons(requests){const rows=(requests||[]).slice(0,5).map(q=>({type:1,components:[{type:2,style:3,custom_id:"def_public_send_"+q.id,label:"🛡 Send Defence / 防衛兵を送る #"+q.id}]}));if(!rows.length)rows.push({type:1,components:[]});rows[0].components.push(guideButton("en"),guideButton("ja"));return rows;}
 export function targetLink(q){
  if(q.target_x==null||q.target_y==null)return '—';
  const x=Number(q.target_x),y=Number(q.target_y);
@@ -325,7 +336,7 @@ function personalCentreComponents(requests,l,canCreate=false,userId=""){
  const room=Math.max(0,5-fixed.length);
  return [...(sendDefButtons(requests,l).slice(0,room)),...fixed];
 }
-function settingsButtons(l){const t=DTXT[l];return [{type:1,components:[{type:2,style:1,custom_id:"def_add_"+l,label:t.addVillage,emoji:{name:"🏘️"}},{type:2,style:1,custom_id:"def_troops_"+l,label:t.troops,emoji:{name:"🛡️"}}]},{type:1,components:[{type:2,style:1,custom_id:"def_hero_"+l,label:l==="ja"?"英雄と装備":"Hero & gear",emoji:{name:"🦸"}},{type:2,style:2,custom_id:"def_language",label:t.changeLang,emoji:{name:"🌐"}}]}];}
+function settingsButtons(l){const t=DTXT[l];return [{type:1,components:[{type:2,style:1,custom_id:"def_add_"+l,label:t.addVillage,emoji:{name:"🏘️"}},{type:2,style:1,custom_id:"def_troops_"+l,label:t.troops,emoji:{name:"🛡️"}}]},{type:1,components:[{type:2,style:1,custom_id:"def_hero_"+l,label:l==="ja"?"英雄と装備":"Hero & gear",emoji:{name:"🦸"}},{type:2,style:2,custom_id:"def_language",label:t.changeLang,emoji:{name:"🌐"}},guideButton(l)]}];}
 function villageButtons(p,l){return (p.villages||[]).slice(0,5).map((v,n)=>({type:1,components:[{type:2,style:1,custom_id:"def_village_"+n+"_"+l,label:(v.name||("Village "+(n+1)))+" ("+String(v.coordinates).replace(" ","|")+")"}]}));}
 function unitButtons(p,idx,l){const us=DEF_UNITS[p.race]||[];return us.map(u=>({type:1,components:[{type:2,style:1,custom_id:"def_unit_"+idx+"_"+u[0]+"_"+l,label:(l==="ja"?u[2]:u[1])+" — "+Number(p.villages?.[idx]?.troops?.[u[0]]||0)}]}));}
 
@@ -361,6 +372,12 @@ export async function handleDiscordInteraction(i, env, ctx) {
  // Fast path for the whole defence-send flow. Never wait for GitHub before
  // acknowledging a Discord interaction.
  const cid=String(i.data?.custom_id||"");
+ const guideMatch=cid.match(/^def_guide_(open|page_(\d+))_(en|ja)$/);
+ if(i.type===3&&guideMatch){
+   const data=discordGuidePage(guideMatch[2]||0,guideMatch[3]);
+   return guideMatch[1]==="open"?dReply(data.content,data.components):Response.json({type:7,data});
+ }
+
  if(i.type===3&&/^def_delete_menu_(en|ja)$/.test(cid)){
    const l=cid.endsWith("_ja")?"ja":"en";
    // This branch runs before the normal profile-loading block below, so load
@@ -501,6 +518,12 @@ export async function handleDiscordInteraction(i, env, ctx) {
 
  try{
   const loaded=await ghJson(env,DISCORD_PLAYERS_PATH),players=loaded.data||{},p=players[id];
+  if(i.type===3&&/^def_guide_home_(en|ja)$/.test(cid)){
+   if(!p?.travian_uid)return Response.json({type:7,data:{content:"🛡 **WORLD Defence**\n\nChoose your language / 言語を選択してください",components:langButtons()}});
+   const cd=await centreData(env,p);
+   return Response.json({type:7,data:{content:cd.text,components:personalCentreComponents(cd.requests,cd.lang,canCreateDefence(i),id)}});
+  }
+
   if(i.type===2&&i.data?.name==="def"){
    if(p?.travian_uid){
      // The profile is already loaded at this point. Acknowledge /def immediately,

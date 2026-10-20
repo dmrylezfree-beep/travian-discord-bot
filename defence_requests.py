@@ -101,6 +101,7 @@ def request_menu():
         [{"text": "🛡 Отправить деф", "callback_data": "send_def"}],
         [{"text": "🗑 Удалить заявку", "callback_data": "delete_request_menu"}],
         [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
+        [{"text": "📖 Инструкция", "callback_data": "def_guide"}],
     ])
 
 
@@ -1466,6 +1467,8 @@ def process_text(message):
 
 
 def callback_query(q):
+    if bot.handle_guide_callback(q):
+        return
     message = q.get("message", {})
     is_private = message.get("chat", {}).get("type") == "private"
     if is_private:
