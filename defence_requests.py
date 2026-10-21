@@ -1858,12 +1858,6 @@ def callback_query(q):
             bot.edit(chat_id, msg_id, "❌ План отправки пуст или заявка уже закрыта.", request_menu())
             return
         total = sum(int(x["def_points"]) for x in draft)
-        remaining = request_remaining(req)
-        if total > remaining:
-            bot.edit(chat_id, msg_id, f"❌ В заявке осталось только <b>{remaining}</b> очков. Уменьшите план.", request_menu())
-            player["state"] = None
-            bot.save_players(data)
-            return
         req.setdefault("contributions", []).append({
             "telegram_id": int(user.get("id", 0)), "username": user.get("username", ""),
             "first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""), "def_points": total,
@@ -1876,9 +1870,6 @@ def callback_query(q):
         if sync_request_to_worker(req) is None:
             bot.edit(chat_id, msg_id, "❌ Не удалось сохранить отправку дефа. Попробуйте ещё раз.", request_menu())
             return
-        # Worker may have capped this pledge because another player filled part
-        # of the request while this wizard was open. Reload the accepted form
-        # returned by Worker before scheduling reminders and showing the result.
         bot.save_json(bot.REQUESTS_FILE, requests)
         accepted_contribution = req.get("contributions", [])[-1] if req.get("contributions") else None
         if accepted_contribution:
@@ -1889,8 +1880,6 @@ def callback_query(q):
         accepted_total = int(accepted_contribution.get("def_points", 0) or 0) if accepted_contribution else 0
         accepted_draft = accepted_contribution.get("plan", []) if accepted_contribution else []
         result = draft_summary({"draft": accepted_draft or draft}, req) + f"\n\n✅ Записано: <b>{accepted_total}</b> очков."
-        if accepted_total < total:
-            result += f"\n⚠️ План уменьшен с <b>{total}</b>: часть заявки уже закрыли другие игроки."
         if req.get("status") != "closed":
             result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
         bot.edit(chat_id, msg_id, result, request_menu())

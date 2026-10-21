@@ -214,3 +214,34 @@ test('London DST gaps and repeated clock times cannot silently choose the wrong 
  assert.equal(reminderInstant({reminder_at:'2026-10-25 01:25:00',reminder_at_ms:exact}),exact);
  assert.equal(reminderInstant({reminder_at:'2026-10-21 16:47:51'}),Date.parse('2026-10-21T15:47:51Z'));
 });
+
+test('overfill sync preserves full multi-village pledge and is idempotent',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-overfill-')),oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;
+ process.env.DEFENCE_DATA_DIR=dir;globalThis.fetch=async()=>{throw Error('fixture external calls disabled');};
+ const background=[],env={TELEGRAM_BOT_TOKEN:'fixture'},ctx={waitUntil(p){background.push(Promise.resolve(p).catch(()=>{}));}};
+ const original={id:77,status:'active',required_def:1000,collected_def:900,attack_time:'2030-01-02 22:00:00',contributions:[{telegram_id:1,def_points:900,created_at:'first'}]};
+ const plan=[{village:'1|2',def_points:150,reminder_at:'2030-01-02 20:00:00'},{village:'3|4',def_points:100,reminder_at:'2030-01-02 21:00:00'}];
+ const incoming={...original,status:'closed',contributions:[...original.contributions,{telegram_id:2,created_at:'second',def_points:250,plan}]};
+ try{
+  await saveState('data/defence/requests.json',[original],[]);
+  for(let i=0;i<2;i++){
+   const response=await worker.fetch(new Request('http://localhost/discord/request-sync',{method:'POST',headers:{Authorization:'Bearer fixture','Content-Type':'application/json'},body:JSON.stringify({request:incoming})}),env,ctx);
+   assert.equal(response.status,200);await response.json();
+   const saved=(await readState('data/defence/requests.json')).data[0];
+   assert.equal(saved.collected_def,1150);assert.equal(saved.status,'closed');assert.equal(saved.contributions.length,2);assert.deepEqual(saved.contributions[1].plan,plan);
+  }
+ }finally{await Promise.allSettled(background);globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});
+
+import {saveDiscordPledge} from './defence-worker.js';
+test('Discord commits full overfill before refreshing displays and rejects closed requests',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-discord-overfill-')),oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;
+ process.env.DEFENCE_DATA_DIR=dir;globalThis.fetch=async()=>{throw Error('fixture refresh unavailable');};
+ try{
+  await saveState('data/defence/requests.json',[{id:78,status:'active',required_def:1000,collected_def:900,attack_time:'2030-01-02 22:00:00',contributions:[{def_points:900}]}],[]);
+  // Simulated display outage after persistence must not change the saved amount.
+  await assert.rejects(()=>saveDiscordPledge({LOCAL_SYNC:async()=>{}},{player_name:'fixture'},'55',78,'en',250));
+  const saved=(await readState('data/defence/requests.json')).data[0];assert.equal(saved.collected_def,1150);assert.equal(saved.contributions[1].def_points,250);assert.equal(saved.status,'closed');
+  assert.ok((await saveDiscordPledge({}, {},'55',78,'en',250)).error);
+ }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});

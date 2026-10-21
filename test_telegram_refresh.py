@@ -672,3 +672,18 @@ class DefenceLondonTimeTests(unittest.TestCase):
   self.assertEqual(plan['items'][0]['deadline'].strftime('%H:%M:%S'),'16:52:51')
 
 if __name__=='__main__':unittest.main()
+
+class DefenceOverfillTests(unittest.TestCase):
+ def test_full_plan_is_saved_and_reminded_when_above_remaining(self):
+  from contextlib import ExitStack
+  plan=[dict(village='1|2',def_points=150,speed_mode='foot',deadline='20:00',reminder_time='19:55'),dict(village='3|4',def_points=100,speed_mode='foot',deadline='21:00',reminder_time='20:55')]
+  player={'state':{'request_id':77,'draft':plan}};req=dict(id=77,status='active',required_def=1000,collected_def=900,contributions=[],target_x=1,target_y=2,attack_time_display='fixture')
+  q={'id':'test','from':{'id':55},'data':'send_finish:77','message':{'chat':{'id':-100,'type':'supergroup'},'message_id':111,'message_thread_id':defence.bot.THREAD_ID}}
+  with ExitStack() as stack:
+   def mocked(obj,name,**kw):return stack.enter_context(patch.object(obj,name,**kw))
+   mocked(defence.bot,'get_player',return_value=({'55':player},player));mocked(defence,'sync_player_race');mocked(defence.bot,'handle_guide_callback',return_value=False)
+   mocked(defence.bot,'telegram_member_tag',return_value='fixture');mocked(defence.bot,'answer_callback');mocked(defence.bot,'load_json',return_value=[req]);mocked(defence.bot,'save_json');mocked(defence.bot,'save_players')
+   sync=mocked(defence,'sync_request_to_worker',side_effect=lambda r:r);reminders=mocked(defence,'schedule_defence_reminders');mocked(defence,'refresh_optimal_plans');mocked(defence,'refresh_center');edit=mocked(defence.bot,'edit')
+   defence.callback_query(q)
+   self.assertEqual(req['collected_def'],1150);self.assertEqual(req['status'],'closed');self.assertEqual(defence.request_remaining(req),0)
+   self.assertEqual(req['contributions'][0]['def_points'],250);self.assertEqual(req['contributions'][0]['plan'],plan);reminders.assert_called_once_with(req,req['contributions'][0]);sync.assert_called_once();self.assertIsNone(player['state']);self.assertIn('250',edit.call_args.args[2])

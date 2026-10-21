@@ -304,13 +304,13 @@ function sendSourceText(p,q,l){
  else for(const o of opts.slice(0,8))a.push((o.speed_mode==="hero"?"🦸":"🏘")+" **"+String(o.village.coordinates).replace(" ","|")+"** · "+o.gear_label+" · 🚨 "+timeOnly(o.deadline)+" · 🛡 ≤"+o.maxDef);
  a.push("",l==="ja"?"方法を選ぶか、村を選ばずに確認してください。":"Choose a departure option, or confirm without selecting one.");return a.join("\n");
 }
-async function saveDiscordPledge(env,p,id,rid,l,n,sourceIdx=null,routeIdx=0){
+export async function saveDiscordPledge(env,p,id,rid,l,n,sourceIdx=null,routeIdx=0){
  for(let attempt=1;attempt<=3;attempt++){
   const rq=await ghJson(env,"data/defence/requests.json"),list=Array.isArray(rq.data)?rq.data:[],q=list.find(x=>Number(x.id)===rid);
   if(!q||q.status!=="active")return {error:l==="ja"?"❌ この防衛要請は終了しています。":"❌ This defence request is no longer active."};
   const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));
   if(remaining<=0)return {error:l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered."};
-  const amount=Math.min(n,remaining),plan=[];
+  const amount=n,plan=[];
   if(sourceIdx!==null){
    const o=discordVillageOptions(p,q).find(x=>x.idx===sourceIdx&&x.routeIdx===routeIdx);
    if(!o)return {error:l==="ja"?"❌ この村は時間内に到着できません。":"❌ This village can no longer arrive in time."};
@@ -504,7 +504,7 @@ export async function handleDiscordInteraction(i, env, ctx) {
        else {
          const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));
          if(remaining<=0) content=l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.";
-         else {const amount=Math.min(n,remaining);content=sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**";components=sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))}));}
+         else {const amount=n;content=sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**";components=sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))}));}
        }
      }
      await fetch("https://discord.com/api/v10/webhooks/"+appId+"/"+token+"/messages/@original",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({content,components})});
@@ -581,7 +581,7 @@ export async function handleDiscordInteraction(i, env, ctx) {
        const remaining=Math.max(0,Number(q.required_def||0)-Number(q.collected_def||0));
        if(remaining<=0) content=l==="ja"?"✅ この防衛要請は既に完了しています。":"✅ This defence request is already covered.";
        else{
-         const amount=Math.min(n,remaining);
+         const amount=n;
          content=sendSourceText(p,q,l)+"\n\n🛡 **"+amount+"**";
          components=sendSourceButtons(p,q,l).map(row=>({type:1,components:row.components.map(b=>({...b,custom_id:b.custom_id+"_a"+amount}))}));
        }
@@ -1013,21 +1013,11 @@ export default {
                     Number(existing?.def_points || 0)
                   ]) === key);
                   if (exists) continue;
-                  const remaining = Math.max(0, required - collected);
-                  if (remaining <= 0) break;
-                  const requested = Math.max(0, Number(contribution?.def_points || 0));
-                  const accepted = Math.min(requested, remaining);
-                  if (accepted <= 0) continue;
+                  // Keep the actual pledge and all departure reminders, even
+                  // when the final contribution exceeds the remaining need.
+                  const accepted = Number(contribution?.def_points || 0);
+                  if (!Number.isFinite(accepted) || accepted <= 0) continue;
                   const savedContribution = { ...contribution, def_points: accepted };
-                  if (Array.isArray(savedContribution.plan) && requested > 0 && accepted < requested) {
-                    let left = accepted;
-                    savedContribution.plan = savedContribution.plan.map(item => {
-                      const points = Math.max(0, Number(item?.def_points || 0));
-                      const kept = Math.min(points, left);
-                      left -= kept;
-                      return { ...item, def_points: kept };
-                    }).filter(item => Number(item.def_points || 0) > 0);
-                  }
                   merged.push(savedContribution);
                   collected += accepted;
                 }
