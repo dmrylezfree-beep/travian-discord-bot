@@ -31,10 +31,12 @@ def accepts_input(message, state):
                 and (message.get("reply_to_message") or {}).get("message_id") == state["prompt_message_id"])
 
 
-MENU = {"inline_keyboard": [[{"text": "🌾 Рассчитать расход кропа", "callback_data": "crop:start"}], [{"text": "📖 Как это работает", "callback_data": "help"}]]}
+from scout_requests import ScoutRequests, main_buttons
+
+MENU = main_buttons()
 CANCEL = {"inline_keyboard": [[{"text": "❌ Отменить", "callback_data": "cancel"}]]}
 KINDS = {"inline_keyboard": [[{"text": "🏘 Деревня", "callback_data": "crop:village"}, {"text": "🌴 Оазис игрока (×10)", "callback_data": "crop:oasis"}], [{"text": "❌ Отменить", "callback_data": "cancel"}]]}
-HELP = ("📖 Расчёт по двум сканам\n\nВыберите деревню или оазис игрока, затем введите время и кроп первого и второго скана. "
+HELP = ("🔎 Заявки на скан: выберите координаты, тип разведки и время. Координатор открывает заявку и прикрепляет скриншот ответом на сообщение бота; результаты видны в общей ветке. Заявка убирается из очереди кнопкой «Выполнена». Время прибытия и отправки — по Travian, настройки деревни и арены меняет только координатор.\n\n📖 Расчёт по двум сканам\n\nВыберите деревню или оазис игрока, затем введите время и кроп первого и второго скана. "
         "Для оазиса бот умножает показанные ресурсы на 10. Для деревни множитель — 1.\n\n"
         "Формула: (кроп₂ − кроп₁) × множитель × 3600 ÷ секунды между сканами.\n\n"
         "Плюс означает накопление кропа, минус — уменьшение запаса. Это чистый баланс с учётом производства, а не отдельное содержание армии. "
@@ -107,7 +109,7 @@ def result_text(state):
 def respond(state, text=None, action=None):
     """Pure dialogue: returns new state, reply, keyboard; invalid input retains stage."""
     if text in ('/start', '/cancel') or action == 'cancel':
-        return {}, "🌾 Scout Travian\n\nРассчитаю изменение запаса кропа за час по двум сканам.", MENU
+        return {}, "🌾 Scout Travian\n\nЗдесь можно создать заявку на скан, посмотреть результаты разведки или рассчитать изменение запаса кропа по двум сканам.", MENU
     if text == '/help' or action == 'help':
         return {}, HELP, MENU
     if text == '/crop' or action == 'crop:start':
@@ -184,9 +186,12 @@ def main():
     me = call('getMe')
     if str(me.get('username','')).lower() != 'scout_travian_bot':raise RuntimeError('Unexpected bot identity')
     if call('getWebhookInfo').get('url'):raise RuntimeError('Webhook configured; polling refused')
+    scout = ScoutRequests(store, call)
+    scout.ensure_centre()
     print('Scout calculator ready.',flush=True)
     while True:
         try:
+            scout.tick()
             updates = call('getUpdates', offset=store.offset(), timeout=25, allowed_updates=['message','callback_query']) or []
         except Exception:
             print('Telegram polling unavailable; retrying.',flush=True);time.sleep(3);continue
@@ -199,6 +204,9 @@ def main():
                 if q:
                     try:call('answerCallbackQuery',callback_query_id=q['id'])
                     except Exception:pass
+                if scout.handle(update):
+                    store.acknowledge(update['update_id']+1)
+                    continue
                 if accepted(message) and user.get('id') and not user.get('is_bot'):
                     text = message.get('text') if not q else None
                     if text and text.startswith('/'):
