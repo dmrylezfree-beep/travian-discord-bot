@@ -672,6 +672,33 @@ def player_with_tribe_and_alliance(
 # НОВЫЕ ЧУЖИЕ ДЕРЕВНИ В СЕКТОРЕ (+,+)
 # ============================================================
 
+def nearest_allied_village(village, allied_villages):
+    """Closest allied village strictly within 3 fields, across map edges too."""
+    x, y = int(village["x"]), int(village["y"])
+    nearest, nearest_squared = None, 9
+    # This world spans -200..200 on each axis, as in the defence calculator.
+    size = 401
+    for ally in sorted(allied_villages, key=lambda a: (int(a["x"]), int(a["y"]), str(a["player"]))):
+        dx = abs(x - int(ally["x"])) % size
+        dy = abs(y - int(ally["y"])) % size
+        dx, dy = min(dx, size - dx), min(dy, size - dy)
+        squared = dx * dx + dy * dy
+        if squared < nearest_squared:
+            nearest_squared = squared
+            nearest = {"player": ally["player"], "x": ally["x"], "y": ally["y"], "distance": squared ** 0.5}
+    return nearest
+
+
+def nearby_allied_warning(village):
+    ally = village.get("nearby_ally")
+    if not ally:
+        return ""
+    distance = f"{ally['distance']:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+    unit = "клетка" if distance == "1" else "клетки"
+    return (f"⚠️ <b>{distance} {unit} от {html_escape(ally['player'])}</b> "
+            f"({village_link(ally['x'], ally['y'])})\n")
+
+
 def find_positive_sector_intruders(raw_today, raw_previous):
     """
     Ищет новые деревни в секторе (+,+),
@@ -694,6 +721,7 @@ def find_positive_sector_intruders(raw_today, raw_previous):
     v_previous, _ = parse_map_data(raw_previous)
 
     intruders = []
+    allied_villages = [v for v in v_today.values() if v["alliance_id"] in OUR_ALLIANCE_IDS]
 
     for v_id, village in v_today.items():
 
@@ -712,7 +740,7 @@ def find_positive_sector_intruders(raw_today, raw_previous):
         if village["alliance_id"] in OUR_ALLIANCE_IDS:
             continue
 
-        intruders.append(village)
+        intruders.append({**village, "nearby_ally": nearest_allied_village(village, allied_villages)})
 
     intruders.sort(
         key=lambda v: (
@@ -1242,7 +1270,8 @@ def send_positive_sector_alert(intruders):
             f"📍 {village_link(village['x'], village['y'])}\n"
             f"👤 {html_escape(village['player'])}\n"
             f"{alliance_text}\n"
-            f"👥 {village['pop']}\n\n"
+            f"👥 {village['pop']}\n"
+            f"{nearby_allied_warning(village)}\n"
         )
 
     send_to_telegram(

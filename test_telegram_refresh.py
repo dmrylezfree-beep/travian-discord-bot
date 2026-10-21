@@ -603,4 +603,43 @@ class DefenceGuideTests(unittest.TestCase):
   with patch.object(defence.bot,'answer_callback') as answer,patch.object(defence.bot,'edit') as edit,patch.object(defence.bot,'send_private',side_effect=RuntimeError('blocked')):
    defence.callback_query(q);edit.assert_not_called();self.assertIn('/start',answer.call_args.args[1])
 
+class SectorNearbyTests(unittest.TestCase):
+ def setUp(self):
+  import travian_bot
+  self.report=travian_bot
+ def village(self,x,y,aid=8,player='Ally'):
+  return dict(x=str(x),y=str(y),alliance_id=aid,player=player,alliance='Fixture',pop=10)
+ def test_strict_radius_diagonals_and_map_edges(self):
+  f=self.report.nearest_allied_village;target=self.village(10,10,99)
+  self.assertIsNone(f(target,[self.village(13,10)]))
+  self.assertEqual(f(target,[self.village(12,10)])['distance'],2)
+  self.assertAlmostEqual(f(target,[self.village(12,12)])['distance'],8**0.5)
+  self.assertIsNone(f(target,[self.village(13,11)]))
+  self.assertEqual(f(self.village(200,10),[self.village(-200,10)])['distance'],1)
+  self.assertIsNone(f(target,[]))
+ def test_new_foreign_only_and_nearest_of_all_allied_wings(self):
+  v=self.village
+  today={1:v(10,10,99,'New foreign'),2:v(11,10,99,'Enemy'),3:v(12,10,2,'Our wing'),4:v(10,12,11,'Other wing'),5:v(15,10,8),6:v(-1,10,99),7:v(30,30,0)}
+  previous={2:today[2]}
+  from copy import deepcopy
+  original=deepcopy(today)
+  with patch.object(self.report,'OUR_ALLIANCE_IDS',{8,2,11}),patch.object(self.report,'parse_map_data',side_effect=[(today,set()),(previous,set())]):
+   found=self.report.find_positive_sector_intruders('today','yesterday')
+  self.assertEqual([a['player'] for a in found],['New foreign','Ally'])
+  self.assertEqual(found[0]['nearby_ally']['distance'],2)
+  self.assertEqual(found[0]['nearby_ally']['player'],'Other wing')
+  self.assertIsNone(found[1]['nearby_ally']);self.assertEqual(today,original)
+ def test_warning_format_escapes_names_and_preserves_coordinates(self):
+  v=self.village(10,10,99)
+  v['nearby_ally']=dict(player='A&B <ally>',x='12',y='10',distance=2)
+  text=self.report.nearby_allied_warning(v)
+  self.assertIn('2 клетки от A&amp;B &lt;ally&gt;',text);self.assertIn('12|10',text)
+  v['nearby_ally']['distance']=8**0.5;self.assertIn('2,83 клетки',self.report.nearby_allied_warning(v))
+  self.assertEqual(self.report.nearby_allied_warning({}),'')
+ def test_alert_renders_warning_only_for_close_village(self):
+  v=self.village(10,10,99,'Foreign');v['nearby_ally']=dict(player='Our player',x=12,y=10,distance=2)
+  with patch.object(self.report,'send_to_telegram') as send:
+   self.report.send_positive_sector_alert([v,self.village(40,40,99)])
+  text=send.call_args.args[0];self.assertEqual(text.count('⚠️'),1);self.assertIn('2 клетки от Our player',text);self.assertIn('12|10',text)
+
 if __name__=='__main__':unittest.main()
