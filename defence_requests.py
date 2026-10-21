@@ -2,7 +2,7 @@ import html
 import os
 
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -11,7 +11,7 @@ from travian_bot import parse_map_data, SERVER_URL
 
 SNAPSHOT_DIR = Path("data/snapshots")
 STATE_FILE = bot.DATA_DIR / "state.json"
-SERVER_TZ = ZoneInfo("UTC")
+SERVER_TZ = ZoneInfo("Europe/London")
 DEFENCE_WORKER_URL = os.environ.get("DEFENCE_WORKER_URL", "http://127.0.0.1:18788").rstrip("/")
 # The Russian VPS may not have reliable direct HTTPS access to Cloudflare.
 # Reuse the already configured Telegram HTTPS proxy for Worker traffic unless
@@ -54,6 +54,8 @@ def schedule_defence_reminders(req, contribution):
             "def_points": int(item.get("def_points", 0) or 0),
             "speed_mode": item.get("speed_mode", "normal"),
             "reminder_at": reminder_at,
+            "reminder_at_ms": item.get("reminder_at_ms"),
+            "deadline_at_ms": item.get("deadline_at_ms"),
             "deadline_at": item.get("deadline_at"),
             "deadline": item.get("deadline"),
             "target_x": req.get("target_x"),
@@ -177,9 +179,30 @@ def find_target(coords):
     return None, path
 
 
+def localize_game_datetime(value):
+    # Reject non-existent/repeated wall times instead of silently guessing an hour.
+    candidates = {}
+    for fold in (0, 1):
+        aware = value.replace(tzinfo=SERVER_TZ, fold=fold)
+        back = datetime.fromtimestamp(aware.timestamp(), SERVER_TZ)
+        if back.replace(tzinfo=None) == value:
+            candidates[aware.timestamp()] = aware
+    if len(candidates) != 1:
+        raise ValueError("Время атаки попадает на перевод часов Travian: укажите однозначное время.")
+    return next(iter(candidates.values()))
+
+
+def shift_game_seconds(value, seconds):
+    return datetime.fromtimestamp(value.timestamp() + seconds, SERVER_TZ)
+
+
+def game_seconds_between(later, earlier):
+    return later.timestamp() - earlier.timestamp()
+
+
 def parse_attack_time(text):
     try:
-        return datetime.strptime(text, "%d.%m.%Y %H:%M:%S")
+        return localize_game_datetime(datetime.strptime(text, "%d.%m.%Y %H:%M:%S"))
     except ValueError:
         return None
 
@@ -314,7 +337,7 @@ def unit_value(unit_key):
 
 def request_datetime(req):
     try:
-        return datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S")
+        return localize_game_datetime(datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S"))
     except (KeyError, TypeError, ValueError):
         return None
 
@@ -365,8 +388,8 @@ def source_village_status(player, village, req):
     if not units:
         return "⚪", "нет указанных войск"
 
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
-    remaining = (attack - now).total_seconds()
+    now = datetime.now(SERVER_TZ)
+    remaining = game_seconds_between(attack, now)
     best = None
 
     for item in units:
@@ -378,7 +401,7 @@ def source_village_status(player, village, req):
                     "seconds": seconds,
                     "name": item["name"],
                     "with_hero": with_hero,
-                    "arrival": now + timedelta(seconds=seconds),
+                    "arrival": shift_game_seconds(now, seconds),
                 }
 
     if best is None:
@@ -402,7 +425,7 @@ def best_source_options(player, req):
     attack = request_datetime(req)
     if attack is None:
         return []
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    now = datetime.now(SERVER_TZ)
     options = []
     for idx, village in enumerate(player.get("villages", [])):
         eligible = []
@@ -411,8 +434,8 @@ def best_source_options(player, req):
             if item["hero_seconds"] is not None:
                 variants.append((True, item["hero_seconds"]))
             for with_hero, seconds in variants:
-                arrival = now + timedelta(seconds=seconds)
-                if arrival <= attack:
+                arrival = shift_game_seconds(now, seconds)
+                if arrival.timestamp() <= attack.timestamp():
                     eligible.append({
                         "idx": idx,
                         "village": village,
@@ -439,8 +462,8 @@ def village_send_options(player, req):
     attack = request_datetime(req)
     if attack is None:
         return []
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
-    remaining = (attack - now).total_seconds()
+    now = datetime.now(SERVER_TZ)
+    remaining = game_seconds_between(attack, now)
     if remaining <= 0:
         return []
 
@@ -457,7 +480,7 @@ def village_send_options(player, req):
             seconds = max(x["no_hero_seconds"] for x in normal_units)
             variants.append({
                 "key": "normal", "label": "⚡ Без героя", "seconds": seconds,
-                "deadline": attack - timedelta(seconds=seconds), "arrival": attack,
+                "deadline": shift_game_seconds(attack, -seconds), "arrival": attack,
                 "max_def": sum(int(x["amount"]) * int(x["value"]) for x in normal_units),
                 "with_hero": False,
             })
@@ -494,7 +517,7 @@ def village_send_options(player, req):
                         "key": f"h{std}b{boots}m{best_map if std == 0 else 0}",
                         "label": label,
                         "seconds": seconds,
-                        "deadline": attack - timedelta(seconds=seconds),
+                        "deadline": shift_game_seconds(attack, -seconds),
                         "arrival": attack,
                         "max_def": sum(int(x[0]["amount"]) * int(x[0]["value"]) for x in eligible),
                         "with_hero": True,
@@ -527,7 +550,7 @@ def village_send_options(player, req):
                 seconds = max(x[1] for x in eligible)
                 variants.append({
                     "key": key, "label": label, "seconds": seconds,
-                    "deadline": attack - timedelta(seconds=seconds), "arrival": attack,
+                    "deadline": shift_game_seconds(attack, -seconds), "arrival": attack,
                     "max_def": sum(int(x[0]["amount"]) * int(x[0]["value"]) for x in eligible),
                     "with_hero": False,
                 })
@@ -775,9 +798,9 @@ def build_optimal_plan(req):
     if req.get("status") != "active":
         return None
     attack = request_datetime(req)
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    now = datetime.now(SERVER_TZ)
     remaining = request_remaining(req)
-    if attack is None or attack <= now or remaining <= 0:
+    if attack is None or attack.timestamp() <= now.timestamp() or remaining <= 0:
         return None
 
     candidates = []
@@ -789,21 +812,21 @@ def build_optimal_plan(req):
         for village in player.get("villages", []):
             coords = str(village.get("coordinates", "?"))
             for item in source_village_units(player, village, req):
-                normal_deadline = attack - timedelta(seconds=item["no_hero_seconds"])
+                normal_deadline = shift_game_seconds(attack, -item["no_hero_seconds"])
                 with_hero = False
                 deadline = normal_deadline
                 seconds = item["no_hero_seconds"]
 
                 # The hero is used in the recommendation only when the same
                 # troops would otherwise be too late.
-                if deadline <= now and item.get("hero_seconds") is not None:
-                    hero_deadline = attack - timedelta(seconds=item["hero_seconds"])
-                    if hero_deadline > now:
+                if deadline.timestamp() <= now.timestamp() and item.get("hero_seconds") is not None:
+                    hero_deadline = shift_game_seconds(attack, -item["hero_seconds"])
+                    if hero_deadline.timestamp() > now.timestamp():
                         with_hero = True
                         deadline = hero_deadline
                         seconds = item["hero_seconds"]
 
-                if deadline <= now:
+                if deadline.timestamp() <= now.timestamp():
                     continue
 
                 cavalry = item["key"] in CAVALRY_UNITS
@@ -929,13 +952,13 @@ def refresh_optimal_plans(chat_id=None, force=False):
         return False
 
     changed_data = False
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    now = datetime.now(SERVER_TZ)
     for req in requests:
         attack = request_datetime(req)
         active = (
             req.get("status") == "active"
             and attack is not None
-            and attack > now
+            and attack.timestamp() > now.timestamp()
             and request_remaining(req) > 0
         )
         if not active:
@@ -984,7 +1007,7 @@ def notification_source_options(player, req):
     if attack is None:
         return []
 
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    now = datetime.now(SERVER_TZ)
     options = []
 
     for idx, village in enumerate(player.get("villages", [])):
@@ -999,8 +1022,8 @@ def notification_source_options(player, req):
             for with_hero, seconds in variants:
                 if seconds is None:
                     continue
-                deadline = attack - timedelta(seconds=seconds)
-                if deadline <= now:
+                deadline = shift_game_seconds(attack, -seconds)
+                if deadline.timestamp() <= now.timestamp():
                     continue
 
                 candidate = {
@@ -1011,9 +1034,9 @@ def notification_source_options(player, req):
                     "amount": item["amount"],
                     "value": item["value"],
                     "seconds": seconds,
-                    "arrival": now + timedelta(seconds=seconds),
+                    "arrival": shift_game_seconds(now, seconds),
                     "deadline": deadline,
-                    "remaining": (deadline - now).total_seconds(),
+                    "remaining": game_seconds_between(deadline, now),
                     "with_hero": with_hero,
                 }
 
@@ -1110,7 +1133,7 @@ def start_request(chat_id, player, data):
 
 
 def active_requests_text(requests):
-    now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+    now = datetime.now(SERVER_TZ)
     active = []
     changed = False
 
@@ -1118,10 +1141,10 @@ def active_requests_text(requests):
         if req.get("status") != "active":
             continue
         try:
-            attack = datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S")
+            attack = request_datetime(req)
         except (KeyError, TypeError, ValueError):
             attack = None
-        if attack is not None and attack <= now:
+        if attack is not None and attack.timestamp() <= now.timestamp():
             req["status"] = "expired"
             req["expired_at"] = now.strftime("%Y-%m-%d %H:%M:%S")
             changed = True
@@ -1136,8 +1159,8 @@ def active_requests_text(requests):
     else:
         for req in active:
             try:
-                attack = datetime.strptime(req["attack_time"], "%Y-%m-%d %H:%M:%S")
-                urgent = (attack - now).total_seconds() <= 30 * 60
+                attack = request_datetime(req)
+                urgent = attack is not None and game_seconds_between(attack, now) <= 30 * 60
             except (KeyError, TypeError, ValueError):
                 urgent = False
             icon = "🔴" if urgent else "🟡"
@@ -1435,7 +1458,7 @@ def process_text(message):
         # Backward compatibility for an unfinished old request.
         attack_time = parse_attack_time(text)
         if attack_time is None:
-            bot.send(chat_id, "Неверный формат. Используйте: <code>17.09.2026 21:30:45</code>", force_reply=True)
+            bot.send(chat_id, "Некорректное или неоднозначное время. Используйте время Travian: <code>17.09.2026 21:30:45</code>. В час перевода часов выберите однозначное время.", force_reply=True)
             return
         player["state"]["attack_time"] = attack_time.strftime("%Y-%m-%d %H:%M:%S")
         player["state"]["attack_time_display"] = attack_time.strftime("%d.%m.%Y %H:%M:%S")
@@ -1535,14 +1558,14 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         if not isinstance(requests, list):
             requests = []
-        now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+        now = datetime.now(SERVER_TZ)
         active = []
         changed = False
         for req in requests:
             if req.get("status") != "active":
                 continue
             attack = request_datetime(req)
-            if attack is not None and attack <= now:
+            if attack is not None and attack.timestamp() <= now.timestamp():
                 req["status"] = "expired"
                 changed = True
             else:
@@ -1563,14 +1586,14 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         if not isinstance(requests, list):
             requests = []
-        now = datetime.now(SERVER_TZ).replace(tzinfo=None)
+        now = datetime.now(SERVER_TZ)
         active = []
         changed = False
         for req in requests:
             if req.get("status") != "active":
                 continue
             attack = request_datetime(req)
-            if attack is not None and attack <= now:
+            if attack is not None and attack.timestamp() <= now.timestamp():
                 req["status"] = "expired"
                 changed = True
                 continue
@@ -1790,7 +1813,7 @@ def callback_query(q):
             bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает.", request_menu())
             return
         deadline = variant["deadline"]
-        reminder = deadline - timedelta(minutes=5)
+        reminder = shift_game_seconds(deadline, -300)
         draft = list(state.get("draft", []))
         draft.append({
             "village_idx": village_idx,
@@ -1801,6 +1824,8 @@ def callback_query(q):
             "deadline_at": deadline.strftime("%Y-%m-%d %H:%M:%S"),
             "deadline": deadline.strftime("%H:%M:%S"),
             "reminder_at": reminder.strftime("%Y-%m-%d %H:%M:%S"),
+            "reminder_at_ms": int(reminder.timestamp() * 1000),
+            "deadline_at_ms": int(deadline.timestamp() * 1000),
             "reminder_time": reminder.strftime("%H:%M:%S"),
             "reminder_sent": False,
         })

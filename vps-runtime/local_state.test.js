@@ -29,11 +29,11 @@ test('Telegram sync survives queue restart and retries failure',async()=>{
 });
 
 import worker,{parseServerTime,formatServerTime,queueDiscordExpiry,reconcileDefenceRequests} from './defence-worker.js';
-test('game time is UTC in both summer and winter; expiry has no extra delay',async()=>{
- const oldNow=Date.now;Date.now=()=>Date.parse('2026-10-17T11:59:00Z');
+test('game time follows London summer/winter offsets; expiry has no extra delay',async()=>{
+ const oldNow=Date.now;Date.now=()=>Date.parse('2026-10-17T10:59:00Z');
  try{
-  for(const value of ['2026-01-17 12:00:00','2026-10-17 12:00:00']){
-   assert.equal(parseServerTime(value),Date.parse(value.replace(' ','T')+'Z'));
+  for(const [value,expected] of [['2026-01-17 12:00:00','2026-01-17T12:00:00Z'],['2026-10-17 12:00:00','2026-10-17T11:00:00Z']]){
+   assert.equal(parseServerTime(value),Date.parse(expected));
    assert.equal(formatServerTime(parseServerTime(value)),value);
   }
   const sent=[];await queueDiscordExpiry({DEFENCE_REMINDERS:{send:async(...args)=>sent.push(args)}},{id:13,attack_time:'2026-10-17 12:00:00'});
@@ -43,7 +43,7 @@ test('game time is UTC in both summer and winter; expiry has no extra delay',asy
 test('expiry reconciles existing Discord threads, retries committed expiry, and retains future Telegram requests',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'travian-expiry-'));const oldDir=process.env.DEFENCE_DATA_DIR;
  const oldFetch=globalThis.fetch,oldNow=Date.now;process.env.DEFENCE_DATA_DIR=dir;
- let now=Date.parse('2026-10-17T11:30:00Z'),archived=false,failArchive=false,syncs=0,acks=0,retries=0;
+ let now=Date.parse('2026-10-17T10:30:00Z'),archived=false,failArchive=false,syncs=0,acks=0,retries=0;
  let centre='',calls=0,cardBody;Date.now=()=>now;
  const q={id:13,status:'active',attack_time:'2026-10-17 12:00:00',target_x:13,target_y:3,required_def:1000,collected_def:0};
  const author={id:'1555623257724682402'};
@@ -73,7 +73,7 @@ test('expiry reconciles existing Discord threads, retries committed expiry, and 
   let signature=await reconcileDefenceRequests(env);
   assert.match(centre,/#13/);assert.equal((await readState('data/defence/requests.json')).data[0].status,'active');
   const previousCalls=calls;signature=await reconcileDefenceRequests(env,signature);assert.equal(calls,previousCalls);
-  now=Date.parse('2026-10-17T12:00:00Z');failArchive=true;
+  now=Date.parse('2026-10-17T11:00:00Z');failArchive=true;
   await assert.rejects(()=>reconcileDefenceRequests(env,signature));
   assert.equal((await readState('data/defence/requests.json')).data[0].status,'expired');assert.equal(archived,false);
   await worker.queue({messages:[message()]},env);assert.equal(retries,1);assert.equal(acks,0);
@@ -203,4 +203,14 @@ test('tutorial exit restores registration or personal menu with Discord componen
   const buttons=r.data.components.flatMap(row=>row.components);assert.ok(buttons.some(b=>b.custom_id==='def_guide_open_ja'));
   assert.ok(buttons.some(b=>b.custom_id==='def_create_ja'));assert.ok(buttons.some(b=>b.custom_id==='def_delete_menu_ja'));
  }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});
+
+import {reminderInstant} from './defence-worker.js';
+test('London DST gaps and repeated clock times cannot silently choose the wrong hour',()=>{
+ for(const value of ['2026-03-29 01:30:00','2026-10-25 01:30:00','2026-02-30 12:00:00'])assert.ok(Number.isNaN(parseServerTime(value)));
+ assert.equal(parseServerTime('2026-03-29 02:30:00'),Date.parse('2026-03-29T01:30:00Z'));
+ assert.equal(formatServerTime(Date.parse('2026-10-25T01:30:00Z')),'2026-10-25 01:30:00');
+ const exact=Date.parse('2026-10-25T01:25:00Z');
+ assert.equal(reminderInstant({reminder_at:'2026-10-25 01:25:00',reminder_at_ms:exact}),exact);
+ assert.equal(reminderInstant({reminder_at:'2026-10-21 16:47:51'}),Date.parse('2026-10-21T15:47:51Z'));
 });

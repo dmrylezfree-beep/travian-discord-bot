@@ -16,11 +16,11 @@ class RefreshTests(unittest.TestCase):
   with patch.object(defence,'load_state',return_value={'center_chat_id':1,'center_message_id':2}),patch.object(defence.bot,'load_json',return_value=[]),patch.object(defence.bot,'edit',side_effect=requests.Timeout('fixture')),patch.object(defence.bot,'send') as send:
    self.assertFalse(defence.refresh_center(create_if_missing=True));send.assert_not_called()
 class ExpiryTests(unittest.TestCase):
- def test_utc_deadline_in_summer_and_winter(self):
+ def test_london_deadline_in_summer_and_winter(self):
   from datetime import datetime,timezone
   for month in (1,10):
    for second,expired in ((-1,False),(0,True),(1,True)):
-    attack=datetime(2026,month,17,12,tzinfo=timezone.utc)
+    attack=datetime(2026,month,17,12,tzinfo=defence.SERVER_TZ)
     from datetime import timedelta
     instant=attack+timedelta(seconds=second)
     class Clock(datetime):
@@ -641,5 +641,34 @@ class SectorNearbyTests(unittest.TestCase):
   with patch.object(self.report,'send_to_telegram') as send:
    self.report.send_positive_sector_alert([v,self.village(40,40,99)])
   text=send.call_args.args[0];self.assertEqual(text.count('⚠️'),1);self.assertIn('2 клетки от Our player',text);self.assertIn('12|10',text)
+
+class DefenceLondonTimeTests(unittest.TestCase):
+ def test_game_zone_offsets_and_dst_gap_fold(self):
+  from datetime import timedelta
+  self.assertEqual(defence.request_datetime({'attack_time':'2026-10-21 18:49:42'}).utcoffset(),timedelta(hours=1))
+  self.assertEqual(defence.request_datetime({'attack_time':'2026-01-21 18:49:42'}).utcoffset(),timedelta(0))
+  for value in ['2026-03-29 01:30:00','2026-10-25 01:30:00']:
+   self.assertIsNone(defence.request_datetime({'attack_time':value}))
+ def test_real_elapsed_travel_across_spring_and_autumn_clock_change(self):
+  for text,expected in [('2026-03-29 02:30:00','2026-03-29 00:30:00'),('2026-10-25 02:30:00','2026-10-25 01:30:00')]:
+   attack=defence.request_datetime({'attack_time':text});departure=defence.shift_game_seconds(attack,-3600)
+   self.assertEqual(departure.strftime('%Y-%m-%d %H:%M:%S'),expected)
+   self.assertEqual(defence.game_seconds_between(attack,departure),3600)
+ def test_request24_agasha_is_excluded_at_1623_game_time(self):
+  from datetime import datetime,timezone
+  instant=datetime(2026,10,21,15,23,11,tzinfo=timezone.utc)
+  class Clock(datetime):
+   @classmethod
+   def now(cls,tz=None):return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+  players={'a':{'name':'Agasha','villages':[{'coordinates':'50 13'}]},'b':{'name':'Baunt','villages':[{'coordinates':'96 67'}]}}
+  def units(player,village,req):
+   agasha=player['name']=='Agasha'
+   return [{'key':'druidrider','name':'Druids','amount':280 if agasha else 500,'value':2,'distance':102.7 if agasha else 51.2,'no_hero_seconds':11146 if agasha else 7011,'hero_seconds':None}]
+  req={'id':24,'status':'active','attack_time':'2026-10-21 18:49:42','required_def':2000,'collected_def':0}
+  with patch.object(defence,'datetime',Clock),patch.object(defence.bot,'players',return_value=players),patch.object(defence,'_player_label',side_effect=lambda p:p['name']),patch.object(defence,'source_village_units',side_effect=units):
+   plan=defence.build_optimal_plan(req)
+  self.assertEqual([v['player'] for v in plan['items']],['Baunt'])
+  self.assertEqual(plan['covered'],1000);self.assertEqual(plan['deficit'],1000)
+  self.assertEqual(plan['items'][0]['deadline'].strftime('%H:%M:%S'),'16:52:51')
 
 if __name__=='__main__':unittest.main()

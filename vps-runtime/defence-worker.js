@@ -63,7 +63,7 @@ const DTXT = {
 };
 function dReply(content,components=[]){return Response.json({type:4,data:{content,components,flags:64}});}
 function dUser(i){return String(i.member?.user?.id||i.user?.id||"");}
-const DEFENCE_GUIDE = {"en": [["Getting started", "The bot helps the alliance organise defence: it lists requests, records pledged defence points and calculates departure times.\n\nUse /def in the defence channel. Choose English and register your Travian account using the coordinates of your WORLD village. One Travian account cannot be registered twice, including across Telegram and Discord.\n\nYou must send troops yourself in Travian. Recording help in the bot does not send any troops.\n\nYou can pledge defence without setting up additional defence villages, troop counts or hero gear. These settings are optional for recording help; they enable automatic timing and a private reminder 5 minutes before departure."], ["Villages and troops", "This setup is optional for simply recording defence in a request. Configure it if you want automatic departure calculations and reminders.\n\nIn your /def menu use Add village to add your defence villages. Enter coordinates and the correct Tournament Square level.\n\nUse Troops, choose a village and enter the available units. Keep these numbers up to date: the bot does not read your current army from the game."], ["Hero and gear", "Use Hero & gear to set the hero’s village and the gear you have: standards, boots and maps.\n\nWhen choosing a departure option, select the setup you will actually use in the game. Hero bonuses only apply when you send the hero with the troops."], ["Reading defence requests", "The defence channel and each request thread show the target, attack time, required defence, pledged defence and the remaining need. Click the target coordinates to open the Travian map.\n\nPledged defence means help recorded in the bot; it does not confirm that reinforcements have arrived. The initial alert mentions Leader, Manager, Attacker and Defender."], ["Creating or deleting a request", "If you have the Manage Messages permission, your /def menu includes Create defence request. Enter the target coordinates, full attack date and time, and required defence points. Check the entries before submitting.\n\nUse Travian server time (UTC), not your local clock. Delete my request lets you cancel your own active Discord requests after confirmation."], ["Offering defence", "You can offer help without configuring defence villages, troop counts or hero gear. Click Send Defence, enter your defence points and choose Confirm without village. Your help is recorded in the request.\n\nFor an automatic departure time and a private reminder 5 minutes before it, choose a configured village and a departure option instead. Hero gear is optional; select it only if you use it. Without a village, no departure time or timed reminder is created.\n\nRecord the same help only once."], ["Departure time and reminders", "The bot uses distance, troop speed, Tournament Square level and the selected hero setup to calculate when you must send. It can send a private reminder 5 minutes before that deadline. Allow direct messages from the bot.\n\nAll displayed attack and departure times use Travian server time (UTC). Before sending reinforcements, check the actual arrival time and troop composition in the game. Do not wait for a reminder if departure is already close."], ["After the attack and daily checklist", "When enough defence points are pledged, the request closes. When the attack time passes, an active request expires, its Send Defence button is removed and its thread is archived. Cancel your own request earlier if it is no longer needed.\n\nBefore helping, check your village coordinates, Tournament Square level, available troops and hero setup. Use Change language to switch English/Japanese.\n\nYou can reopen this guide from the main menu at any time."]], "ja": [["はじめに", "このボットは同盟の防衛を整理します。要請の一覧、登録された防衛ポイント、出発時刻の計算を確認できます。\n\n防衛チャンネルで /def を使い、日本語を選び、自分の村の座標からTravianアカウントを登録してください。\n\n兵士は自分でTravianから送ります。ボットへの登録だけでは兵士は出発しません。\n\n援軍の登録だけなら、防衛用の村・兵士数・英雄の装備をあらかじめ設定する必要はありません。これらの設定は出発時刻の自動計算と、その5分前の個人リマインダーに使います。"], ["村と兵士の設定", "援軍を要請に登録するだけなら、この設定は必須ではありません。出発時刻の計算とリマインダーを使いたい場合に設定してください。\n\n/def のメニューで「村を追加」から防衛に使う村を登録し、座標と闘技場のレベルを正しく入力してください。\n\n兵士の設定で村を選び、利用できる各兵種の数を入力します。ボットはゲーム内の現在の兵士数を自動取得しないため、変更があれば更新してください。"], ["英雄と装備", "「英雄と装備」で英雄がいる村と、所持する旗・靴・地図を設定してください。\n\n出発方法を選ぶときは、実際にゲームで使う装備を選びます。英雄のボーナスは、英雄を兵士と一緒に送る場合に適用されます。"], ["防衛要請の見方", "防衛チャンネルと各要請スレッドには、対象の座標、攻撃時刻、必要な防衛ポイント、登録済みのポイント、不足分が表示されます。座標を押すとTravianの地図が開きます。\n\n登録済みのポイントは援軍の到着確認ではありません。最初の通知はLeader・Manager・Attacker・Defenderをメンションします。"], ["要請の作成と削除", "「メッセージの管理」権限がある場合、/def に要請作成ボタンが表示されます。対象座標、攻撃の日付と時刻、必要な防衛ポイントを入力し、送信前に確認してください。\n\n時刻は端末の現地時間ではなくTravianサーバー時刻（UTC）です。自分がDiscordで作成した有効な要請は、削除メニューから確認後に取り消せます。"], ["援軍を登録する", "村・兵士数・英雄の装備を設定していなくても援軍を登録できます。「防衛兵を送る」を押し、防衛ポイントを入力して「村を選ばずに確認」を選びます。これで要請に援軍が記録されます。\n\n出発時刻の自動計算とその5分前の個人リマインダーを使うには、設定済みの村と移動方法を選んでください。英雄の装備は使う場合だけ選びます。村を選ばない場合、出発時刻や出発リマインダーは作成されません。\n\n同じ援軍を二重に登録しないでください。"], ["出発時刻とリマインダー", "距離、兵士の速度、闘技場、選択した英雄の装備から出発期限を計算します。期限の5分前に個人メッセージで通知できるため、ボットからのDMを許可してください。\n\n攻撃・出発時刻はTravianサーバー時刻（UTC）です。ゲームで実際の兵士編成と到着時刻を確認し、援軍として送ってください。出発が近い場合は通知を待たないでください。"], ["攻撃後と確認事項", "必要な防衛ポイントが集まると要請は終了します。攻撃時刻を過ぎた有効な要請は期限切れになり、送信ボタンが消えてスレッドがアーカイブされます。不要になった自分の要請は、それより前でも削除できます。\n\n村の座標、闘技場、利用できる兵士、英雄の装備を確認しましょう。言語変更で英語・日本語を切り替えられます。\n\nこのガイドはメインメニューから何度でも開けます。"]]};
+const DEFENCE_GUIDE = {"en": [["Getting started", "The bot helps the alliance organise defence: it lists requests, records pledged defence points and calculates departure times.\n\nUse /def in the defence channel. Choose English and register your Travian account using the coordinates of your WORLD village. One Travian account cannot be registered twice, including across Telegram and Discord.\n\nYou must send troops yourself in Travian. Recording help in the bot does not send any troops.\n\nYou can pledge defence without setting up additional defence villages, troop counts or hero gear. These settings are optional for recording help; they enable automatic timing and a private reminder 5 minutes before departure."], ["Villages and troops", "This setup is optional for simply recording defence in a request. Configure it if you want automatic departure calculations and reminders.\n\nIn your /def menu use Add village to add your defence villages. Enter coordinates and the correct Tournament Square level.\n\nUse Troops, choose a village and enter the available units. Keep these numbers up to date: the bot does not read your current army from the game."], ["Hero and gear", "Use Hero & gear to set the hero’s village and the gear you have: standards, boots and maps.\n\nWhen choosing a departure option, select the setup you will actually use in the game. Hero bonuses only apply when you send the hero with the troops."], ["Reading defence requests", "The defence channel and each request thread show the target, attack time, required defence, pledged defence and the remaining need. Click the target coordinates to open the Travian map.\n\nPledged defence means help recorded in the bot; it does not confirm that reinforcements have arrived. The initial alert mentions Leader, Manager, Attacker and Defender."], ["Creating or deleting a request", "If you have the Manage Messages permission, your /def menu includes Create defence request. Enter the target coordinates, full attack date and time, and required defence points. Check the entries before submitting.\n\nUse Travian server time (Europe/London: UTC+1 in summer, UTC in winter), not your local clock. Delete my request lets you cancel your own active Discord requests after confirmation."], ["Offering defence", "You can offer help without configuring defence villages, troop counts or hero gear. Click Send Defence, enter your defence points and choose Confirm without village. Your help is recorded in the request.\n\nFor an automatic departure time and a private reminder 5 minutes before it, choose a configured village and a departure option instead. Hero gear is optional; select it only if you use it. Without a village, no departure time or timed reminder is created.\n\nRecord the same help only once."], ["Departure time and reminders", "The bot uses distance, troop speed, Tournament Square level and the selected hero setup to calculate when you must send. It can send a private reminder 5 minutes before that deadline. Allow direct messages from the bot.\n\nAll displayed attack and departure times use Travian server time (Europe/London: UTC+1 in summer, UTC in winter). Before sending reinforcements, check the actual arrival time and troop composition in the game. Do not wait for a reminder if departure is already close."], ["After the attack and daily checklist", "When enough defence points are pledged, the request closes. When the attack time passes, an active request expires, its Send Defence button is removed and its thread is archived. Cancel your own request earlier if it is no longer needed.\n\nBefore helping, check your village coordinates, Tournament Square level, available troops and hero setup. Use Change language to switch English/Japanese.\n\nYou can reopen this guide from the main menu at any time."]], "ja": [["はじめに", "このボットは同盟の防衛を整理します。要請の一覧、登録された防衛ポイント、出発時刻の計算を確認できます。\n\n防衛チャンネルで /def を使い、日本語を選び、自分の村の座標からTravianアカウントを登録してください。\n\n兵士は自分でTravianから送ります。ボットへの登録だけでは兵士は出発しません。\n\n援軍の登録だけなら、防衛用の村・兵士数・英雄の装備をあらかじめ設定する必要はありません。これらの設定は出発時刻の自動計算と、その5分前の個人リマインダーに使います。"], ["村と兵士の設定", "援軍を要請に登録するだけなら、この設定は必須ではありません。出発時刻の計算とリマインダーを使いたい場合に設定してください。\n\n/def のメニューで「村を追加」から防衛に使う村を登録し、座標と闘技場のレベルを正しく入力してください。\n\n兵士の設定で村を選び、利用できる各兵種の数を入力します。ボットはゲーム内の現在の兵士数を自動取得しないため、変更があれば更新してください。"], ["英雄と装備", "「英雄と装備」で英雄がいる村と、所持する旗・靴・地図を設定してください。\n\n出発方法を選ぶときは、実際にゲームで使う装備を選びます。英雄のボーナスは、英雄を兵士と一緒に送る場合に適用されます。"], ["防衛要請の見方", "防衛チャンネルと各要請スレッドには、対象の座標、攻撃時刻、必要な防衛ポイント、登録済みのポイント、不足分が表示されます。座標を押すとTravianの地図が開きます。\n\n登録済みのポイントは援軍の到着確認ではありません。最初の通知はLeader・Manager・Attacker・Defenderをメンションします。"], ["要請の作成と削除", "「メッセージの管理」権限がある場合、/def に要請作成ボタンが表示されます。対象座標、攻撃の日付と時刻、必要な防衛ポイントを入力し、送信前に確認してください。\n\n時刻は端末の現地時間ではなくTravianサーバー時刻（Europe/London：夏はUTC+1、冬はUTC）です。自分がDiscordで作成した有効な要請は、削除メニューから確認後に取り消せます。"], ["援軍を登録する", "村・兵士数・英雄の装備を設定していなくても援軍を登録できます。「防衛兵を送る」を押し、防衛ポイントを入力して「村を選ばずに確認」を選びます。これで要請に援軍が記録されます。\n\n出発時刻の自動計算とその5分前の個人リマインダーを使うには、設定済みの村と移動方法を選んでください。英雄の装備は使う場合だけ選びます。村を選ばない場合、出発時刻や出発リマインダーは作成されません。\n\n同じ援軍を二重に登録しないでください。"], ["出発時刻とリマインダー", "距離、兵士の速度、闘技場、選択した英雄の装備から出発期限を計算します。期限の5分前に個人メッセージで通知できるため、ボットからのDMを許可してください。\n\n攻撃・出発時刻はTravianサーバー時刻（Europe/London：夏はUTC+1、冬はUTC）です。ゲームで実際の兵士編成と到着時刻を確認し、援軍として送ってください。出発が近い場合は通知を待たないでください。"], ["攻撃後と確認事項", "必要な防衛ポイントが集まると要請は終了します。攻撃時刻を過ぎた有効な要請は期限切れになり、送信ボタンが消えてスレッドがアーカイブされます。不要になった自分の要請は、それより前でも削除できます。\n\n村の座標、闘技場、利用できる兵士、英雄の装備を確認しましょう。言語変更で英語・日本語を切り替えられます。\n\nこのガイドはメインメニューから何度でも開けます。"]]};
 function guideButton(l){return {type:2,style:2,custom_id:"def_guide_open_"+l,label:l==="ja"?"📖 使い方":"📖 Instructions"};}
 export function discordGuidePage(page,l){
  l=l==="ja"?"ja":"en";const pages=DEFENCE_GUIDE[l];page=Number(page);
@@ -235,9 +235,23 @@ const DEF_UNITS={
 };
 const DEF_SPEEDS={legionnaire:6,praetorian:5,equites_caesaris:10,spearman:7,paladin:10,phalanx:7,druidrider:16,haeduan:13};
 const DEF_CAV=new Set(["equites_caesaris","paladin","druidrider","haeduan"]);
-const SERVER_TIME_ZONE="UTC";
+const SERVER_TIME_ZONE="Europe/London";
 function serverTimeParts(ms){const parts=new Intl.DateTimeFormat("en-GB",{timeZone:SERVER_TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(ms));return Object.fromEntries(parts.filter(p=>p.type!=="literal").map(p=>[p.type,Number(p.value)]));}
-export function parseServerTime(s){const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);if(!m)return NaN;const w={year:+m[1],month:+m[2],day:+m[3],hour:+m[4],minute:+m[5],second:+m[6]},wall=Date.UTC(w.year,w.month-1,w.day,w.hour,w.minute,w.second);let guess=wall;for(let i=0;i<3;i++){const p=serverTimeParts(guess),shown=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);guess+=wall-shown;}const p=serverTimeParts(guess);return p.year===w.year&&p.month===w.month&&p.day===w.day&&p.hour===w.hour&&p.minute===w.minute&&p.second===w.second?guess:NaN;}
+export function parseServerTime(s){
+ const m=String(s||"").match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+ if(!m)return NaN;
+ const w={year:+m[1],month:+m[2],day:+m[3],hour:+m[4],minute:+m[5],second:+m[6]};
+ const wall=Date.UTC(w.year,w.month-1,w.day,w.hour,w.minute,w.second),candidates=new Set();
+ for(const hours of [-36,0,36]){
+  const sample=wall+hours*3600000,p=serverTimeParts(sample);
+  const offset=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-sample;
+  const guess=wall-offset,q=serverTimeParts(guess);
+  if(Object.keys(w).every(k=>w[k]===q[k]))candidates.add(guess);
+ }
+ return candidates.size===1?[...candidates][0]:NaN;
+}
+export function reminderInstant(item){return Number.isFinite(item.reminder_at_ms)?item.reminder_at_ms:parseServerTime(item.reminder_at);}
+
 export function formatServerTime(ms){const p=serverTimeParts(ms),pad=n=>String(n).padStart(2,"0");return p.year+"-"+pad(p.month)+"-"+pad(p.day)+" "+pad(p.hour)+":"+pad(p.minute)+":"+pad(p.second);}
 function timeOnly(s){return String(s||"").split(" ")[1]||String(s||"");}
 function mapDist(x1,y1,x2,y2){let dx=Math.abs(x2-x1),dy=Math.abs(y2-y1);dx=Math.min(dx,401-dx);dy=Math.min(dy,401-dy);return Math.sqrt(dx*dx+dy*dy);}
@@ -257,7 +271,7 @@ function heroRoutes(p,v,distance,speed){
  return out;
 }
 function discordVillageOptions(p,q){
- const attack=parseServerTime(q.attack_time),now=parseServerTime(serverNowText());if(!Number.isFinite(attack)||attack<=now)return[];
+ const attack=parseServerTime(q.attack_time),now=Date.now();if(!Number.isFinite(attack)||attack<=now)return[];
  const out=[];
  for(let idx=0;idx<(p.villages||[]).length;idx++){
   const v=p.villages[idx],m=String(v.coordinates||"").match(/^\s*(-?\d+)\s+(-?\d+)\s*$/);if(!m)continue;
@@ -275,7 +289,7 @@ function discordVillageOptions(p,q){
    const route=routes[routeIdx],eligible=units.map(u=>({...u,seconds:route.calc(u)})).filter(u=>now+u.seconds*1000<=attack);
    if(!eligible.length)continue;
    const seconds=Math.max(...eligible.map(u=>u.seconds)),deadline=formatServerTime(attack-seconds*1000),maxDef=eligible.reduce((s,u)=>s+u.amount*u.value,0);
-   out.push({idx,routeIdx,village:v,distance:dist,deadline,maxDef,speed_mode:route.mode,gear_label:route.gear_label,standard:route.standard,boots:route.boots,map:route.map});
+   out.push({idx,routeIdx,village:v,distance:dist,deadline,deadline_ms:attack-seconds*1000,maxDef,speed_mode:route.mode,gear_label:route.gear_label,standard:route.standard,boots:route.boots,map:route.map});
   }
  }
  return out;
@@ -300,8 +314,8 @@ async function saveDiscordPledge(env,p,id,rid,l,n,sourceIdx=null,routeIdx=0){
   if(sourceIdx!==null){
    const o=discordVillageOptions(p,q).find(x=>x.idx===sourceIdx&&x.routeIdx===routeIdx);
    if(!o)return {error:l==="ja"?"❌ この村は時間内に到着できません。":"❌ This village can no longer arrive in time."};
-   const reminder=formatServerTime(parseServerTime(o.deadline)-5*60*1000);
-   plan.push({village_idx:o.idx,village:o.village.coordinates,def_points:amount,speed_mode:o.speed_mode,gear_label:o.gear_label,standard:o.standard||0,boots:o.boots||0,map:o.map||0,deadline_at:o.deadline,deadline:timeOnly(o.deadline),reminder_at:reminder,reminder_time:timeOnly(reminder),reminder_sent:false});
+   const reminder=formatServerTime(o.deadline_ms-5*60*1000);
+   plan.push({village_idx:o.idx,village:o.village.coordinates,def_points:amount,speed_mode:o.speed_mode,gear_label:o.gear_label,standard:o.standard||0,boots:o.boots||0,map:o.map||0,deadline_at:o.deadline,deadline:timeOnly(o.deadline),deadline_at_ms:o.deadline_ms,reminder_at_ms:o.deadline_ms-300000,reminder_at:reminder,reminder_time:timeOnly(reminder),reminder_sent:false});
   }
   q.contributions=Array.isArray(q.contributions)?q.contributions:[];
   q.contributions.push({platform:"discord",user_id:id,player_name:p.player_name,def_points:amount,plan,created_at:serverNowText()});
@@ -311,7 +325,7 @@ async function saveDiscordPledge(env,p,id,rid,l,n,sourceIdx=null,routeIdx=0){
   try{
    await ghSave(env,"data/defence/requests.json",list,rq.sha,"Add WORLD Discord defence contribution");
    committed=true;
-   if(plan.length)await queueReminder(env,{platform:"discord",discord_id:id,language:l,request_id:q.id,target_x:q.target_x,target_y:q.target_y,attack_time:q.attack_time,attack_time_display:q.attack_time_display,village:plan[0].village,def_points:amount,speed_mode:plan[0].speed_mode,gear_label:plan[0].gear_label,deadline:plan[0].deadline,deadline_at:plan[0].deadline_at,reminder_at:plan[0].reminder_at});
+   if(plan.length)await queueReminder(env,{platform:"discord",discord_id:id,language:l,request_id:q.id,target_x:q.target_x,target_y:q.target_y,attack_time:q.attack_time,attack_time_display:q.attack_time_display,village:plan[0].village,def_points:amount,speed_mode:plan[0].speed_mode,gear_label:plan[0].gear_label,deadline:plan[0].deadline,deadline_at:plan[0].deadline_at,reminder_at:plan[0].reminder_at,reminder_at_ms:plan[0].reminder_at_ms,deadline_at_ms:plan[0].deadline_at_ms});
    await dispatchDiscordSync(env);await refreshDiscordCentre(env);
    return {q,amount,plan};
   }catch(error){
@@ -447,7 +461,7 @@ export async function handleDiscordInteraction(i, env, ctx) {
    const cm=vals.coords?.match(/^(-?\d{1,3})\s+(-?\d{1,3})$/),attack=vals.attack||"",required=Number(vals.required);
    if(!cm||+cm[1]<-200||+cm[1]>200||+cm[2]<-200||+cm[2]>200||!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(attack)||!Number.isInteger(required)||required<=0)
      return dReply(l==="ja"?"❌ 座標、時刻、必要防衛ポイントを確認してください。":"❌ Check coordinates, attack time and required defence points.");
-   const attackMs=parseServerTime(attack);if(!Number.isFinite(attackMs)||attackMs<=parseServerTime(serverNowText()))return dReply(l==="ja"?"❌ 攻撃時刻は未来である必要があります。":"❌ Attack time must be in the future.");
+   const attackMs=parseServerTime(attack);if(!Number.isFinite(attackMs)||attackMs<=Date.now())return dReply(l==="ja"?"❌ 攻撃時刻は未来である必要があります。":"❌ Attack time must be in the future.");
    const token=i.token,appId=i.application_id,x=+cm[1],y=+cm[2],creator=id,uname=i.member?.user?.username||"",gname=i.member?.user?.global_name||"";
    ctx.waitUntil((async()=>{let content;try{
     const map=await getMap(),v=mapVillage(map,x,y);
@@ -651,7 +665,7 @@ function secondsUntilServer(localText) {
 }
 
 async function queueReminder(env, payload) {
-  const delay = secondsUntilServer(payload.reminder_at);
+  const delay = Math.ceil((reminderInstant(payload)-Date.now())/1000);
   if (!Number.isFinite(delay)) throw new Error("Invalid reminder_at");
   if (delay <= 0) {
     await env.DEFENCE_REMINDERS.send(payload, { delaySeconds: 0 });
@@ -669,7 +683,8 @@ export async function queueDiscordExpiry(env, requestItem) {
   await queueReminder(env, {
     kind: "discord_request_expiry",
     request_id: Number(requestItem.id),
-    reminder_at: formatServerTime(attackMs)
+    reminder_at: formatServerTime(attackMs),
+    reminder_at_ms: attackMs
   });
 }
 
@@ -690,6 +705,7 @@ async function handleDiscordExpiry(env, item) {
     if (!Number.isFinite(remaining)) throw new Error("Invalid request attack_time");
     if (Number.isFinite(remaining) && remaining > 0) {
       item.reminder_at = formatServerTime(parseServerTime(q.attack_time));
+      item.reminder_at_ms = parseServerTime(q.attack_time);
       await queueReminder(env, item);
       return;
     }
@@ -1080,7 +1096,7 @@ export default {
         const body = await request.json();
         const reminders = Array.isArray(body?.reminders) ? body.reminders : [];
         const jobs = reminders.map(reminder => {
-          const delay = secondsUntilServer(reminder.reminder_at);
+          const delay = Math.ceil((reminderInstant(reminder)-Date.now())/1000);
           if (!Number.isFinite(delay)) throw new Error("Invalid reminder_at");
           return {body: reminder, options: {delaySeconds: Math.max(0, Math.min(delay, MAX_QUEUE_DELAY_SECONDS))}};
         });
@@ -1182,7 +1198,8 @@ export default {
           message.ack();
           continue;
         }
-        const remaining = secondsUntilServer(item.reminder_at);
+        const remaining = Math.ceil((reminderInstant(item)-Date.now())/1000);
+        if(!Number.isFinite(remaining))throw Error("Invalid reminder time");
         if (Number.isFinite(remaining) && remaining > 2) {
           message.retry({ delaySeconds: Math.min(remaining, MAX_QUEUE_DELAY_SECONDS) });
           continue;
