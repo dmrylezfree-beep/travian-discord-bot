@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from datetime import datetime,timezone
 from scout_bot import Store,respond
@@ -114,6 +115,28 @@ class ScoutRequestTests(unittest.TestCase):
     def test_failed_pin_keeps_one_centre_and_can_retry(self):
         self.api.pin=False;self.assertFalse(self.app.ensure_centre());ident=self.app.setting('centre_id')
         self.assertTrue(ident);self.api.pin=True;self.assertTrue(self.app.ensure_centre());self.assertEqual(self.app.setting('centre_id'),ident)
+
+    def test_chat_tag_takes_precedence_and_is_clickable_and_escaped(self):
+        with patch.object(self.app,'call',return_value={'tag':'Agasha & <tag>','user':{'username':'other','first_name':'Other'}}):
+            text=self.app.mention(123,{'first_name':'Old name'})
+        self.assertEqual(text,'<a href="tg://user?id=123">Agasha &amp; &lt;tag&gt;</a>')
+    def test_username_then_full_name_fallback(self):
+        with patch.object(self.app,'call',return_value={'user':{'username':'travian_player','first_name':'Name'}}):
+            self.assertIn('>@travian_player</a>',self.app.mention(124))
+        with patch.object(self.app,'call',return_value={'user':{'first_name':'First','last_name':'Last'}}):
+            self.assertIn('>First Last</a>',self.app.mention(125))
+        with patch.object(self.app,'call',side_effect=RuntimeError('API unavailable')):
+            self.assertIn('>@stored_name</a>',self.app.mention(126,{'username':'stored_name'}))
+    def test_existing_request_reads_current_chat_tag_without_data_migration(self):
+        ident,_=self.create();before=self.app.job(ident);self.app.member_labels.clear()
+        with patch.object(self.app,'call',return_value={'tag':'AllianceTag','user':{'first_name':'Other'}}):
+            text=self.app.job_text(before)
+        self.assertIn('tg://user?id=1',text);self.assertIn('>AllianceTag</a>',text)
+        self.assertEqual(self.app.job(ident),before)
+    def test_member_label_cache_refreshes_changed_tags(self):
+        with patch.object(self.app,'call',side_effect=[{'tag':'Old'},{'tag':'New'}]) as call:
+            self.assertIn('>Old</a>',self.app.mention(127));self.app.mention(127);self.assertEqual(call.call_count,1)
+            self.now+=301;self.assertIn('>New</a>',self.app.mention(127));self.assertEqual(call.call_count,2)
 
 class ScoutCalculationTests(unittest.TestCase):
     def test_coordinates_bidi_bounds_and_rally_link(self):

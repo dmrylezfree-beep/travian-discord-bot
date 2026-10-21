@@ -218,8 +218,7 @@ def main():
                         if chat.get('type') != 'private':
                             data['message_thread_id'] = THREAD_ID
                             data['parse_mode'] = 'HTML'
-                            name = html.escape(str(user.get('first_name') or 'Игрок'))
-                            data['text'] = f'<a href="tg://user?id={int(user["id"])}">{name}</a>\n' + html.escape(reply)
+                            data['text'] = scout.mention(user['id'],user) + '\n' + html.escape(reply)
                             if state.get('stage') not in (None,'kind'):
                                 data['reply_markup'] = {'force_reply': True, 'selective': True}
                                 data['text'] += '\n\nОтветьте на это сообщение. Отмена: /cancel'

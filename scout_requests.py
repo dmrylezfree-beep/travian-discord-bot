@@ -95,6 +95,7 @@ class ScoutRequests:
         self.db.commit()
         self.last_refresh=0
         self.members={}
+        self.member_labels={}
 
     def setting(self,key,default=None):
         row=self.db.execute('SELECT data FROM scout_settings WHERE key=?',(key,)).fetchone()
@@ -121,11 +122,29 @@ class ScoutRequests:
             rows=self.db.execute("SELECT id FROM scout_jobs WHERE status='pending' ORDER BY id").fetchall()
         return [self.job(r[0]) for r in rows]
 
+    def mention(self,user_id,fallback=None):
+        """Chat-assigned tag first, then username/name; link always targets the user."""
+        fallback=fallback or {}
+        if not isinstance(fallback,dict):fallback={'first_name':str(fallback)}
+        if not user_id:return html.escape(str(fallback.get('first_name') or 'Игрок'))
+        user_id=int(user_id);cached=self.member_labels.get(user_id)
+        if not cached or self.now()-cached[0]>=300:
+            try:member=self.call('getChatMember',chat_id=GROUP_ID,user_id=user_id)
+            except Exception:member={}
+            self.member_labels[user_id]=(self.now(),member)
+        else:member=cached[1]
+        profile=member.get('user') or {}
+        tag=str(member.get('tag') or '').strip()
+        username=profile.get('username') or fallback.get('username')
+        name=' '.join(str(profile.get(key) or '').strip() for key in ('first_name','last_name')).strip()
+        label=tag or ('@'+str(username).lstrip('@') if username else '') or name or fallback.get('first_name') or str(user_id)
+        return f'<a href="tg://user?id={user_id}">{html.escape(str(label)[:128])}</a>'
+
     def send(self,chat,text,keyboard=None,user=None,force=False,reply_to=None):
         args={'chat_id':chat,'text':text,'parse_mode':'HTML'}
         if chat==GROUP_ID:
             args['message_thread_id']=THREAD_ID
-            if user:args['text']=f'<a href="tg://user?id={int(user["id"])}">{html.escape(user.get("first_name") or "Игрок")}</a>\n'+text
+            if user:args['text']=self.mention(user['id'],user)+'\n'+text
         if force:
             args['reply_markup']={'force_reply':True,'selective':True}
             args['text']+='\n\nОтветьте на это сообщение. Отмена: /cancel'
@@ -145,7 +164,7 @@ class ScoutRequests:
 
     def job_text(self,job):
         data=(f'<b>🔎 Заявка на скан #{job["id"]}</b>\n\n🎯 {target_link(job["x"],job["y"])}\n'
-              f'📋 {KINDS[job["kind"]]}\n👤 Заявитель: {html.escape(job["creator_name"])}\n')
+              f'📋 {KINDS[job["kind"]]}\n👤 Заявитель: {self.mention(job.get("creator"),{"first_name":job["creator_name"],"username":job.get("creator_username")})}\n')
         timing=self.schedule(job)
         if timing:
             departure,seconds=timing;s=self.setting('coordinator')
@@ -325,7 +344,7 @@ class ScoutRequests:
             if state.get('stage')!='confirm' or token!=state.get('token'):
                 self.send(chat,'Это старое подтверждение. Создайте заявку заново.',main_buttons(),user);return True
             payload={k:state[k] for k in ('x','y','kind','arrival')}
-            payload.update(creator=uid,creator_name=user.get('first_name') or str(uid),created=self.now())
+            payload.update(creator=uid,creator_name=user.get('first_name') or str(uid),creator_username=user.get('username'),created=self.now())
             timing=self.schedule(payload)
             if timing and timing[0]<=self.now():
                 state['stage']='arrival';self.prompt(chat,user,state,'К этому времени разведчики уже не успеют. Введите более поздние дату и время прибытия.',force=True);return True
@@ -339,7 +358,7 @@ class ScoutRequests:
         timing=self.schedule(state)
         if timing and timing[0]<=self.now():
             state['stage']='arrival';self.prompt(chat,user,state,'К этому времени скан уже не успеет. Введите более поздние дату и время прибытия.',force=True);return
-        state['stage']='confirm';job=dict(state,id='новая',status='pending',creator_name=user.get('first_name') or str(user['id']))
+        state['stage']='confirm';job=dict(state,id='новая',status='pending',creator=user['id'],creator_name=user.get('first_name') or str(user['id']),creator_username=user.get('username'))
         # Preview has no numeric request ID or screenshot records yet.
         preview_job=dict(job,id=0);body=self.job_text(preview_job).replace('#0','#новая',1)
         self.prompt(chat,user,state,body+'\n\nОпубликовать заявку для участников чата?',{'inline_keyboard':[[{'text':'📨 Создать заявку','callback_data':'scan:confirm:'+state['token']}],cancelled()['inline_keyboard'][0]]})
