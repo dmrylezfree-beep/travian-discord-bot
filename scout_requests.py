@@ -6,7 +6,7 @@ import math
 import re
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from urllib.parse import urlencode
 
@@ -23,15 +23,22 @@ def coordinates(text):
     text = re.sub(r'[\u202a-\u202e\u2066-\u2069]', '', str(text)).strip().strip('()').strip()
     match = re.fullmatch(r'(-?\d{1,3})\s*(?:\||,|\s)\s*(-?\d{1,3})', text)
     if not match or any(abs(int(v)) > 200 for v in match.groups()):
-        raise ValueError('Введите координаты от −200 до 200: например 22|63 или 22 63.')
+        raise ValueError('Введите координаты от −200 до 200: в формате X Y через пробел, например 22 63.')
     return tuple(map(int, match.groups()))
 
 
 def parse_arrival(text, now):
+    raw = str(text).strip()
+    if not re.fullmatch(r'\d{2}:\d{2}(?::\d{2})?', raw):
+        raise ValueError('Введите только время прибытия по Travian: ЧЧ:ММ или ЧЧ:ММ:СС, например 20:30.')
     try:
-        wall = datetime.strptime(str(text).strip(), '%d.%m.%Y %H:%M:%S')
+        clock = datetime.strptime(raw, '%H:%M:%S' if raw.count(':') == 2 else '%H:%M').time()
     except ValueError:
-        raise ValueError('Введите дату и время прибытия по Travian: ДД.ММ.ГГГГ ЧЧ:ММ:СС.') from None
+        raise ValueError('Введите корректное время: ЧЧ:ММ или ЧЧ:ММ:СС, например 20:30.') from None
+    local_now = datetime.fromtimestamp(now, GAME_TZ).replace(tzinfo=None)
+    wall = datetime.combine(local_now.date(), clock)
+    if wall <= local_now:
+        wall += timedelta(days=1)
     candidates = set()
     for fold in (0, 1):
         stamp = wall.replace(tzinfo=GAME_TZ, fold=fold).timestamp()
@@ -310,7 +317,7 @@ class ScoutRequests:
             self.send(chat,'Эта функция доступна только скаут-координатору.',user=user);return True
         if verb=='new':
             self.db.execute('INSERT OR REPLACE INTO sessions VALUES(?,?,?)',(chat,uid,'{}'))
-            self.prompt(chat,user,{'stage':'coords','token':uuid.uuid4().hex},'Введите координаты деревни, которую нужно разведать: например <b>145|52</b>.',force=True)
+            self.prompt(chat,user,{'stage':'coords','token':uuid.uuid4().hex},'Введите координаты деревни, которую нужно разведать, <b>через пробел</b>: <code>145 52</code>. Формат: X Y.',force=True)
         elif verb=='cancel':
             self.save_session(chat,uid,{});self.send(chat,'Действие отменено.',main_buttons(),user)
         elif verb in ('list','results'):
@@ -326,15 +333,15 @@ class ScoutRequests:
             s=self.setting('coordinator')
             self.send(chat,f'<b>⚙️ Настройки координатора</b>\nTelegram ID: {COORDINATOR_ID}\n🏘 Деревня: {s["x"]}|{s["y"]}\n🏟 Арена: {s["arena"]}\n🐎 Римские разведчики: 16 полей/ч\n\nИзменения пересчитывают время отправки открытых заявок.',{'inline_keyboard':[[{'text':'🏘 Изменить деревню','callback_data':'scan:origin'},{'text':'🏟 Изменить арену','callback_data':'scan:arena'}],[{'text':'📋 К заявкам','callback_data':'scan:list:0'}]]},user)
         elif verb in ('origin','arena'):
-            self.prompt(chat,user,{'stage':verb},'Введите координаты деревни отправки.' if verb=='origin' else 'Введите уровень арены от 0 до 20.',force=True)
+            self.prompt(chat,user,{'stage':verb},'Введите координаты деревни отправки <b>через пробел</b>: <code>22 63</code>. Формат: X Y.' if verb=='origin' else 'Введите уровень арены от 0 до 20.',force=True)
         elif verb=='kind' and state.get('stage')=='kind' and len(parts)>2 and parts[2] in KINDS:
             state.update(kind=parts[2],stage='timing')
             self.prompt(chat,user,state,'Когда нужен скан?',{'inline_keyboard':[[{'text':'🕒 В любое время','callback_data':'scan:any'},{'text':'⏰ К определённому времени','callback_data':'scan:timed'}],cancelled()['inline_keyboard'][0]]})
         elif verb=='any' and state.get('stage')=='timing':
             state['arrival']=None;self.preview(chat,user,state)
         elif verb=='timed' and state.get('stage')=='timing':
-            state['stage']='arrival';example=game_time(self.now()+7200)
-            self.prompt(chat,user,state,'Введите <b>дату и время прибытия разведчиков</b> по Travian (Europe/London).\nНапример: <code>'+example+'</code>',force=True)
+            state['stage']='arrival';example=datetime.fromtimestamp(self.now()+7200, GAME_TZ).strftime('%H:%M:%S')
+            self.prompt(chat,user,state,'Введите <b>только время прибытия разведчиков</b> по серверу Travian (ЧЧ:ММ или ЧЧ:ММ:СС), без даты.\nЕсли время ещё впереди — сегодня; если уже прошло — завтра.\nНапример: <code>'+example+'</code>',force=True)
         elif verb=='confirm' and len(parts)>2:
             token=parts[2];existing=self.db.execute('SELECT id,data FROM scout_jobs WHERE submit_key=?',(token,)).fetchone()
             if existing:
@@ -347,7 +354,7 @@ class ScoutRequests:
             payload.update(creator=uid,creator_name=user.get('first_name') or str(uid),creator_username=user.get('username'),created=self.now())
             timing=self.schedule(payload)
             if timing and timing[0]<=self.now():
-                state['stage']='arrival';self.prompt(chat,user,state,'К этому времени разведчики уже не успеют. Введите более поздние дату и время прибытия.',force=True);return True
+                state['stage']='arrival';self.prompt(chat,user,state,'К этому времени разведчики уже не успеют. Введите более позднее время прибытия (ЧЧ:ММ или ЧЧ:ММ:СС).',force=True);return True
             row=self.db.execute("INSERT INTO scout_jobs(submit_key,status,data) VALUES(?,'pending',?)",(token,json.dumps(payload)));ident=row.lastrowid
             self.save_session(chat,uid,{});self.ensure_centre()
             self.send(chat,f'✅ Заявка на скан #{ident} добавлена в общую очередь.',{'inline_keyboard':[[{'text':'🔎 Открыть заявку','callback_data':f'scan:view:{ident}'}]]},user)
@@ -357,7 +364,7 @@ class ScoutRequests:
     def preview(self,chat,user,state):
         timing=self.schedule(state)
         if timing and timing[0]<=self.now():
-            state['stage']='arrival';self.prompt(chat,user,state,'К этому времени скан уже не успеет. Введите более поздние дату и время прибытия.',force=True);return
+            state['stage']='arrival';self.prompt(chat,user,state,'К этому времени скан уже не успеет. Введите более позднее время прибытия (ЧЧ:ММ или ЧЧ:ММ:СС).',force=True);return
         state['stage']='confirm';job=dict(state,id='новая',status='pending',creator=user['id'],creator_name=user.get('first_name') or str(user['id']),creator_username=user.get('username'))
         # Preview has no numeric request ID or screenshot records yet.
         preview_job=dict(job,id=0);body=self.job_text(preview_job).replace('#0','#новая',1)

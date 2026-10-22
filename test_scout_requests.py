@@ -32,7 +32,7 @@ class ScoutRequestTests(unittest.TestCase):
     def draft(self,user=1,kind='resources',timed=False,chat=GROUP_ID):
         self.click('scan:new',user,chat);self.text('40|63',user,chat);self.click('scan:kind:'+kind,user,chat)
         if timed:
-            self.click('scan:timed',user,chat);self.text('21.10.2026 20:00:00',user,chat)
+            self.click('scan:timed',user,chat);self.text('20:00:00',user,chat)
         else:self.click('scan:any',user,chat)
         return self.app.session(chat,user)['token']
     def create(self,user=1,**kw):
@@ -63,7 +63,7 @@ class ScoutRequestTests(unittest.TestCase):
         self.assertGreater(self.app.schedule(job)[0],first[0]);self.assertEqual(self.app.job(ident)['arrival'],job['arrival'])
     def test_invalid_arena_and_past_departure_rejected(self):
         self.click('scan:arena',COORDINATOR_ID);self.text('21',COORDINATOR_ID);self.assertEqual(self.app.setting('coordinator')['arena'],7)
-        self.click('scan:new');self.text('200|200');self.click('scan:kind:resources');self.click('scan:timed');self.text('21.10.2026 16:00:01')
+        self.click('scan:new');self.text('200|200');self.click('scan:kind:resources');self.click('scan:timed');self.text('16:00:01')
         self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'arrival');self.assertEqual(self.app.jobs(),[])
     def test_reply_binding_and_separate_users_prevent_chat_capture(self):
         self.click('scan:new',1);self.click('scan:new',2)
@@ -149,11 +149,26 @@ class ScoutCalculationTests(unittest.TestCase):
         self.assertEqual(travel_seconds((0,0),(40,0),0),9000)
         self.assertEqual(travel_seconds((0,0),(40,0),20),5400)
         self.assertEqual(travel_seconds((200,0),(-200,0),0),225)
+    def test_time_only_today_tomorrow_and_midnight(self):
+        for now,clock,expected in [
+            ('2026-10-21T15:00:00+00:00','20:00','21.10.2026 20:00:00'),
+            ('2026-10-21T15:00:00+00:00','15:00:00','22.10.2026 15:00:00'),
+            ('2026-10-21T22:50:00+00:00','00:30','22.10.2026 00:30:00'),
+            ('2026-12-31T23:50:00+00:00','00:30','01.01.2027 00:30:00'),
+            ('2026-10-21T15:00:00+00:00','16:00:00','22.10.2026 16:00:00'),
+        ]:
+            with self.subTest(now=now,clock=clock):
+                self.assertEqual(game_time(parse_arrival(clock,datetime.fromisoformat(now).timestamp())),expected)
     def test_london_offsets_and_dst_invalid_times(self):
-        now=datetime(2026,1,1,tzinfo=timezone.utc).timestamp()
-        self.assertEqual(parse_arrival('21.10.2026 20:00:00',now),datetime(2026,10,21,19,tzinfo=timezone.utc).timestamp())
-        self.assertEqual(parse_arrival('21.01.2026 20:00:00',now),datetime(2026,1,21,20,tzinfo=timezone.utc).timestamp())
-        for text in ['29.03.2026 01:30:00','25.10.2026 01:30:00','invalid']:
-            with self.assertRaises(ValueError):parse_arrival(text,now)
+        for month,offset in [(1,0),(10,1)]:
+            now=datetime(2026,month,21,12,tzinfo=timezone.utc).timestamp()
+            self.assertEqual(parse_arrival('20:00:00',now),datetime(2026,month,21,20-offset,tzinfo=timezone.utc).timestamp())
+        for now in ['2026-03-29T00:00:00+00:00','2026-10-25T00:00:00+00:00']:
+            with self.assertRaises(ValueError):parse_arrival('01:30',datetime.fromisoformat(now).timestamp())
+        for value in ['24:00','20:60','invalid','21.10.2026 20:00:00']:
+            with self.assertRaises(ValueError):parse_arrival(value,0)
+    def test_space_coordinates_and_clear_error(self):
+        self.assertEqual(coordinates('-22 63'),(-22,63))
+        with self.assertRaisesRegex(ValueError,'через пробел'):coordinates('bad')
 
 if __name__=='__main__':unittest.main()
