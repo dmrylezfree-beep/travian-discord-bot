@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-23T02:52:35.758683+00:00",
+  "created_at": "2026-10-23T03:52:54.647405+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -777,17 +777,57 @@
         "telegram_id": 1445386224,
         "username": "",
         "first_name": "Павел",
-        "race": null,
-        "villages": [],
-        "substitutes": [],
+        "race": "gaul",
+        "villages": [
+          {
+            "coordinates": "31 26",
+            "arena": 3,
+            "troops": {
+              "phalanx": 1600
+            },
+            "hero": {
+              "present": false
+            }
+          },
+          {
+            "coordinates": "183 138",
+            "arena": 0,
+            "troops": {
+              "phalanx": 1360
+            },
+            "hero": {
+              "present": true
+            }
+          },
+          {
+            "coordinates": "180 137",
+            "arena": 0,
+            "troops": {
+              "phalanx": 620
+            },
+            "hero": {
+              "present": false
+            }
+          }
+        ],
+        "substitutes": [
+          1704827799
+        ],
         "state": null,
-        "private_chat_id": null,
+        "private_chat_id": 1445386224,
         "private_notifications": true,
         "hero_inventory": {
-          "standards": [],
-          "boots": [],
-          "maps": []
-        }
+          "standards": [
+            15
+          ],
+          "boots": [
+            25
+          ],
+          "maps": [
+            30
+          ]
+        },
+        "travian_uid": 131
       },
       "8019550953": {
         "telegram_id": 8019550953,
