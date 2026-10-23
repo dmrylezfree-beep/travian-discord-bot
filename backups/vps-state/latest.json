@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-23T05:53:19.089273+00:00",
+  "created_at": "2026-10-23T06:53:24.936371+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -552,10 +552,10 @@
             "coordinates": "51 16",
             "arena": 5,
             "troops": {
-              "druidrider": 1200
+              "druidrider": 1400
             },
             "hero": {
-              "present": false
+              "present": true
             }
           }
         ],
@@ -564,11 +564,11 @@
         "private_chat_id": 972118673,
         "private_notifications": true,
         "hero_inventory": {
-          "standards": [],
+          "standards": [
+            15
+          ],
           "boots": [],
-          "maps": [
-            30
-          ]
+          "maps": []
         },
         "travian_uid": 664
       },
