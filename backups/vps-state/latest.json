@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-24T02:55:43.524890+00:00",
+  "created_at": "2026-10-24T03:55:48.900410+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -783,7 +783,7 @@
             "coordinates": "31 26",
             "arena": 3,
             "troops": {
-              "phalanx": 1600
+              "phalanx": 700
             },
             "hero": {
               "present": false
@@ -793,7 +793,7 @@
             "coordinates": "183 138",
             "arena": 0,
             "troops": {
-              "phalanx": 1360
+              "phalanx": 1430
             },
             "hero": {
               "present": true
@@ -803,7 +803,7 @@
             "coordinates": "180 137",
             "arena": 0,
             "troops": {
-              "phalanx": 620
+              "phalanx": 650
             },
             "hero": {
               "present": false
@@ -813,13 +813,7 @@
         "substitutes": [
           1704827799
         ],
-        "state": {
-          "type": "send_village_amount",
-          "request_id": 34,
-          "village_idx": 0,
-          "draft": [],
-          "pending_amount": 700
-        },
+        "state": null,
         "private_chat_id": 1445386224,
         "private_notifications": true,
         "hero_inventory": {
