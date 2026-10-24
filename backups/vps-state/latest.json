@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-24T08:56:25.740651+00:00",
+  "created_at": "2026-10-24T09:56:32.770946+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -3610,6 +3610,35 @@
         "x": 22,
         "y": 63
       },
+      "320784442": {
+        "alliance": "Сокол",
+        "alliance_id": 8,
+        "arena": 5,
+        "army": {
+          "troops": {
+            "Императорская конница": 1500,
+            "Империанец": 1400,
+            "Конница Цезаря": 0,
+            "Конница легата": 0,
+            "Легионер": 1200,
+            "Огненная катапульта": 120,
+            "Преторианец": 0,
+            "Сенатор": 0,
+            "Таран": 40
+          },
+          "updated_at": "2026-10-24T12:01:07+03:00"
+        },
+        "player": "Котята",
+        "player_id": 1111,
+        "population": 714,
+        "registered_at": "2026-10-24T12:01:07+03:00",
+        "telegram_id": 320784442,
+        "tribe_id": 1,
+        "village": "02. Коготки",
+        "village_id": 30162,
+        "x": 44,
+        "y": 51
+      },
       "341950808": {
         "alliance": "Сокол",
         "alliance_id": 8,
@@ -3875,6 +3904,25 @@
       }
     },
     "data/alliance_ops/targets.json": {
+      "40|51": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-10-24.sql",
+        "comment": "",
+        "created_at": "2026-10-24T11:59:16+03:00",
+        "map_missing": false,
+        "player": "小小玩家",
+        "player_id": 1581,
+        "population": 595,
+        "priority": 1,
+        "tribe_id": 2,
+        "type": "Обычная",
+        "updated_at": "2026-10-24T11:59:16+03:00",
+        "village": "1.小小玩家",
+        "village_id": 27707,
+        "x": 40,
+        "y": 51
+      },
       "63|65": {
         "alliance": "東方華人",
         "alliance_id": 12,
@@ -3896,6 +3944,15 @@
       }
     },
     "data/alliance_ops/states.json": {
+      "1420483474": {
+        "data": {
+          "alliance_key": "12",
+          "alliance_name": "東方華人",
+          "targets": {}
+        },
+        "step": "op_arrival",
+        "updated_at": "2026-10-24T12:31:05+03:00"
+      },
       "6962496754": {
         "data": {},
         "step": "reg_coords",
