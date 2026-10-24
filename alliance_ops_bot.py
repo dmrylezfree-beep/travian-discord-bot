@@ -220,7 +220,8 @@ def owned_operation(uid,oid):
 def menu(uid):
     rows=[[btn("📋 Мой план","mine:list")],[btn("🏘 Мои офф-деревни","village:list")],
           [btn("⚔️ Мои операции","ops:list"),btn("📝 Создать операцию","ops:new")]]
-    if uid in COORDINATORS:rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")],[btn("⚔️ Список офферов","offers:ro:list")]]
+    rows += [[btn("🎯 База целей","targets:list"),btn("➕ Добавить цель","targets:add")]]
+    if uid in COORDINATORS:rows += [[btn("⚔️ Список офферов","offers:ro:list")]]
     return rows
 def fmt_offer(o):
     lines=[f"⚔️ <b>Мой офф</b>","",f"Игрок: <b>{html.escape(o['player'])}</b>",f"Деревня: <b>{html.escape(o['village'])}</b>",f"Координаты: <code>{o['x']}|{o['y']}</code>",f"Раса: <b>{TRIBES.get(o['tribe_id'],'Неизвестно')}</b>",f"Арена: <b>{o['arena']}</b>","","<b>Войска:</b>"]
@@ -262,7 +263,9 @@ def show_target(cid,key):
     t=load(TARGETS).get(key)
     if not t:send(cid,"❌ Цель не найдена.");return
     txt=f"🎯 <b>{html.escape(t['village'])}</b>\nКоординаты: <code>{key}</code>\nИгрок: <b>{html.escape(t['player'])}</b>\nАльянс: <b>{html.escape(target_alliance_name(t))}</b>\nНаселение: {t.get('population','—')}\nРаса: {TRIBES.get(t.get('tribe_id'),'Неизвестно')}\n\nТип: <b>{t.get('type','Не определено')}</b>\nВажность: <b>{t.get('priority',1)}/5</b>\nКомментарий: {html.escape(t.get('comment') or '—')}"
-    send(cid,txt,[[btn("🏷 Тип",f"targettype:{key}"),btn("⭐ Важность",f"targetprio:{key}")],[btn("📝 Комментарий",f"targetcomment:{key}"),btn("🗑 Удалить",f"targetdelete:{key}")],[btn("⬅️ К списку","targets:list")]])
+    rows=[[btn("🏷 Тип",f"targettype:{key}"),btn("⭐ Важность",f"targetprio:{key}")],[btn("📝 Комментарий",f"targetcomment:{key}"),btn("🗑 Удалить",f"targetdelete:{key}")],[btn("⬅️ К списку","targets:list")]]
+    if cid not in COORDINATORS:rows=[[btn("⬅️ К списку","targets:list")]]
+    send(cid,txt,rows)
 
 def op_dt(text):
     for fmt in ("%d.%m.%Y %H:%M:%S","%d.%m.%Y %H:%M"):
@@ -1192,7 +1195,7 @@ def callback(c):
         elif action=='remove':
             offers=load(OFFERS);offers[key]['deleted_at']=now();save(OFFERS,offers);persist('Remove registered offence village');personal_villages(cid,uid)
         return
-    if x.startswith(("targets","target:","targettype:","targetprio:","targetcomment:","targetdelete:","newtype:","newprio:","settype:","setprio:","confirmdelete:")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
+    if x.startswith(("targettype:","targetprio:","targetcomment:","targetdelete:","settype:","setprio:","confirmdelete:")) and uid not in COORDINATORS:send(cid,"⛔ Только для координатора.");return
 
     if x=="ops:list":list_ops(cid);return
     if x=="ops:new":state(uid,"op_pick_alliance",{});op_alliance_picker(cid,{});return
@@ -1345,7 +1348,13 @@ def callback(c):
     if x.startswith("newtype:"):
         st=getstate(uid);d=st["data"];d["type"]=x.split(":",1)[1];state(uid,"target_priority",d);send(cid,"⭐ Важность цели:",[[btn(str(i),f"newprio:{i}") for i in range(1,6)]]);return
     if x.startswith("newprio:"):
-        st=getstate(uid);v=st["data"]["village"];k=f"{v['x']}|{v['y']}";ts=load(TARGETS);ts[k]={**v,"type":st["data"]["type"],"priority":int(x.split(":")[1]),"comment":"","created_at":now(),"updated_at":now()};save(TARGETS,ts);state(uid);persist("Add alliance ops target");show_target(cid,k);return
+        st=getstate(uid) or {}
+        if st.get("step")!="target_priority":send(cid,"Откройте добавление цели заново.");return
+        v=st["data"]["village"];k=f"{v['x']}|{v['y']}";ts=load(TARGETS)
+        if k in ts:
+            state(uid);send(cid,"Эта цель уже есть в общей базе.");show_target(cid,k);return
+        ts[k]={**v,"type":st["data"]["type"],"priority":int(x.split(":")[1]),"comment":"","created_at":now(),"updated_at":now()}
+        save(TARGETS,ts);state(uid);persist("Add alliance ops target");show_target(cid,k);return
     if x.startswith("target:"):show_target(cid,x.split(":",1)[1]);return
     if x.startswith("targettype:"):
         k=x.split(":",1)[1];send(cid,"🏷 Выберите тип:",[[btn(t,f"settype:{k}:{t}")] for t in TARGET_TYPES]);return

@@ -498,6 +498,30 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.click_village('savepoint:add:1');self.click_village('village:points:1');self.assertIsNone(o.getstate(1));self.assertEqual(o.load(o.OFFERS),before)
 
 
+class SharedTargetsAccessTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def click_target(self,value,uid=2):
+  self.ops.callback({'id':'fixture','from':{'id':uid},'message':{'chat':{'id':uid,'type':'private'}},'data':value})
+ def test_member_can_add_shared_target_but_cannot_edit_or_delete(self):
+  o=self.ops
+  self.assertIn('targets:add',str(o.menu(2)));self.assertIn('targets:list',str(o.menu(2)))
+  v=dict(x=15,y=3,player='Enemy',village='Target',tribe_id=1,population=200,alliance='Enemy alliance')
+  with patch.object(o,'api',return_value={}),patch.object(o,'village_at',return_value=(v,{})):
+   self.click_target('targets:add');self.assertEqual(o.getstate(2)['step'],'target_coords')
+   o.handle_message({'from':{'id':2},'chat':{'id':2,'type':'private'},'text':'15 3'})
+   self.click_target('newtype:'+o.TARGET_TYPES[0]);self.click_target('newprio:3')
+   saved=o.load(o.TARGETS);self.assertIn('15|3',saved);self.assertEqual(saved['15|3']['priority'],3)
+   self.assertNotIn('targetdelete:',str(self.sender.call_args))
+   for action in ['targetdelete:15|3','confirmdelete:15|3','setprio:15|3:5']:
+    self.click_target(action)
+   self.assertEqual(o.load(o.TARGETS),saved)
+   o.state(2,'target_priority',{'village':v,'type':o.TARGET_TYPES[1]});self.click_target('newprio:5')
+   self.assertEqual(o.load(o.TARGETS),saved)
+   self.click_target('targets:list',uid=3);self.assertIn('15|3',str(self.sender.call_args))
+ def test_coordinator_keeps_target_controls(self):
+  o=self.ops;v=dict(x=15,y=3,player='Enemy',village='Target',type='Офф',priority=3,comment='')
+  o.save(o.TARGETS,{'15|3':v});o.show_target(317595036,'15|3');self.assertIn('targetdelete:15|3',str(self.sender.call_args))
+
 class DefenceConfirmationTests(unittest.TestCase):
  def setUp(self):
   import copy
