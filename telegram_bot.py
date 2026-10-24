@@ -35,21 +35,6 @@ MAP_SIZE = int(
 
 
 # ============================================================
-# СИСТЕМА ОЧКОВ
-# ============================================================
-
-POP_MAX_SCORE = 30
-
-DISTANCE_MAX_SCORE = 40
-DISTANCE_MIN_SCORE = 1
-
-DISTANCE_FULL_SCORE_DISTANCE = 10.0
-DISTANCE_MIN_SCORE_DISTANCE = 200.0
-
-INACTIVE_MAX_SCORE = 30
-
-
-# ============================================================
 # TELEGRAM API
 # ============================================================
 
@@ -412,67 +397,6 @@ def distance(
 
 
 # ============================================================
-# ОЧКИ ЗА НАСЕЛЕНИЕ
-# ============================================================
-
-def population_score(population):
-    return min(
-        POP_MAX_SCORE,
-        population // 8,
-    )
-
-
-# ============================================================
-# ОЧКИ ЗА РАССТОЯНИЕ
-# ============================================================
-
-def distance_score(dist):
-
-    if dist <= DISTANCE_FULL_SCORE_DISTANCE:
-        return DISTANCE_MAX_SCORE
-
-    if dist >= DISTANCE_MIN_SCORE_DISTANCE:
-        return DISTANCE_MIN_SCORE
-
-    score = (
-        DISTANCE_MAX_SCORE
-        - (
-            (
-                dist
-                - DISTANCE_FULL_SCORE_DISTANCE
-            )
-            * (
-                DISTANCE_MAX_SCORE
-                - DISTANCE_MIN_SCORE
-            )
-            / (
-                DISTANCE_MIN_SCORE_DISTANCE
-                - DISTANCE_FULL_SCORE_DISTANCE
-            )
-        )
-    )
-
-    return max(
-        DISTANCE_MIN_SCORE,
-        min(
-            DISTANCE_MAX_SCORE,
-            score,
-        ),
-    )
-
-
-# ============================================================
-# ОЧКИ ЗА НЕАКТИВНОСТЬ
-# ============================================================
-
-def inactivity_score(days):
-    return min(
-        INACTIVE_MAX_SCORE,
-        days,
-    )
-
-
-# ============================================================
 # ДЕРЕВНИ ИГРОКА
 # ============================================================
 
@@ -677,32 +601,6 @@ def find_feeders(
             continue
 
 
-        # ----------------------------------------------------
-        # Расчёт рейтинга
-        #
-        # Сам расчёт сохраняем.
-        # В сообщении пользователю он НЕ показывается.
-        # ----------------------------------------------------
-
-        pop_points = population_score(
-            population
-        )
-
-        dist_points = distance_score(
-            best_distance
-        )
-
-        inactive_points = inactivity_score(
-            inactive
-        )
-
-        total_score = (
-            pop_points
-            + dist_points
-            + inactive_points
-        )
-
-
         candidates.append(
             {
                 "uid": uid,
@@ -725,26 +623,16 @@ def find_feeders(
 
                 "distance": best_distance,
 
-                "pop_points": pop_points,
-
-                "distance_points": dist_points,
-
-                "inactive_points": inactive_points,
-
-                "score": total_score,
             }
         )
 
 
     # --------------------------------------------------------
-    # Сортировка по рейтингу
+    # Ближайшие кормушки первыми
     # --------------------------------------------------------
 
     candidates.sort(
         key=lambda item: (
-            -item["score"],
-            -item["inactive_days"],
-            -item["population"],
             item["distance"],
             item["player"].lower(),
         )
@@ -792,18 +680,7 @@ def format_feeder(
     item,
     number,
 ):
-    """
-    Имя игрока не показываем.
-
-    Расчёт рейтинга не показываем.
-
-    Рейтинг показываем внизу каждой
-    отдельной кормушки.
-
-    Рейтинг:
-    - со звездой;
-    - округлён до целого.
-    """
+    """Население, неактивность и расстояние без рейтинга."""
 
     alliance = html.escape(
         str(
@@ -820,11 +697,6 @@ def format_feeder(
         quote=True,
     )
 
-    # Округление рейтинга до целого.
-    rounded_score = round(
-        item["score"]
-    )
-
     return (
         f"<b>{number}. "
         f"{village_name} "
@@ -837,11 +709,9 @@ def format_feeder(
         f"{item['inactive_days']} дн.\n"
 
         f"   📏 расстояние: "
-        f"{item['distance']:.1f}\n"
+        f"{item['distance']:.1f} поля\n"
 
-        f"   🔴 {alliance}\n"
-
-        f"   ⭐ <b>{rounded_score}</b>"
+        f"   🔴 {alliance}"
     )
 
 
@@ -870,7 +740,7 @@ def make_page(
 
 
     text = (
-        "🌾 <b>КОРМУШКИ</b>\n\n"
+        "🌾 <b>КОРМУШКИ</b>\nБлижайшие сначала.\n\n"
     )
 
 

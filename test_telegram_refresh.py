@@ -687,3 +687,28 @@ class DefenceOverfillTests(unittest.TestCase):
    defence.callback_query(q)
    self.assertEqual(req['collected_def'],1150);self.assertEqual(req['status'],'closed');self.assertEqual(defence.request_remaining(req),0)
    self.assertEqual(req['contributions'][0]['def_points'],250);self.assertEqual(req['contributions'][0]['plan'],plan);reminders.assert_called_once_with(req,req['contributions'][0]);sync.assert_called_once();self.assertIsNone(player['state']);self.assertIn('250',edit.call_args.args[2])
+
+
+class FeedersDistanceTests(unittest.TestCase):
+ def village(self,uid,x,pop):
+  return dict(uid=uid,x=x,y=0,pop=pop,player='Player '+str(uid),alliance='',name='Village '+str(uid),id=uid)
+ def test_distance_wins_over_population_and_inactivity_across_pages(self):
+  import telegram_bot as feeders
+  from datetime import date
+  villages={i:self.village(i,i,8 if i==1 else 1000) for i in range(1,8)}
+  villages[99]=self.village(99,0,500)
+  with patch.object(feeders,'calculate_inactivity_days',side_effect=lambda uid,*args:1 if uid==1 else 30):
+   rows=feeders.find_feeders([villages[99]],villages,date(2026,10,24),{})
+  self.assertEqual([r['uid'] for r in rows],list(range(1,8)))
+  self.assertNotIn('score',rows[0]);self.assertEqual(rows[0]['population'],8);self.assertEqual(rows[0]['inactive_days'],1)
+  text,_=feeders.make_page(rows,1,'coords:0,0');self.assertIn('Village 6',text);self.assertNotIn('Village 1',text)
+  text=feeders.format_feeder(rows[0],1)
+  for expected in ['население: 8','неактивность: 1 дн.','расстояние: 1.0']:self.assertIn(expected,text)
+  self.assertNotIn('⭐',text)
+ def test_nearest_origin_map_wrap_and_inactive_filter_are_preserved(self):
+  import telegram_bot as feeders
+  from datetime import date
+  villages={1:self.village(1,-200,100),2:self.village(2,10,100),3:self.village(3,0,100)}
+  with patch.object(feeders,'MAP_SIZE',401),patch.object(feeders,'calculate_inactivity_days',side_effect=lambda uid,*args:0 if uid==3 else 2):
+   rows=feeders.find_feeders([self.village(99,200,500),self.village(98,12,500)],villages,date(2026,10,24),{})
+  self.assertEqual([r['uid'] for r in rows],[1,2]);self.assertEqual([r['distance'] for r in rows],[1,2])
