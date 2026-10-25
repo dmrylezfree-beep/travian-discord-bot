@@ -178,7 +178,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o.handle_message({'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':'1 0'})
   self.assertIn('Альянс: <b>Enemy</b>',self.sender.call_args.args[1])
   with patch.object(o,'api'):
-   for data in ['newtype:Офф','newprio:5']:o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
+   for data in ['newtype:Офф']:o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
   self.assertEqual(o.load(o.TARGETS)['1|0']['alliance_id'],7)
 
  def add_second_village(self):
@@ -509,8 +509,8 @@ class SharedTargetsAccessTests(unittest.TestCase):
   with patch.object(o,'api',return_value={}),patch.object(o,'village_at',return_value=(v,{})):
    self.click_target('targets:add');self.assertEqual(o.getstate(2)['step'],'target_coords')
    o.handle_message({'from':{'id':2},'chat':{'id':2,'type':'private'},'text':'15 3'})
-   self.click_target('newtype:'+o.TARGET_TYPES[0]);self.click_target('newprio:3')
-   saved=o.load(o.TARGETS);self.assertIn('15|3',saved);self.assertEqual(saved['15|3']['priority'],3)
+   self.click_target('newtype:'+o.TARGET_TYPES[0])
+   saved=o.load(o.TARGETS);self.assertIn('15|3',saved);self.assertEqual(saved['15|3']['priority'],1);self.assertIsNone(o.getstate(2));self.assertNotIn('newprio:',str(self.sender.call_args))
    self.assertNotIn('targetdelete:',str(self.sender.call_args))
    for action in ['targetdelete:15|3','confirmdelete:15|3','setprio:15|3:5']:
     self.click_target(action)
@@ -518,6 +518,11 @@ class SharedTargetsAccessTests(unittest.TestCase):
    o.state(2,'target_priority',{'village':v,'type':o.TARGET_TYPES[1]});self.click_target('newprio:5')
    self.assertEqual(o.load(o.TARGETS),saved)
    self.click_target('targets:list',uid=3);self.assertIn('15|3',str(self.sender.call_args))
+ def test_old_priority_prompt_can_finish_without_new_priority_step(self):
+  o=self.ops;v=dict(x=16,y=3,player='Enemy',village='Target')
+  o.state(2,'target_priority',{'village':v,'type':o.TARGET_TYPES[0]})
+  with patch.object(o,'api',return_value={}):self.click_target('newprio:5')
+  self.assertEqual(o.load(o.TARGETS)['16|3']['priority'],1);self.assertIsNone(o.getstate(2))
  def test_coordinator_keeps_target_controls(self):
   o=self.ops;v=dict(x=15,y=3,player='Enemy',village='Target',type='Офф',priority=3,comment='')
   o.save(o.TARGETS,{'15|3':v});o.show_target(317595036,'15|3');self.assertIn('targetdelete:15|3',str(self.sender.call_args))

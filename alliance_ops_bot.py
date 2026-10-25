@@ -1345,15 +1345,19 @@ def callback(c):
         ops.pop(oid);op_store(ops);list_ops(cid);return
     if x=="targets:add":state(uid,"target_coords");send(cid,"➕ Введите координаты цели через пробел.");return
     if x=="targets:list":list_targets(cid);return
-    if x.startswith("newtype:"):
-        st=getstate(uid);d=st["data"];d["type"]=x.split(":",1)[1];state(uid,"target_priority",d);send(cid,"⭐ Важность цели:",[[btn(str(i),f"newprio:{i}") for i in range(1,6)]]);return
-    if x.startswith("newprio:"):
+    if x.startswith(("newtype:","newprio:")):
         st=getstate(uid) or {}
-        if st.get("step")!="target_priority":send(cid,"Откройте добавление цели заново.");return
+        # Old priority buttons can finish an already-open wizard after updating.
+        expected="target_type" if x.startswith("newtype:") else "target_priority"
+        if st.get("step")!=expected:send(cid,"Откройте добавление цели заново.");return
+        if x.startswith("newtype:"):
+            kind=x.split(":",1)[1]
+            if kind not in TARGET_TYPES:send(cid,"Выберите тип цели кнопкой.");return
+            st["data"]["type"]=kind
         v=st["data"]["village"];k=f"{v['x']}|{v['y']}";ts=load(TARGETS)
         if k in ts:
             state(uid);send(cid,"Эта цель уже есть в общей базе.");show_target(cid,k);return
-        ts[k]={**v,"type":st["data"]["type"],"priority":int(x.split(":")[1]),"comment":"","created_at":now(),"updated_at":now()}
+        ts[k]={**v,"type":st["data"]["type"],"priority":1,"comment":"","created_at":now(),"updated_at":now()}
         save(TARGETS,ts);state(uid);persist("Add alliance ops target");show_target(cid,k);return
     if x.startswith("target:"):show_target(cid,x.split(":",1)[1]);return
     if x.startswith("targettype:"):
