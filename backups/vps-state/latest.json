@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-26T07:02:17.675650+00:00",
+  "created_at": "2026-10-26T08:02:31.140154+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -782,7 +782,7 @@
             "coordinates": "31 26",
             "arena": 3,
             "troops": {
-              "phalanx": 700
+              "phalanx": 770
             },
             "hero": {
               "present": false
@@ -792,7 +792,7 @@
             "coordinates": "183 138",
             "arena": 0,
             "troops": {
-              "phalanx": 1430
+              "phalanx": 1840
             },
             "hero": {
               "present": true
@@ -802,7 +802,7 @@
             "coordinates": "180 137",
             "arena": 0,
             "troops": {
-              "phalanx": 650
+              "phalanx": 760
             },
             "hero": {
               "present": false
