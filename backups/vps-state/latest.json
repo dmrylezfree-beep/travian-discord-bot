@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-26T03:02:03.060018+00:00",
+  "created_at": "2026-10-26T04:02:07.368842+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -549,9 +549,9 @@
         "villages": [
           {
             "coordinates": "51 16",
-            "arena": 6,
+            "arena": 7,
             "troops": {
-              "druidrider": 400
+              "druidrider": 1400
             },
             "hero": {
               "present": true
@@ -559,10 +559,7 @@
           }
         ],
         "substitutes": [],
-        "state": {
-          "type": "arena",
-          "index": 0
-        },
+        "state": null,
         "private_chat_id": 972118673,
         "private_notifications": true,
         "hero_inventory": {
