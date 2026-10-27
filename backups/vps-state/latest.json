@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-27T06:05:51.070208+00:00",
+  "created_at": "2026-10-27T07:06:14.677026+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -1087,7 +1087,20 @@
             "coordinates": "52 2",
             "name": "CR00N",
             "arena": 0,
-            "troops": {},
+            "troops": {
+              "phalanx": 500
+            },
+            "hero": {
+              "present": false
+            }
+          },
+          {
+            "coordinates": "110 5",
+            "name": "CR02MF",
+            "arena": 5,
+            "troops": {
+              "druidrider": 500
+            },
             "hero": {
               "present": false
             }
