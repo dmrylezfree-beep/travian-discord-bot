@@ -151,8 +151,24 @@ class PushBot:
         return sent
 
     def ensure_menu(self):
-        rows=[[button('📊 Учёт','list:0')],[button('➕ Создать заявку (координатор)','new')],[button('📖 Как пользоваться','help')]]
-        text='<b>📦 УЧЁТ ПУША</b>\n\nВыберите заявку в разделе «Учёт». Получатель отмечает отправителей; остальные участники могут смотреть результаты.\n\nНорма — сумма всех ресурсов с одного аккаунта. Создавать заявки может только координатор.'
+        active=list(self.db.execute("SELECT id FROM pushes WHERE status='active' ORDER BY id DESC"))
+        text=f'<b>📦 ОТКРЫТЫЕ ПУШИ</b>\nВсего: {len(active)}'
+        rows=[]
+        if not active:text+='\n\nСейчас открытых пушей нет.'
+        for index,row in enumerate(active):
+            job=self.job(row['id'])
+            recipient=next(p for p in job['roster'] if p['id']==job['recipient'])
+            statuses=self.statuses(job['id']);donors=self.donors(job)
+            counts={key:sum(statuses.get(str(p['id']),'none')==key for p in donors) for key in STATUSES}
+            village=recipient.get('push_village')
+            target=f' · {village["x"]} {village["y"]}' if village else ''
+            block=f'\n\n<b>#{job["id"]} → {esc(recipient["name"])}</b>{target}\nНорма: <b>{job["norm"]:,}</b> ресурсов с аккаунта\n⏳ Не прислали: {counts["none"]} · 🟡 Меньше: {counts["below"]}\n✅ Норму: {counts["normal"]} · 🌟 Выше: {counts["above"]}'
+            if len(text)+len(block)>3500 or len(rows)>=80:
+                text+=f'\n\nЕщё открытых пушей: {len(active)-index}. Все заявки доступны кнопкой ниже.'
+                break
+            text+=block
+            rows.append([button(f'📊 #{job["id"]} · {recipient["name"]}'[:90],f'view:{job["id"]}')])
+        rows.extend([[button('📊 Все заявки и архив','list:0')],[button('➕ Создать заявку (координатор)','new')],[button('📖 Как пользоваться','help')]])
         ident=self.setting('menu_id')
         if not ident or not self.edit_panel(ident,text,rows):
             ident=self.send(text,rows)['message_id'];self.setting('menu_id',ident)
@@ -161,6 +177,12 @@ class PushBot:
             self.setting('pinned_id',ident)
         self.last_menu_check=time.time()
         return ident
+
+    def refresh_menu(self):
+        try:self.ensure_menu()
+        except Exception:
+            self.last_menu_check=0
+            print('Push menu refresh unavailable; will retry.',flush=True)
 
     def menu(self,uid):
         self.ensure_menu()
@@ -342,6 +364,7 @@ class PushBot:
             elif verb == 'close':
                 with self.db:
                     self.db.execute("UPDATE pushes SET status='closed' WHERE id=?", (job['id'],))
+                self.refresh_menu()
                 self.overview(self.job(job['id']), uid)
             else:
                 if uid != job['recipient_user'] or job['status'] != 'active' or not self.member(uid):
@@ -364,6 +387,7 @@ class PushBot:
                     with self.db:
                         self.db.execute('INSERT OR REPLACE INTO payments VALUES(?,?,?,?)', (job['id'], ident, key, time.time()))
                         self.db.execute('INSERT INTO audit(push,player,actor,status,created) VALUES(?,?,?,?,?)', (job['id'], ident, uid, key, time.time()))
+                    self.refresh_menu()
                     self.panel(f'{ICONS[key]} {esc(player["name"])}: {STATUSES[key]}. Отметка сохранена.', [[button('✍️ Следующий отправитель', f'donors:{job["id"]}:0')], [button('📊 Учёт', f'view:{job["id"]}')]])
         else:
             raise ValueError('Кнопка устарела. Откройте /push.')
@@ -396,6 +420,7 @@ class PushBot:
                 self.db.execute('INSERT OR IGNORE INTO pushes(submit_key,recipient,recipient_user,norm,roster,snapshot,created) VALUES(?,?,?,?,?,?,?)', (state['token'], state['recipient'], state['recipient_user'], norm, json.dumps(state['roster']), state['snapshot'], time.time()))
             job = self.db.execute('SELECT id FROM pushes WHERE submit_key=?', (state['token'],)).fetchone()
             self.state(uid, {})
+            self.refresh_menu()
             self.send(f'✅ Создана заявка на пуш #{job[0]}. <a href="tg://user?id={state["recipient_user"]}">Получатель</a>, вам доступен учёт отправок.', [[button('📊 Открыть учёт', f'view:{job[0]}')]])
 
 

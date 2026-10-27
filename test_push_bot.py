@@ -100,6 +100,26 @@ class PushTests(unittest.TestCase):
   self.bot.call=offline
   with self.assertRaises(RuntimeError):self.bot.panel('same',[])
   self.bot.call=old
+ def pinned_text(self):
+  ident=self.bot.setting('menu_id')
+  return next(d['text'] for m,d in reversed(self.calls) if m=='editMessageText' and d['message_id']==ident)
+ def test_pinned_message_shows_all_open_pushes_and_live_counts(self):
+  self.bot.ensure_menu();ident=self.bot.setting('menu_id');self.create();self.create()
+  text=self.pinned_text();self.assertIn('#1 →',text);self.assertIn('#2 →',text);self.assertIn('15,000',text);self.assertIn('Не прислали: 2',text)
+  self.click('set:1:2:normal',55);text=self.pinned_text();self.assertIn('Не прислали: 1',text);self.assertIn('Норму: 1',text)
+  self.click('close:1');text=self.pinned_text();self.assertNotIn('#1 →',text);self.assertIn('#2 →',text)
+  self.click('close:2');self.assertIn('Сейчас открытых пушей нет',self.pinned_text())
+  self.assertEqual(self.bot.setting('menu_id'),ident);self.assertEqual(sum(m=='pinChatMessage' for m,d in self.calls),1)
+ def test_failed_pinned_refresh_does_not_lose_recorded_payment(self):
+  self.create();old=self.bot.ensure_menu
+  def offline():raise RuntimeError('fixture offline')
+  self.bot.ensure_menu=offline;self.click('set:1:2:above',55)
+  self.assertEqual(self.bot.statuses(1)['2'],'above');self.bot.ensure_menu=old;self.bot.ensure_menu();self.assertIn('Выше: 1',self.pinned_text())
+ def test_many_pushes_fit_telegram_message_limit(self):
+  self.create()
+  with self.bot.db:
+   for i in range(40):self.bot.db.execute("INSERT INTO pushes(submit_key,recipient,recipient_user,norm,roster,snapshot,status,created) SELECT ?,recipient,recipient_user,norm,roster,snapshot,status,created FROM pushes WHERE id=1",('extra'+str(i),))
+  self.bot.ensure_menu();self.assertLess(len(self.pinned_text()),4096);self.assertIn('Ещё открытых пушей:',self.pinned_text())
  def test_amount_validation_and_cyrillic_alliance(self):
   self.assertEqual(amount('15 000'),15000);self.assertEqual(alliance_key('Fun Е'),alliance_key('Fun E'))
   for v in ['0','-1','1.2','abc','1000000000001']:
