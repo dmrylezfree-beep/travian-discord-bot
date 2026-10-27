@@ -183,7 +183,7 @@ class ScoutRequests:
             if departure<=self.now() and job['status']=='pending':data+='⚠️ <b>Срок отправки прошёл. Ко времени уже не успеть.</b>\n'
             data+='🕒 Время Travian (Europe/London). Расчёт без героя и артефактов; проверьте время в игре.\n'
         else:data+='🕒 В любое время\n'
-        data+='\n'+('✅ Выполнена' if job['status']=='done' else '⏳ Ожидает выполнения')
+        data+='\n'+('🗑 Удалена автором' if job['status']=='cancelled' else '✅ Выполнена' if job['status']=='done' else '⏳ Ожидает выполнения')
         results=self.db.execute('SELECT public_message FROM scout_results WHERE request=? ORDER BY id',(job['id'],)).fetchall()
         for i,r in enumerate(results,1):data+=f'\n📷 <a href="{public_link(r[0])}">Результат {i}</a>'
         return data
@@ -236,9 +236,11 @@ class ScoutRequests:
 
     def detail(self,chat,user,job):
         text=self.job_text(job);rows=[[{'text':'🏹 Открыть пункт сбора','url':rally_url(job['x'],job['y'])}]]
-        if user['id']==COORDINATOR_ID:
+        if user['id']==COORDINATOR_ID and job['status']!='cancelled':
             text+='\n\n📷 Прикрепите скриншот ответом на это сообщение. Он будет доступен участникам в общей ветке.'
             rows.append([{'text':'✅ Выполнена' if job['status']=='pending' else '↩️ Вернуть в очередь','callback_data':f'scan:done:{job["id"]}' if job['status']=='pending' else f'scan:reopen:{job["id"]}'}])
+        if user['id']==job['creator'] and job['status']=='pending':
+            rows.append([{'text':'🗑 Удалить мою заявку','callback_data':f'scan:delete:{job["id"]}'}])
         rows.append([{'text':'📋 К заявкам','callback_data':'scan:list:0'}])
         sent=self.send(chat,text,{'inline_keyboard':rows},user)
         if user['id']==COORDINATOR_ID:self.db.execute('INSERT OR REPLACE INTO scout_bindings VALUES(?,?,?)',(chat,sent['message_id'],job['id']))
@@ -323,9 +325,21 @@ class ScoutRequests:
         elif verb in ('list','results'):
             page=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else 0
             self.send(chat,*self.queue_view(page,verb=='results'),user=user);self.ensure_centre()
+        elif verb=='delete':
+            ident=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else -1
+            job=self.job(ident)
+            if not job or job['creator']!=uid:
+                self.send(chat,'Можно удалить только свою заявку.',user=user);return True
+            if job['status'] not in ('pending','cancelled'):
+                self.send(chat,'Эта заявка уже выполнена. Результат сохранён.',user=user);return True
+            self.db.execute("UPDATE scout_jobs SET status='cancelled' WHERE id=?",(ident,))
+            self.ensure_centre()
+            self.send(chat,f'🗑 Заявка #{ident} удалена из очереди.',main_buttons(),user)
         elif verb in ('view','done','reopen'):
             ident=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else -1;job=self.job(ident)
             if not job:self.send(chat,'Заявка не найдена.',user=user);return True
+            if verb in ('done','reopen') and job['status']=='cancelled':
+                self.send(chat,'Заявка удалена автором.',user=user);return True
             if verb in ('done','reopen'):
                 self.db.execute('UPDATE scout_jobs SET status=? WHERE id=?',('done' if verb=='done' else 'pending',ident));self.ensure_centre();job=self.job(ident)
             self.detail(chat,user,job)
@@ -338,7 +352,7 @@ class ScoutRequests:
             state.update(kind=parts[2],stage='timing')
             self.prompt(chat,user,state,'Когда нужен скан?',{'inline_keyboard':[[{'text':'🕒 В любое время','callback_data':'scan:any'},{'text':'⏰ К определённому времени','callback_data':'scan:timed'}],cancelled()['inline_keyboard'][0]]})
         elif verb=='any' and state.get('stage')=='timing':
-            state['arrival']=None;self.preview(chat,user,state)
+            state['arrival']=None;self.submit(chat,user,state)
         elif verb=='timed' and state.get('stage')=='timing':
             state['stage']='arrival';example=datetime.fromtimestamp(self.now()+7200, GAME_TZ).strftime('%H:%M:%S')
             self.prompt(chat,user,state,'Введите <b>только время прибытия разведчиков</b> по серверу Travian (ЧЧ:ММ или ЧЧ:ММ:СС), без даты.\nЕсли время ещё впереди — сегодня; если уже прошло — завтра.\nНапример: <code>'+example+'</code>',force=True)
@@ -357,18 +371,15 @@ class ScoutRequests:
                 state['stage']='arrival';self.prompt(chat,user,state,'К этому времени разведчики уже не успеют. Введите более позднее время прибытия (ЧЧ:ММ или ЧЧ:ММ:СС).',force=True);return True
             row=self.db.execute("INSERT INTO scout_jobs(submit_key,status,data) VALUES(?,'pending',?)",(token,json.dumps(payload)));ident=row.lastrowid
             self.save_session(chat,uid,{});self.ensure_centre()
-            self.send(chat,f'✅ Заявка на скан #{ident} добавлена в общую очередь.',{'inline_keyboard':[[{'text':'🔎 Открыть заявку','callback_data':f'scan:view:{ident}'}]]},user)
+            self.send(chat,f'✅ Заявка на скан #{ident} добавлена в общую очередь.',{'inline_keyboard':[[{'text':'🔎 Открыть заявку','callback_data':f'scan:view:{ident}'}],[{'text':'🗑 Удалить мою заявку','callback_data':f'scan:delete:{ident}'}]]},user)
         else:self.send(chat,'Эта кнопка устарела. Откройте нужный раздел заново.',main_buttons(),user)
         return True
 
-    def preview(self,chat,user,state):
-        timing=self.schedule(state)
-        if timing and timing[0]<=self.now():
-            state['stage']='arrival';self.prompt(chat,user,state,'К этому времени скан уже не успеет. Введите более позднее время прибытия (ЧЧ:ММ или ЧЧ:ММ:СС).',force=True);return
-        state['stage']='confirm';job=dict(state,id='новая',status='pending',creator=user['id'],creator_name=user.get('first_name') or str(user['id']),creator_username=user.get('username'))
-        # Preview has no numeric request ID or screenshot records yet.
-        preview_job=dict(job,id=0);body=self.job_text(preview_job).replace('#0','#новая',1)
-        self.prompt(chat,user,state,body+'\n\nОпубликовать заявку для участников чата?',{'inline_keyboard':[[{'text':'📨 Создать заявку','callback_data':'scan:confirm:'+state['token']}],cancelled()['inline_keyboard'][0]]})
+    def submit(self,chat,user,state):
+        # Reuse the durable submission key for retry protection and old buttons.
+        state['stage']='confirm'
+        self.save_session(chat,user['id'],state)
+        self.action(chat,user,state,'scan:confirm:'+state['token'])
 
     def input(self,chat,user,state,text):
         stage=state['stage']
@@ -386,7 +397,7 @@ class ScoutRequests:
                 state['x'],state['y']=coordinates(text);state['stage']='kind'
                 self.prompt(chat,user,state,'Какой скан нужен?',{'inline_keyboard':[[{'text':'🌾 Ресурсы и войска','callback_data':'scan:kind:resources'}],[{'text':'🏛 Строения и войска','callback_data':'scan:kind:buildings'}],cancelled()['inline_keyboard'][0]]});return
             if stage=='arrival':
-                state['arrival']=parse_arrival(text,self.now());self.preview(chat,user,state);return
+                state['arrival']=parse_arrival(text,self.now());self.submit(chat,user,state);return
             raise ValueError('Выберите вариант кнопкой под вопросом бота.')
         except ValueError as error:
             self.prompt(chat,user,state,'❌ '+html.escape(str(error)),force=stage in ('coords','arrival','origin','arena'),keyboard=cancelled())

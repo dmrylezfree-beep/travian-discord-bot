@@ -31,18 +31,34 @@ class ScoutRequestTests(unittest.TestCase):
         update={'update_id':self.seq,'message':message};self.seq+=1;return self.app.handle(update)
     def draft(self,user=1,kind='resources',timed=False,chat=GROUP_ID):
         self.click('scan:new',user,chat);self.text('40|63',user,chat);self.click('scan:kind:'+kind,user,chat)
+        token=self.app.session(chat,user)['token']
         if timed:
             self.click('scan:timed',user,chat);self.text('20:00:00',user,chat)
         else:self.click('scan:any',user,chat)
-        return self.app.session(chat,user)['token']
+        return token
     def create(self,user=1,**kw):
-        token=self.draft(user,**kw);self.click('scan:confirm:'+token,user,kw.get('chat',GROUP_ID));return self.app.jobs()[-1]['id'],token
+        token=self.draft(user,**kw);return self.app.jobs()[-1]['id'],token
     def test_complete_any_time_and_idempotent_confirmation(self):
         ident,token=self.create();self.assertEqual(len(self.app.jobs()),1)
         job=self.app.job(ident);self.assertEqual((job['x'],job['y'],job['kind'],job['arrival']),(40,63,'resources',None))
         self.click('scan:confirm:'+token);self.assertEqual(len(self.app.jobs()),1)
         self.assertTrue(self.app.setting('centre_id'));self.assertEqual(self.app.setting('pinned_id'),self.app.setting('centre_id'))
         self.assertEqual(sum(m=='pinChatMessage' for m,d in self.api.calls),1)
+    def test_auto_creation_has_no_confirm_button_and_duplicate_click_is_safe(self):
+        token=self.draft();self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.session(GROUP_ID,1),{})
+        self.assertFalse(any('scan:confirm:' in json.dumps(data) for method,data in self.api.calls))
+        self.click('scan:any');self.assertEqual(len(self.app.jobs()),1)
+        self.click('scan:confirm:'+token);self.assertEqual(len(self.app.jobs()),1)
+    def test_creator_can_delete_only_own_pending_request(self):
+        ident,_=self.create();self.click('scan:view:'+str(ident));self.assertIn('scan:delete:',json.dumps(self.api.calls[-1]))
+        self.click('scan:delete:'+str(ident),user=2);self.assertEqual(self.app.job(ident)['status'],'pending')
+        self.click('scan:delete:'+str(ident));self.assertEqual(self.app.jobs(),[]);self.assertEqual(self.app.job(ident)['status'],'cancelled')
+        self.click('scan:delete:'+str(ident));self.assertEqual(self.app.jobs(),[])
+        self.click('scan:reopen:'+str(ident),COORDINATOR_ID);self.assertEqual(self.app.jobs(),[])
+    def test_old_confirmation_is_supported_and_remains_idempotent(self):
+        state={'stage':'confirm','token':'old-wizard','x':40,'y':63,'kind':'resources','arrival':None}
+        with self.store.db:self.app.save_session(GROUP_ID,1,state)
+        self.click('scan:confirm:old-wizard');self.click('scan:confirm:old-wizard');self.assertEqual(len(self.app.jobs()),1)
     def test_timed_request_uses_roman_scouts_and_current_arena(self):
         ident,_=self.create(kind='buildings',timed=True);job=self.app.job(ident)
         self.assertEqual(game_time(job['arrival']),'21.10.2026 20:00:00')
