@@ -131,6 +131,22 @@ class PushTests(unittest.TestCase):
   second=545074834;self.click('new');self.click('new',second)
   self.msg('22 63',second);self.click('cancel',second)
   self.assertEqual(self.bot.state(second),{});self.assertEqual(self.bot.state(OWNER_ID)['stage'],'coords')
+ def test_my_id_message_names_exact_user_and_keeps_creation_session(self):
+  self.click('new');state=self.bot.state(OWNER_ID)
+  old=self.bot.call
+  def api(method,**data):
+   if method=='getChatMember':return {'status':'member','tag':'HATE111 & <tag>','user':{'id':data['user_id'],'username':'Evgmat0','first_name':'Other'}}
+   return old(method,**data)
+  self.bot.call=api;self.click('myid',55);text=self.calls[-1][1]['text']
+  self.assertIn('tg://user?id=55',text);self.assertIn('HATE111 &amp; &lt;tag&gt;',text);self.assertIn('<code>55</code>',text);self.assertEqual(self.bot.state(OWNER_ID),state)
+  self.click('myid',66);self.assertIn('<code>66</code>',self.calls[-1][1]['text']);self.assertNotIn('<code>55</code>',self.calls[-1][1]['text'])
+ def test_my_id_uses_telegram_username_when_group_tag_unavailable(self):
+  self.bot.handle({'callback_query':{'id':'test','from':{'id':55,'username':'recipient_name'},'data':'push:myid','message':{'message_id':77,'chat':{'id':GROUP_ID},'message_thread_id':THREAD_ID}}})
+  self.assertIn('@recipient_name',self.calls[-1][1]['text']);self.assertIn('<code>55</code>',self.calls[-1][1]['text'])
+  self.bot.ensure_menu();self.assertIn('push:myid',str(self.calls[-2:]))
+ def test_coordinator_prompt_explains_id_button_and_confirms_numeric_recipient(self):
+  self.click('new');self.msg('22 63');self.assertIn('Узнать мой Telegram ID',self.calls[-1][1]['text'])
+  self.msg('55');self.assertIn('<code>55</code>',self.calls[-1][1]['text']);self.assertIn('Введите норму',self.calls[-1][1]['text'])
  def test_amount_validation_and_cyrillic_alliance(self):
   self.assertEqual(amount('15 000'),15000);self.assertEqual(alliance_key('Fun Е'),alliance_key('Fun E'))
   for v in ['0','-1','1.2','abc','1000000000001']:

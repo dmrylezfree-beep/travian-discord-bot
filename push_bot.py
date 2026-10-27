@@ -169,7 +169,7 @@ class PushBot:
                 break
             text+=block
             rows.append([button(f'📊 #{job["id"]} · {recipient["name"]}'[:90],f'view:{job["id"]}')])
-        rows.extend([[button('📊 Все заявки и архив','list:0')],[button('➕ Создать заявку (координатор)','new')],[button('📖 Как пользоваться','help')]])
+        rows.extend([[button('📊 Все заявки и архив','list:0')],[button('➕ Создать заявку (координатор)','new')],[button('🆔 Узнать мой Telegram ID','myid')],[button('📖 Как пользоваться','help')]])
         ident=self.setting('menu_id')
         if not ident or not self.edit_panel(ident,text,rows):
             ident=self.send(text,rows)['message_id'];self.setting('menu_id',ident)
@@ -275,6 +275,17 @@ class PushBot:
         rows.append([button('⬅️ К учёту', f'view:{job["id"]}')])
         self.panel(text, rows)
 
+    def mention(self,uid,fallback=None):
+        fallback=fallback or {}
+        try:member=self.call('getChatMember',chat_id=GROUP_ID,user_id=uid)
+        except Exception:member={}
+        profile=member.get('user') or fallback
+        tag=str(member.get('tag') or '').strip()
+        username=profile.get('username') or fallback.get('username')
+        name=' '.join(str(profile.get(key) or '').strip() for key in ('first_name','last_name')).strip()
+        label=tag or ('@'+str(username).lstrip('@') if username else '') or name or str(uid)
+        return f'<a href="tg://user?id={uid}">{esc(label[:128])}</a>'
+
     def member(self, uid):
         data = self.call('getChatMember', chat_id=GROUP_ID, user_id=uid)
         return data.get('status') in ('member', 'administrator', 'creator') or (data.get('status') == 'restricted' and data.get('is_member'))
@@ -308,7 +319,7 @@ class PushBot:
         self.panel_id=message.get('message_id') if q and message.get('message_id')!=self.setting('menu_id') else None
         try:
             if q:
-                self.action(uid, q['data'][5:])
+                self.action(uid, q['data'][5:],user)
             elif command == '/recipient' and uid in COORDINATORS:
                 state = self.state(uid)
                 target = (message.get('reply_to_message') or {}).get('from') or {}
@@ -330,18 +341,20 @@ class PushBot:
             self.panel_id=None
         return True
 
-    def action(self, uid, action):
+    def action(self, uid, action, user=None):
         parts = action.split(':')
         verb = parts[0]
-        sizes={'menu':1,'help':1,'cancel':1,'new':1,'list':2,'view':2,'group':4,'donors':3,'pick':3,'set':4,'close':2}
+        sizes={'myid':1,'menu':1,'help':1,'cancel':1,'new':1,'list':2,'view':2,'group':4,'donors':3,'pick':3,'set':4,'close':2}
         if len(parts)!=sizes.get(verb,0):
             raise ValueError('Кнопка устарела. Откройте /push.')
         if verb in ('new', 'close') and uid not in COORDINATORS:
             raise ValueError('Создавать и завершать пуш может только координатор.')
-        if verb == 'menu':
+        if verb == 'myid':
+            self.send(f'👤 Участник: {self.mention(uid,user)}\n🆔 Telegram ID: <code>{uid}</code>\n\nЭто ID участника, нажавшего кнопку. Координатор может скопировать число и ввести его при назначении получателя пуша.')
+        elif verb == 'menu':
             self.menu(uid)
         elif verb == 'help':
-            self.panel('<b>📖 Как пользоваться</b>\n1. Координатор вводит координаты деревни через пробел (например 22 63). Бот определяет игрока из Сокола или Fun Е. Затем координатор указывает его Telegram и норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
+            self.panel('<b>📖 Как пользоваться</b>\n1. Координатор вводит координаты деревни через пробел (например 22 63). Бот определяет игрока из Сокола или Fun Е. Получатель нажимает «Узнать мой Telegram ID» в закреплённом меню. Бот показывает его имя и ID. Координатор вводит это число, затем норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
         elif verb == 'cancel':
             if uid in COORDINATORS:
                 self.state(uid, {})
@@ -397,7 +410,7 @@ class PushBot:
         if ident <= 0 or not self.member(ident):
             raise ValueError('Получатель должен быть участником чата. Проверьте Telegram ID.')
         state.update(stage='norm', recipient_user=ident)
-        self.prompt(uid, state, 'введите норму ресурсов с каждого аккаунта, например <code>15000</code>. Это сумма всех типов ресурсов. После ввода заявка сразу создаётся.')
+        self.prompt(uid, state, f'получатель в Telegram: {self.mention(ident)} · ID <code>{ident}</code>.\nВведите норму ресурсов с каждого аккаунта, например <code>15000</code>. Это сумма всех типов ресурсов. После ввода заявка сразу создаётся.')
 
     def input(self, uid, state, text, message):
         if state['stage'] == 'coords':
@@ -408,7 +421,7 @@ class PushBot:
             player,village=found
             state['roster']=[{**p,'push_village':village} if p['id']==player['id'] else p for p in state['roster']]
             state.update(stage='telegram',recipient=player['id'])
-            self.prompt(uid,state, f'найден игрок <b>{esc(player["name"])}</b>, альянс <b>{esc(player["alliance"])}</b>, деревня <b>{esc(village["name"])}</b> · <code>{x} {y}</code>.\nУкажите Telegram ID получателя числом либо отправьте /recipient ответом на сообщение самого получателя в этой ветке.')
+            self.prompt(uid,state, f'найден игрок <b>{esc(player["name"])}</b>, альянс <b>{esc(player["alliance"])}</b>, деревня <b>{esc(village["name"])}</b> · <code>{x} {y}</code>.\nПопросите получателя нажать «🆔 Узнать мой Telegram ID» в закреплённом меню. Бот покажет, чей это ID. Затем ответьте на это сообщение <b>числовым Telegram ID получателя</b> (без @). Также можно отправить /recipient ответом на сообщение самого получателя в этой ветке.')
         elif state['stage'] == 'telegram':
             if not re.fullmatch(r'[0-9]{1,16}', text):
                 raise ValueError('Укажите Telegram ID числом либо отправьте /recipient ответом на сообщение получателя.')
