@@ -54,10 +54,19 @@ def roster_from_snapshot(root=ROOT):
         if uid <= 0:
             continue
         found.add(key)
-        players[str(uid)] = {'id': uid, 'name': maps.clean(fields[7]), 'alliance': name}
+        player = players.setdefault(str(uid), {'id': uid, 'name': maps.clean(fields[7]), 'alliance': name, 'villages': []})
+        player['villages'].append({'x': int(maps.clean(fields[1])), 'y': int(maps.clean(fields[2])), 'name': maps.clean(fields[5])})
     if found != {alliance_key('Сокол'), 'fun e'}:
         raise ValueError('В снимке не найдены оба альянса: Сокол и Fun Е. Создание приостановлено.')
     return path.stem.removeprefix('map_'), sorted(players.values(), key=lambda p: (alliance_key(p['alliance']), p['name'].casefold(), p['id']))
+
+
+def coordinates(text):
+    value = re.sub(r'[\u202a-\u202e\u2066-\u2069]', '', str(text)).strip().replace('−', '-')
+    match = re.fullmatch(r'(-?\d{1,3})\s+(-?\d{1,3})', value)
+    if not match or any(abs(int(v)) > 200 for v in match.groups()):
+        raise ValueError('Введите координаты через пробел в формате X Y, например 22 63. Допустимый диапазон: от −200 до 200.')
+    return tuple(map(int, match.groups()))
 
 
 def amount(text):
@@ -125,7 +134,9 @@ class PushBot:
 
     def title(self, job):
         player = next(p for p in job['roster'] if p['id'] == job['recipient'])
-        return f'<b>📦 Пуш #{job["id"]} → {esc(player["name"])}</b>\nАльянс: {esc(player["alliance"])}\nНорма с аккаунта: <b>{job["norm"]:,}</b> ресурсов\nПолучатель в Telegram: <a href="tg://user?id={job["recipient_user"]}">открыть профиль</a>\n' + ('🟢 Открыт' if job['status'] == 'active' else '🔒 Завершён')
+        village = player.get('push_village')
+        destination = f'\nДеревня: <b>{esc(village["name"])}</b> · <code>{village["x"]} {village["y"]}</code>' if village else ''
+        return f'<b>📦 Пуш #{job["id"]} → {esc(player["name"])}</b>{destination}\nАльянс: {esc(player["alliance"])}\nНорма с аккаунта: <b>{job["norm"]:,}</b> ресурсов\nПолучатель в Telegram: <a href="tg://user?id={job["recipient_user"]}">открыть профиль</a>\n' + ('🟢 Открыт' if job['status'] == 'active' else '🔒 Завершён')
 
     def pager(self, page, count, prefix):
         rows = []
@@ -187,14 +198,6 @@ class PushBot:
         rows.append([button('⬅️ К учёту', f'view:{job["id"]}')])
         self.send(text, rows)
 
-    def recipient_page(self, state, page):
-        players = state['roster']
-        page = max(0, min(page, max(0, (len(players)-1)//PAGE)))
-        rows = [[button(f'{p["name"]} · {p["alliance"]}'[:90], f'recipient:{state["token"]}:{p["id"]}')] for p in players[page*PAGE:(page+1)*PAGE]]
-        rows += self.pager(page, len(players), 'recipients')
-        rows.append([button('❌ Отмена', 'cancel')])
-        self.send('<b>Кого пушим?</b>\nВыберите аккаунт из Сокола или Fun Е. Одна строка — один игровой аккаунт.', rows)
-
     def member(self, uid):
         data = self.call('getChatMember', chat_id=GROUP_ID, user_id=uid)
         return data.get('status') in ('member', 'administrator', 'creator') or (data.get('status') == 'restricted' and data.get('is_member'))
@@ -250,38 +253,23 @@ class PushBot:
     def action(self, uid, action):
         parts = action.split(':')
         verb = parts[0]
-        sizes={'menu':1,'help':1,'cancel':1,'new':1,'recipients':2,'recipient':3,'list':2,'view':2,'group':4,'donors':3,'pick':3,'set':4,'close':2}
+        sizes={'menu':1,'help':1,'cancel':1,'new':1,'list':2,'view':2,'group':4,'donors':3,'pick':3,'set':4,'close':2}
         if len(parts)!=sizes.get(verb,0):
             raise ValueError('Кнопка устарела. Откройте /push.')
-        if verb in ('new', 'recipients', 'recipient', 'close') and uid != OWNER_ID:
+        if verb in ('new', 'close') and uid != OWNER_ID:
             raise ValueError('Создавать и завершать пуш может только координатор.')
         if verb == 'menu':
             self.menu(uid)
         elif verb == 'help':
-            self.send('<b>📖 Как пользоваться</b>\n1. Координатор выбирает игровой аккаунт получателя, указывает его Telegram и норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
+            self.send('<b>📖 Как пользоваться</b>\n1. Координатор вводит координаты деревни через пробел (например 22 63). Бот определяет игрока из Сокола или Fun Е. Затем координатор указывает его Telegram и норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
         elif verb == 'cancel':
             if uid == OWNER_ID:
                 self.state(uid, {})
             self.menu(uid)
         elif verb == 'new':
             snapshot, players = self.roster()
-            data = dict(stage='recipient', roster=players, snapshot=snapshot, token=uuid.uuid4().hex)
-            self.state(uid, data)
-            self.recipient_page(data, 0)
-        elif verb == 'recipients':
-            state = self.state(uid)
-            if state.get('stage') != 'recipient':
-                raise ValueError('Список устарел. Откройте создание заявки заново.')
-            self.recipient_page(state, int(parts[1]))
-        elif verb == 'recipient':
-            state = self.state(uid)
-            if state.get('stage') != 'recipient' or len(parts) != 3 or parts[1] != state['token']:
-                raise ValueError('Список устарел. Откройте создание заявки заново.')
-            ident = int(parts[2])
-            if not any(p['id'] == ident for p in state['roster']):
-                raise ValueError('Аккаунт не найден в составе альянсов.')
-            state.update(stage='telegram', recipient=ident)
-            self.prompt(uid, state, 'укажите Telegram ID получателя числом. Либо отправьте /recipient ответом на сообщение самого получателя в этой ветке. Права будут выданы только выбранному Telegram-пользователю.')
+            data = dict(stage='coords', roster=players, snapshot=snapshot, token=uuid.uuid4().hex)
+            self.prompt(uid, data, 'введите координаты деревни, которую пушим, <b>через пробел</b>: <code>22 63</code>. Игрок определится автоматически по снимку мира за '+esc(snapshot)+'.')
         elif verb == 'list':
             self.list_jobs(int(parts[1]))
         elif verb in ('view', 'group', 'donors', 'pick', 'set', 'close'):
@@ -330,7 +318,16 @@ class PushBot:
         self.prompt(uid, state, 'введите норму ресурсов с каждого аккаунта, например <code>15000</code>. Это сумма всех типов ресурсов. После ввода заявка сразу создаётся.')
 
     def input(self, uid, state, text, message):
-        if state['stage'] == 'telegram':
+        if state['stage'] == 'coords':
+            x,y = coordinates(text)
+            found = next(((player,village) for player in state['roster'] for village in player.get('villages',[]) if (village['x'],village['y'])==(x,y)),None)
+            if not found:
+                raise ValueError(f'Деревня {x} {y} не найдена среди деревень Сокола и Fun Е в снимке за {state["snapshot"]}. Проверьте координаты и альянс игрока.')
+            player,village=found
+            state['roster']=[{**p,'push_village':village} if p['id']==player['id'] else p for p in state['roster']]
+            state.update(stage='telegram',recipient=player['id'])
+            self.prompt(uid,state, f'найден игрок <b>{esc(player["name"])}</b>, альянс <b>{esc(player["alliance"])}</b>, деревня <b>{esc(village["name"])}</b> · <code>{x} {y}</code>.\nУкажите Telegram ID получателя числом либо отправьте /recipient ответом на сообщение самого получателя в этой ветке.')
+        elif state['stage'] == 'telegram':
             if not re.fullmatch(r'[0-9]{1,16}', text):
                 raise ValueError('Укажите Telegram ID числом либо отправьте /recipient ответом на сообщение получателя.')
             self.bind_recipient(uid, state, int(text))
