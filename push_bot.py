@@ -11,6 +11,7 @@ from pathlib import Path
 GROUP_ID = -1002493230303
 THREAD_ID = 21472
 OWNER_ID = 317595036
+COORDINATORS = {OWNER_ID, 545074834}
 PAGE = 8
 STATUSES = {'none': 'Не прислали', 'below': 'Меньше нормы', 'normal': 'Норму', 'above': 'Выше нормы'}
 ICONS = {'none': '⏳', 'below': '🟡', 'normal': '✅', 'above': '🌟'}
@@ -247,7 +248,7 @@ class PushBot:
             rows.append([button(f'{ICONS[key]} {label} ({n})', f'group:{job["id"]}:{key}:0')])
         if uid == job['recipient_user'] and job['status'] == 'active':
             rows.insert(0, [button('✍️ Отметить отправителя', f'donors:{job["id"]}:0')])
-        if uid == OWNER_ID and job['status'] == 'active':
+        if uid in COORDINATORS and job['status'] == 'active':
             rows.append([button('🔒 Завершить пуш', f'close:{job["id"]}')])
         rows.append([button('📊 Все заявки', 'list:0')])
         self.panel(text, rows)
@@ -308,7 +309,7 @@ class PushBot:
         try:
             if q:
                 self.action(uid, q['data'][5:])
-            elif command == '/recipient' and uid == OWNER_ID:
+            elif command == '/recipient' and uid in COORDINATORS:
                 state = self.state(uid)
                 target = (message.get('reply_to_message') or {}).get('from') or {}
                 if state.get('stage') != 'telegram' or not target.get('id') or target.get('is_bot'):
@@ -320,7 +321,7 @@ class PushBot:
                 self.menu(uid)
             else:
                 state = self.state(uid)
-                if uid != OWNER_ID or not state.get('stage') or (message.get('reply_to_message') or {}).get('message_id') != state.get('prompt'):
+                if uid not in COORDINATORS or not state.get('stage') or (message.get('reply_to_message') or {}).get('message_id') != state.get('prompt'):
                     return False
                 self.input(uid, state, text, message)
         except ValueError as error:
@@ -335,14 +336,14 @@ class PushBot:
         sizes={'menu':1,'help':1,'cancel':1,'new':1,'list':2,'view':2,'group':4,'donors':3,'pick':3,'set':4,'close':2}
         if len(parts)!=sizes.get(verb,0):
             raise ValueError('Кнопка устарела. Откройте /push.')
-        if verb in ('new', 'close') and uid != OWNER_ID:
+        if verb in ('new', 'close') and uid not in COORDINATORS:
             raise ValueError('Создавать и завершать пуш может только координатор.')
         if verb == 'menu':
             self.menu(uid)
         elif verb == 'help':
             self.panel('<b>📖 Как пользоваться</b>\n1. Координатор вводит координаты деревни через пробел (например 22 63). Бот определяет игрока из Сокола или Fun Е. Затем координатор указывает его Telegram и норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
         elif verb == 'cancel':
-            if uid == OWNER_ID:
+            if uid in COORDINATORS:
                 self.state(uid, {})
             self.menu(uid)
         elif verb == 'new':

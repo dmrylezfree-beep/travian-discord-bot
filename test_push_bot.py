@@ -120,6 +120,17 @@ class PushTests(unittest.TestCase):
   with self.bot.db:
    for i in range(40):self.bot.db.execute("INSERT INTO pushes(submit_key,recipient,recipient_user,norm,roster,snapshot,status,created) SELECT ?,recipient,recipient_user,norm,roster,snapshot,status,created FROM pushes WHERE id=1",('extra'+str(i),))
   self.bot.ensure_menu();self.assertLess(len(self.pinned_text()),4096);self.assertIn('Ещё открытых пушей:',self.pinned_text())
+ def test_second_coordinator_can_create_bind_and_close_but_not_mark_payments(self):
+  uid=545074834
+  self.click('new',uid);self.msg('22 63',uid);self.msg('55',uid);self.msg('15000',uid)
+  job=self.bot.job(1);self.assertIsNotNone(job);self.assertEqual(job['recipient_user'],55)
+  self.click('view:1',uid);self.assertIn('push:close:1',str(self.calls[-1]))
+  self.click('set:1:2:normal',uid);self.assertEqual(self.bot.statuses(1),{})
+  self.click('close:1',uid);self.assertEqual(self.bot.job(1)['status'],'closed')
+ def test_coordinators_have_independent_creation_sessions(self):
+  second=545074834;self.click('new');self.click('new',second)
+  self.msg('22 63',second);self.click('cancel',second)
+  self.assertEqual(self.bot.state(second),{});self.assertEqual(self.bot.state(OWNER_ID)['stage'],'coords')
  def test_amount_validation_and_cyrillic_alliance(self):
   self.assertEqual(amount('15 000'),15000);self.assertEqual(alliance_key('Fun Е'),alliance_key('Fun E'))
   for v in ['0','-1','1.2','abc','1000000000001']:
