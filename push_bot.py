@@ -33,10 +33,12 @@ def alliance_key(name):
     return ' '.join(str(name).casefold().replace('е', 'e').split())
 
 
-def roster_from_snapshot(root=ROOT):
+def roster_from_snapshot(root=ROOT, snapshot=None):
     # Reuse the maintained map SQL parser; only read the public world snapshot.
     import alliance_ops_bot as maps
     paths = sorted((root / 'data/snapshots').glob('**/map_????-??-??.sql'), key=lambda p: p.name)
+    if snapshot:
+        paths=[p for p in paths if p.stem=='map_'+snapshot]
     if not paths:
         raise ValueError('Нет снимка мира. Список участников пока недоступен.')
     path = paths[-1]
@@ -54,11 +56,21 @@ def roster_from_snapshot(root=ROOT):
         if uid <= 0:
             continue
         found.add(key)
-        player = players.setdefault(str(uid), {'id': uid, 'name': maps.clean(fields[7]), 'alliance': name, 'villages': []})
+        player = players.setdefault(str(uid), {'id': uid, 'name': maps.clean(fields[7]), 'alliance': name, 'villages': [], 'population': 0})
+        player['population'] += int(maps.clean(fields[10]))
         player['villages'].append({'x': int(maps.clean(fields[1])), 'y': int(maps.clean(fields[2])), 'name': maps.clean(fields[5])})
     if found != {alliance_key('Сокол'), 'fun e'}:
         raise ValueError('В снимке не найдены оба альянса: Сокол и Fun Е. Создание приостановлено.')
-    return path.stem.removeprefix('map_'), sorted(players.values(), key=lambda p: (alliance_key(p['alliance']), p['name'].casefold(), p['id']))
+    return path.stem.removeprefix('map_'), sorted(players.values(), key=player_order)
+
+
+def player_order(player):
+    return (0 if alliance_key(player['alliance'])==alliance_key('Сокол') else 1, -int(player.get('population',0)), player['name'].casefold(), player['id'])
+
+class TelegramError(RuntimeError):
+    def __init__(self, code, description):
+        super().__init__('Telegram request rejected')
+        self.code,self.description=code,description
 
 
 def coordinates(text):
@@ -79,6 +91,9 @@ def amount(text):
 class PushBot:
     def __init__(self, path, call, roster=roster_from_snapshot):
         self.call, self.roster = call, roster
+        self.panel_id=None
+        self.population_cache={}
+        self.last_menu_check=0
         self.db = sqlite3.connect(path)
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA journal_mode=WAL')
@@ -87,6 +102,7 @@ class PushBot:
         CREATE TABLE IF NOT EXISTS sessions(user INTEGER PRIMARY KEY,data TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS payments(push INTEGER NOT NULL,player INTEGER NOT NULL,status TEXT NOT NULL,updated REAL NOT NULL,PRIMARY KEY(push,player));
         CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY,push INTEGER,player INTEGER,actor INTEGER,status TEXT,created REAL);
+        CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS progress(id INTEGER PRIMARY KEY CHECK(id=1),next_update INTEGER NOT NULL);
         ''')
         self.db.commit()
@@ -111,12 +127,43 @@ class PushBot:
         data['prompt'] = sent['message_id']
         self.state(uid, data)
 
-    def menu(self, uid):
-        rows = [[button('📊 Учёт', 'list:0')]]
-        if uid == OWNER_ID:
-            rows.insert(0, [button('➕ Создать заявку на пуш', 'new')])
-        rows.append([button('📖 Как пользоваться', 'help')])
-        self.send('<b>📦 УЧЁТ ПУША</b>\n\nНорма — общее количество ресурсов с одного аккаунта (сумма дерева, глины, железа и кропа). Отправку отмечает получатель пуша.\n\nВыберите «Учёт», затем нужную заявку.', rows)
+    def setting(self,key,value=None):
+        if value is None:
+            row=self.db.execute('SELECT value FROM settings WHERE key=?',(key,)).fetchone()
+            return json.loads(row[0]) if row else None
+        with self.db:self.db.execute('INSERT OR REPLACE INTO settings VALUES(?,?)',(key,json.dumps(value)))
+
+    def edit_panel(self,ident,text,rows):
+        try:
+            self.call('editMessageText',chat_id=GROUP_ID,message_id=ident,text=text,parse_mode='HTML',disable_web_page_preview=True,reply_markup=keyboard(rows))
+            return {'message_id':ident}
+        except TelegramError as error:
+            if 'message is not modified' in error.description.lower():return {'message_id':ident}
+            if error.code==400 and any(s in error.description.lower() for s in ("message to edit not found","message can't be edited")):return None
+            raise
+
+    def panel(self,text,rows):
+        if self.panel_id:
+            edited=self.edit_panel(self.panel_id,text,rows)
+            if edited:return edited
+        sent=self.send(text,rows)
+        self.panel_id=sent['message_id']
+        return sent
+
+    def ensure_menu(self):
+        rows=[[button('📊 Учёт','list:0')],[button('➕ Создать заявку (координатор)','new')],[button('📖 Как пользоваться','help')]]
+        text='<b>📦 УЧЁТ ПУША</b>\n\nВыберите заявку в разделе «Учёт». Получатель отмечает отправителей; остальные участники могут смотреть результаты.\n\nНорма — сумма всех ресурсов с одного аккаунта. Создавать заявки может только координатор.'
+        ident=self.setting('menu_id')
+        if not ident or not self.edit_panel(ident,text,rows):
+            ident=self.send(text,rows)['message_id'];self.setting('menu_id',ident)
+        if self.setting('pinned_id')!=ident:
+            self.call('pinChatMessage',chat_id=GROUP_ID,message_id=ident,disable_notification=True)
+            self.setting('pinned_id',ident)
+        self.last_menu_check=time.time()
+        return ident
+
+    def menu(self,uid):
+        self.ensure_menu()
 
     def job(self, ident):
         row = self.db.execute('SELECT * FROM pushes WHERE id=?', (ident,)).fetchone()
@@ -124,13 +171,20 @@ class PushBot:
             return None
         job = dict(row)
         job['roster'] = json.loads(job['roster'])
+        if any('population' not in p for p in job['roster']):
+            if job['snapshot'] not in self.population_cache:
+                try:
+                    _,players=roster_from_snapshot(snapshot=job['snapshot']) if self.roster is roster_from_snapshot else self.roster()
+                    self.population_cache[job['snapshot']]={p['id']:p.get('population',0) for p in players}
+                except ValueError:self.population_cache[job['snapshot']]={}
+            job['roster']=[{**p,'population':p.get('population',self.population_cache[job['snapshot']].get(p['id'],0))} for p in job['roster']]
         return job
 
     def statuses(self, ident):
         return {str(r['player']): r['status'] for r in self.db.execute('SELECT player,status FROM payments WHERE push=?', (ident,))}
 
     def donors(self, job):
-        return [p for p in job['roster'] if p['id'] != job['recipient']]
+        return sorted((p for p in job['roster'] if p['id'] != job['recipient']),key=player_order)
 
     def title(self, job):
         player = next(p for p in job['roster'] if p['id'] == job['recipient'])
@@ -159,7 +213,7 @@ class PushBot:
             rows.append([button(f'#{job["id"]} · {name} · {"открыт" if job["status"]=="active" else "завершён"}', f'view:{job["id"]}')])
         rows += self.pager(page, len(jobs), 'list')
         rows.append([button('🏠 Меню', 'menu')])
-        self.send('<b>📊 Учёт пуша</b>' + ('' if jobs else '\nЗаявок пока нет.'), rows)
+        self.panel('<b>📊 Учёт пуша</b>' + ('' if jobs else '\nЗаявок пока нет.'), rows)
 
     def overview(self, job, uid):
         status = self.statuses(job['id'])
@@ -174,7 +228,7 @@ class PushBot:
         if uid == OWNER_ID and job['status'] == 'active':
             rows.append([button('🔒 Завершить пуш', f'close:{job["id"]}')])
         rows.append([button('📊 Все заявки', 'list:0')])
-        self.send(text, rows)
+        self.panel(text, rows)
 
     def show_players(self, job, uid, page, status=None):
         values = self.statuses(job['id'])
@@ -187,7 +241,7 @@ class PushBot:
         editable = uid == job['recipient_user'] and job['status'] == 'active'
         for player in players[page*PAGE:(page+1)*PAGE]:
             key = values.get(str(player['id']), 'none')
-            label = f'{ICONS[key]} {player["name"]} · {player["alliance"]}'
+            label = f'{ICONS[key]} {player["name"]} · {player["alliance"]} · 👥 {player.get("population",0)}'
             text += '\n' + esc(label)
             if editable:
                 rows.append([button(label[:90], f'pick:{job["id"]}:{player["id"]}')])
@@ -196,7 +250,7 @@ class PushBot:
         prefix = f'group:{job["id"]}:{status}' if status is not None else f'donors:{job["id"]}'
         rows += self.pager(page, len(players), prefix)
         rows.append([button('⬅️ К учёту', f'view:{job["id"]}')])
-        self.send(text, rows)
+        self.panel(text, rows)
 
     def member(self, uid):
         data = self.call('getChatMember', chat_id=GROUP_ID, user_id=uid)
@@ -228,6 +282,7 @@ class PushBot:
         if '@' in command and command.split('@', 1)[1].casefold() != 'push_travian_bot':
             return False
         command = command.split('@')[0]
+        self.panel_id=message.get('message_id') if q and message.get('message_id')!=self.setting('menu_id') else None
         try:
             if q:
                 self.action(uid, q['data'][5:])
@@ -248,6 +303,8 @@ class PushBot:
                 self.input(uid, state, text, message)
         except ValueError as error:
             self.send('❌ ' + esc(error))
+        finally:
+            self.panel_id=None
         return True
 
     def action(self, uid, action):
@@ -261,7 +318,7 @@ class PushBot:
         if verb == 'menu':
             self.menu(uid)
         elif verb == 'help':
-            self.send('<b>📖 Как пользоваться</b>\n1. Координатор вводит координаты деревни через пробел (например 22 63). Бот определяет игрока из Сокола или Fun Е. Затем координатор указывает его Telegram и норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
+            self.panel('<b>📖 Как пользоваться</b>\n1. Координатор вводит координаты деревни через пробел (например 22 63). Бот определяет игрока из Сокола или Fun Е. Затем координатор указывает его Telegram и норму с каждого аккаунта.\n2. Получатель открывает «Учёт» → свою заявку → «Отметить отправителя».\n3. Выбирает аккаунт и отмечает: меньше нормы, норму или выше нормы.\n4. Если ошибся, выбирает аккаунт повторно и меняет отметку либо сбрасывает её.\n5. Все участники могут смотреть учёт. «Не прислали» означает, что получатель пока не внёс отметку.\n\nЭто ручной учёт. Бот не проверяет игровые отправки. Состав двух альянсов сохраняется на момент создания; получатель из списка отправителей исключён.', [[button('🏠 Меню', 'menu')]])
         elif verb == 'cancel':
             if uid == OWNER_ID:
                 self.state(uid, {})
@@ -299,7 +356,7 @@ class PushBot:
                 if verb == 'pick':
                     rows = [[button(label, f'set:{job["id"]}:{ident}:{key}')] for key, label in STATUSES.items() if key != 'none']
                     rows += [[button('↩️ Сбросить отметку', f'set:{job["id"]}:{ident}:none')], [button('⬅️ К отправителям', f'donors:{job["id"]}:0')]]
-                    self.send(f'<b>{esc(player["name"])} · {esc(player["alliance"])}</b>\nНорма: {job["norm"]:,} ресурсов.\nСколько прислал этот аккаунт?', rows)
+                    self.panel(f'<b>{esc(player["name"])} · {esc(player["alliance"])}</b>\nНорма: {job["norm"]:,} ресурсов.\nСколько прислал этот аккаунт?', rows)
                 else:
                     key = parts[3]
                     if key not in STATUSES:
@@ -307,7 +364,7 @@ class PushBot:
                     with self.db:
                         self.db.execute('INSERT OR REPLACE INTO payments VALUES(?,?,?,?)', (job['id'], ident, key, time.time()))
                         self.db.execute('INSERT INTO audit(push,player,actor,status,created) VALUES(?,?,?,?,?)', (job['id'], ident, uid, key, time.time()))
-                    self.send(f'{ICONS[key]} {esc(player["name"])}: {STATUSES[key]}. Отметка сохранена.', [[button('✍️ Следующий отправитель', f'donors:{job["id"]}:0')], [button('📊 Учёт', f'view:{job["id"]}')]])
+                    self.panel(f'{ICONS[key]} {esc(player["name"])}: {STATUSES[key]}. Отметка сохранена.', [[button('✍️ Следующий отправитель', f'donors:{job["id"]}:0')], [button('📊 Учёт', f'view:{job["id"]}')]])
         else:
             raise ValueError('Кнопка устарела. Откройте /push.')
 
@@ -350,6 +407,9 @@ def main():
     proxy = os.environ.get('TELEGRAM_PROXY_URL')
     def api(method, **payload):
         response = requests.post('https://api.telegram.org/bot' + token + '/' + method, json=payload, proxies={'https': proxy} if proxy else None, timeout=40)
+        if response.status_code == 400:
+            data=response.json()
+            raise TelegramError(400,data.get('description','Request rejected'))
         if response.status_code == 409:
             raise RuntimeError('Polling conflict')
         response.raise_for_status()
@@ -365,10 +425,17 @@ def main():
         raise RuntimeError('Unexpected bot identity')
     if api('getWebhookInfo').get('url'):
         raise RuntimeError('Webhook already configured')
+    try:app.ensure_menu()
+    except Exception:print('Push menu refresh unavailable; will retry.',flush=True)
     print('Push ledger ready.', flush=True)
     while True:
         row = app.db.execute('SELECT next_update FROM progress WHERE id=1').fetchone()
         try:
+            if time.time()-app.last_menu_check>=60:
+                try:app.ensure_menu()
+                except Exception:
+                    app.last_menu_check=time.time()
+                    print('Push menu refresh unavailable; will retry.',flush=True)
             for update in api('getUpdates', offset=row[0] if row else None, timeout=25, allowed_updates=['message', 'callback_query']):
                 try:
                     app.handle(update)

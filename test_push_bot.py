@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from push_bot import PushBot,GROUP_ID,THREAD_ID,OWNER_ID,amount,alliance_key,roster_from_snapshot,coordinates
+from push_bot import PushBot,GROUP_ID,THREAD_ID,OWNER_ID,amount,alliance_key,roster_from_snapshot,coordinates,TelegramError
 
 class PushTests(unittest.TestCase):
  def setUp(self):
@@ -16,7 +16,7 @@ class PushTests(unittest.TestCase):
   if reply:m['reply_to_message']={'message_id':self.bot.state(uid).get('prompt')}
   return self.bot.handle({'message':m})
  def click(self,value,uid=OWNER_ID,topic=THREAD_ID):
-  return self.bot.handle({'callback_query':{'id':'test','from':{'id':uid},'data':'push:'+value,'message':{'chat':{'id':GROUP_ID},'message_thread_id':topic}}})
+  return self.bot.handle({'callback_query':{'id':'test','from':{'id':uid},'data':'push:'+value,'message':{'message_id':77,'chat':{'id':GROUP_ID},'message_thread_id':topic}}})
  def create(self):
   self.click('new');self.msg('22 63');self.msg('55');self.msg('15000');return self.bot.job(1)
  def test_create_owner_only_and_snapshot_excludes_recipient(self):
@@ -73,8 +73,33 @@ class PushTests(unittest.TestCase):
   self.assertIn('Recipient',self.bot.title(self.bot.job(1)))
  def test_pagination_and_empty_group(self):
   self.players.extend({'id':i,'name':'Player '+str(i),'alliance':'Fun Е'} for i in range(4,30));job=self.create()
-  self.bot.show_players(job,99,1);text=self.calls[-1][1]['text'];self.assertNotIn('Donor',text);self.assertIn('donors:1:2',str(self.calls[-1]))
+  self.bot.show_players(job,99,1);text=self.calls[-1][1]['text'];self.assertIn('Player',text);self.assertIn('donors:1:2',str(self.calls[-1]))
   self.bot.show_players(job,99,0,'above');self.assertIn('Список пуст',self.calls[-1][1]['text'])
+ def test_pagination_edits_clicked_message_without_creating_messages(self):
+  self.players.extend({'id':i,'name':'Player '+str(i),'alliance':'Fun Е'} for i in range(4,30));self.create();self.calls.clear()
+  self.click('donors:1:1',55)
+  self.assertEqual(sum(m=='sendMessage' for m,d in self.calls),0)
+  edit=[d for m,d in self.calls if m=='editMessageText'];self.assertEqual(len(edit),1);self.assertEqual(edit[0]['message_id'],77)
+ def test_pin_is_persistent_and_navigation_keeps_main_menu(self):
+  self.bot.ensure_menu();ident=self.bot.setting('menu_id');self.assertEqual(self.bot.setting('pinned_id'),ident)
+  self.bot.ensure_menu();self.assertEqual(sum(m=='pinChatMessage' for m,d in self.calls),1)
+  self.bot.db.close();self.bot=PushBot(Path(self.tmp.name)/'ledger.sqlite',self.api,lambda:('2026-10-27',self.players.copy()));self.bot.ensure_menu()
+  self.assertEqual(self.bot.setting('menu_id'),ident);self.assertEqual(sum(m=='sendMessage' for m,d in self.calls),1)
+  self.calls.clear();self.bot.handle({'callback_query':{'id':'test','from':{'id':99},'data':'push:list:0','message':{'message_id':ident,'chat':{'id':GROUP_ID},'message_thread_id':THREAD_ID}}})
+  self.assertFalse(any(m=='editMessageText' and d['message_id']==ident for m,d in self.calls));self.assertTrue(any(m=='sendMessage' for m,d in self.calls))
+ def test_order_sokol_then_fun_and_total_population_descending(self):
+  self.players=[{'id':1,'name':'Recipient','alliance':'Сокол','population':100,'villages':[{'x':22,'y':63,'name':'First'}]}, {'id':2,'name':'Fun huge','alliance':'Fun Е','population':9000},{'id':3,'name':'Sokol small','alliance':'Сокол','population':100},{'id':4,'name':'Sokol big','alliance':'Сокол','population':2000},{'id':5,'name':'Fun small','alliance':'Fun Е','population':500}]
+  job=self.create();self.assertEqual([p['id'] for p in self.bot.donors(job)],[4,3,2,5])
+  self.click('group:1:none:0',99);text=self.calls[-1][1]['text'];self.assertLess(text.index('Sokol big'),text.index('Sokol small'));self.assertLess(text.index('Sokol small'),text.index('Fun huge'))
+ def test_unchanged_edit_is_success_and_network_failure_never_duplicates(self):
+  self.bot.panel_id=77
+  old=self.bot.call
+  def unchanged(method,**data):raise TelegramError(400,'Bad Request: message is not modified')
+  self.bot.call=unchanged;self.assertEqual(self.bot.panel('same',[])['message_id'],77)
+  def offline(method,**data):raise RuntimeError('fixture offline')
+  self.bot.call=offline
+  with self.assertRaises(RuntimeError):self.bot.panel('same',[])
+  self.bot.call=old
  def test_amount_validation_and_cyrillic_alliance(self):
   self.assertEqual(amount('15 000'),15000);self.assertEqual(alliance_key('Fun Е'),alliance_key('Fun E'))
   for v in ['0','-1','1.2','abc','1000000000001']:
@@ -84,7 +109,7 @@ class PushTests(unittest.TestCase):
  def test_snapshot_deduplicates_account_and_requires_both_alliances(self):
   p=Path(self.tmp.name)/'data/snapshots';p.mkdir(parents=True)
   f=p/'map_2026-10-27.sql';f.write_text("INSERT INTO x_world VALUES (1,1,1,1,1,'A',1,'One',1,'Сокол',100),(2,2,2,1,2,'B',1,'One',1,'Сокол',200),(3,3,3,1,3,'C',2,'Two',2,'Fun Е',200);")
-  date,players=roster_from_snapshot(Path(self.tmp.name));self.assertEqual(len(players),2);self.assertEqual(date,'2026-10-27');self.assertEqual(len(next(p for p in players if p['id']==1)['villages']),2)
+  date,players=roster_from_snapshot(Path(self.tmp.name));self.assertEqual(len(players),2);self.assertEqual(date,'2026-10-27');self.assertEqual(len(next(p for p in players if p['id']==1)['villages']),2);self.assertEqual(next(p for p in players if p['id']==1)['population'],300)
   f.write_text("INSERT INTO x_world VALUES (1,1,1,1,1,'A',1,'One',1,'Сокол',100);")
   with self.assertRaises(ValueError):roster_from_snapshot(Path(self.tmp.name))
 
