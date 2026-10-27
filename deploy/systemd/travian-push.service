@@ -1,0 +1,24 @@
+[Unit]
+Description=Travian alliance push ledger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=travian-push
+StateDirectoryMode=0700
+WorkingDirectory=/opt/travian-discord-bot
+EnvironmentFile=/etc/travian-push-token.env
+Environment=PUSH_DATA_DIR=/var/lib/travian-push
+ExecStart=/opt/travian-discord-bot/.venv/bin/python /opt/travian-discord-bot/push_bot.py
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target
