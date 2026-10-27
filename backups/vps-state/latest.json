@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-27T08:06:28.824428+00:00",
+  "created_at": "2026-10-27T09:06:32.776286+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -3953,7 +3953,7 @@
       "40|51": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-24T11:59:16+03:00",
         "map_missing": false,
@@ -3972,7 +3972,7 @@
       "49|21": {
         "alliance": "KE2",
         "alliance_id": 29,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:20:28+03:00",
         "map_missing": false,
@@ -3991,7 +3991,7 @@
       "49|25": {
         "alliance": "東方華人2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:12+03:00",
         "map_missing": false,
@@ -4010,7 +4010,7 @@
       "50|17": {
         "alliance": "KE",
         "alliance_id": 1,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:24:32+03:00",
         "map_missing": false,
@@ -4029,7 +4029,7 @@
       "51|30": {
         "alliance": "東方華人2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:24:58+03:00",
         "map_missing": false,
@@ -4048,7 +4048,7 @@
       "55|28": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:47+03:00",
         "map_missing": false,
@@ -4067,7 +4067,7 @@
       "61|23": {
         "alliance": "東方華人2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:23:34+03:00",
         "map_missing": false,
@@ -4086,7 +4086,7 @@
       "63|65": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-25.sql",
+        "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-10T17:45:56+03:00",
         "map_missing": false,
