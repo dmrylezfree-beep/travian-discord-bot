@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-29T16:45:29.970900+00:00",
+  "created_at": "2026-10-29T17:45:38.048063+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -287,7 +287,17 @@
             "coordinates": "50 38",
             "arena": 6,
             "troops": {
-              "praetorian": 1150
+              "praetorian": 1850
+            },
+            "hero": {
+              "present": false
+            }
+          },
+          {
+            "coordinates": "55 53",
+            "arena": 0,
+            "troops": {
+              "praetorian": 500
             },
             "hero": {
               "present": false
