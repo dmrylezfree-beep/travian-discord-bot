@@ -262,6 +262,7 @@ def get_all_offers():
         if isinstance(state,dict) and state.get("deleted_at"):
             continue
         item = dict(offer)
+        item["base_speed"]=state.get("base_speed",3) if isinstance(state,dict) else 3
         if isinstance(state, dict):
             if state.get("x") is not None:
                 item["x"] = state["x"]
@@ -516,6 +517,7 @@ def private_menu(owner_private=False):
             [{"text": "🔭 План скаут-проверок", "callback_data": "scout_plan"}],
             [{"text": "📚 История скаутов", "callback_data": "scout_history"}],
             [{"text": "🏟 Офферы и Арены", "callback_data": "set_arena"}],
+            [{"text":"⚙️ Скорость офферов 3 / 4","callback_data":"offer_speed_list"}],
             [{"text":"🗑 Удалить вражеского оффера","callback_data":"offer_delete_list"}],
             [{"text": "⚙️ Настройки разведки", "callback_data": "scout_settings"}],
         ])
@@ -2120,18 +2122,19 @@ def travian_distance(
 def travel_time_seconds(
     distance,
     arena_level,
+    base_speed=BASE_SPEED,
 ):
 
     if distance <= 20:
 
         return (
             distance
-            / BASE_SPEED
+            / base_speed
             * 3600
         )
 
     speed_after_20 = (
-        BASE_SPEED
+        base_speed
         * (
             1
             + 0.20 * arena_level
@@ -2139,7 +2142,7 @@ def travel_time_seconds(
     )
 
     first_part = (
-        20 / BASE_SPEED
+        20 / base_speed
     )
 
     second_part = (
@@ -2156,6 +2159,7 @@ def travel_time_seconds(
 def possible_arena_levels(
     distance,
     travel_seconds,
+    base_speed=BASE_SPEED,
 ):
 
     """
@@ -2180,8 +2184,7 @@ def possible_arena_levels(
 
         theoretical_time = travel_time_seconds(
             distance,
-            arena,
-        )
+            arena, base_speed=base_speed)
 
         difference = abs(
             theoretical_time
@@ -2204,6 +2207,7 @@ def possible_arena_levels_by_time_range(
     distance,
     min_travel_seconds,
     max_travel_seconds,
+    base_speed=BASE_SPEED,
 ):
 
     """
@@ -2236,8 +2240,7 @@ def possible_arena_levels_by_time_range(
 
         theoretical_time = travel_time_seconds(
             distance,
-            arena,
-        )
+            arena, base_speed=base_speed)
 
         if (
             theoretical_time
@@ -2256,6 +2259,7 @@ def possible_arena_levels_by_time_range(
 def estimate_arena_level(
     distance,
     travel_seconds,
+    base_speed=BASE_SPEED,
 ):
 
     """
@@ -2279,8 +2283,7 @@ def estimate_arena_level(
 
         theoretical_time = travel_time_seconds(
             distance,
-            arena,
-        )
+            arena, base_speed=base_speed)
 
         difference = abs(
             theoretical_time
@@ -2312,6 +2315,7 @@ def estimate_arena_for_time_range(
     distance,
     min_travel_seconds,
     max_travel_seconds,
+    base_speed=BASE_SPEED,
 ):
 
     """
@@ -2326,8 +2330,7 @@ def estimate_arena_for_time_range(
 
     return estimate_arena_level(
         distance,
-        midpoint,
-    )
+        midpoint, base_speed=base_speed)
 
 
 # ============================================================
@@ -2337,6 +2340,35 @@ def estimate_arena_for_time_range(
 def get_offer(offer_id):
     offer=load_offers().get(offer_id)
     return offer if isinstance(offer,dict) and not offer.get('deleted_at') else None
+
+
+def offer_base_speed(offer):
+    if not offer:return 3
+    state=offer
+    if 'base_speed' not in state:
+        state=load_offers().get(offer.get('id') or offer.get('offer_id'),offer)
+    value=safe_int(state.get('base_speed'),3)
+    return value if value in (3,4) else 3
+
+
+def set_offer_speed(offer_id,speed,user_id):
+    if speed not in (3,4):return False
+    offers=load_offers();offer=offers.get(offer_id)
+    if not isinstance(offer,dict) or offer.get('deleted_at'):return False
+    offer.update(base_speed=speed,speed_updated_at=time.time(),speed_updated_by=user_id)
+    save_json(OFFERS_FILE,offers)
+    return True
+
+
+def attack_arena_levels_for_speed(offer,attack):
+    speed=offer_base_speed(offer)
+    if safe_int(attack.get('base_speed'),3)==speed:return attack.get('possible_arena_levels') or []
+    low=attack.get('min_travel_seconds',attack.get('travel_seconds'))
+    high=attack.get('max_travel_seconds',attack.get('travel_seconds'))
+    coords=attack.get('own_coords') or {}
+    if low is None or high is None or coords.get('x') is None or coords.get('y') is None:return []
+    distance=travian_distance(offer['x'],offer['y'],coords['x'],coords['y'])
+    return possible_arena_levels_by_time_range(distance,low,high,base_speed=speed)
 
 
 def delete_enemy_offer(offer_id,user_id):
@@ -2396,6 +2428,7 @@ def set_arena(
         + "Z"
     )
 
+    offers[offer_id]["arena_base_speed"]=offer_base_speed(offers[offer_id])
     offers[offer_id][
         "arena_status"
     ] = "confirmed"
@@ -2529,7 +2562,7 @@ def offers_keyboard(
                     "text": (
                         f"{owner_text} — "
                         f"({offer['x']} {offer['y']}) — "
-                        f"A{arena_text}"
+                        f"A{arena_text} • скорость {offer_base_speed(state)}"
                     ),
                     "callback_data": (
                         f"{prefix}:"
@@ -2540,6 +2573,7 @@ def offers_keyboard(
         )
 
     if prefix=="manual_offer":
+        keyboard.append([{"text":"⚙️ Скорость офферов 3 / 4","callback_data":"offer_speed_list"}])
         keyboard.append([{"text":"🗑 Удалить вражеского оффера","callback_data":"offer_delete_list"}])
 
     if prefix in ("attack_offer", "manual_offer"):
@@ -2871,14 +2905,12 @@ def create_attack(session):
     possible = possible_arena_levels_by_time_range(
         distance,
         min_travel_seconds,
-        max_travel_seconds,
-    )
+        max_travel_seconds, base_speed=offer_base_speed(offer))
 
     arena_estimate = estimate_arena_for_time_range(
         distance,
         min_travel_seconds,
-        max_travel_seconds,
-    )
+        max_travel_seconds, base_speed=offer_base_speed(offer))
 
     current_arena = offer.get(
         "arena",
@@ -3069,7 +3101,7 @@ def create_attack(session):
             4,
         ),
 
-        "base_speed": BASE_SPEED,
+        "base_speed": offer_base_speed(offer),
 
         "possible_arena_levels": possible,
 
@@ -3242,10 +3274,7 @@ def add_scout_evidence(
         and attack is not None
     ):
 
-        possible = attack.get(
-            "possible_arena_levels",
-            [],
-        )
+        possible = attack_arena_levels_for_speed(offer,attack)
 
         if (
             attack.get(
@@ -5807,6 +5836,9 @@ def scout_arena_suggestion(record):
     if not model:
         return None
 
+    offer=get_offer(record.get("offer_id"))
+    if not offer:return None
+    engine="ram" if offer_base_speed(offer)==4 else model["catapult"]
     old_units = previous.get("units") or {}
     new_units = record.get("units") or {}
     infantry_delta = sum(
@@ -5814,8 +5846,8 @@ def scout_arena_suggestion(record):
         for key in model["infantry"]
     )
     cat_delta = (
-        safe_int(new_units.get(model["catapult"]), 0)
-        - safe_int(old_units.get(model["catapult"]), 0)
+        safe_int(new_units.get(engine), 0)
+        - safe_int(old_units.get(engine), 0)
     )
 
     cats_gone = -cat_delta
@@ -5852,7 +5884,7 @@ def scout_arena_suggestion(record):
 
         for arena in range(0, 21):
             exit_at = arrival - timedelta(
-                seconds=travel_time_seconds(distance, arena)
+                seconds=travel_time_seconds(distance, arena, base_speed=offer_base_speed(offer))
             )
             if before_dt <= exit_at <= after_dt:
                 waves = safe_int(attack.get("waves"), 0)
@@ -5886,6 +5918,7 @@ def scout_arena_suggestion(record):
         "after_dt": after_dt,
         "infantry_delta": infantry_delta,
         "cat_delta": cat_delta,
+        "siege_label":"таранов" if offer_base_speed(offer)==4 else "катапульт",
         "waves_hint": cats_gone,
         "expected_infantry": expected_infantry,
         "attack": attack,
@@ -5922,7 +5955,7 @@ def notify_owner_arena_suggestion(record):
         f"{suggestion['before_dt'].strftime('%H:%M:%S')} → "
         f"{suggestion['after_dt'].strftime('%H:%M:%S')}",
         f"<b>Изменение пехоты:</b> {suggestion['infantry_delta']:+d}",
-        f"<b>Изменение катапульт:</b> {suggestion['cat_delta']:+d}",
+        f"<b>Изменение {suggestion.get('siege_label','катапульт')}:</b> {suggestion['cat_delta']:+d}",
         f"Масштаб близок к <b>{suggestion['waves_hint']} небольшим волнам</b>.",
         "",
         f"<b>В базе входящих найден кандидат:</b>",
@@ -5947,7 +5980,7 @@ def notify_owner_arena_suggestion(record):
                 [{
                     "text": f"✅ Установить A{suggestion['arena']}",
                     "callback_data": (
-                        f"arena_suggest:{record.get('offer_id')}:{suggestion['arena']}"
+                        f"arena_suggest:{record.get('offer_id')}:{suggestion['arena']}:{offer_base_speed(offer)}"
                     ),
                 }],
                 [{"text": "❌ Оставить текущее значение", "callback_data": "menu"}],
@@ -6018,16 +6051,16 @@ def offer_arena_hypotheses(offer, operation_attacks):
     estimated = []
     possible = []
     for a in related:
-        e = safe_int(a.get("estimated_arena_level"))
+        e = safe_int(a.get("estimated_arena_level")) if safe_int(a.get("base_speed"),3)==offer_base_speed(offer) else None
         if e is not None and 0 <= e <= 20:
             estimated.append(e)
-        for level in a.get("possible_arena_levels") or []:
+        for level in attack_arena_levels_for_speed(offer,a):
             level = safe_int(level)
             if level is not None and 0 <= level <= 20:
                 possible.append(level)
 
     state = load_offers().get(offer_id, {})
-    fixed = safe_int(state.get("arena"), 0)
+    fixed = safe_int(state.get("arena"), 0) if state.get("arena_source")=="manual" or safe_int(state.get("arena_base_speed"),3)==offer_base_speed(offer) else 0
     ordered = []
     # Свежая оценка первой, затем жестко записанная Арена, затем весь диапазон.
     for level in estimated + ([fixed] if fixed else []) + sorted(set(possible)):
@@ -6068,7 +6101,9 @@ def choose_scout_source(enemy_x, enemy_y, scan_before, scan_after, now):
 def build_precise_arena_auto_plan(attack):
     """Автоплан только когда входящая однозначно дала один уровень Арены."""
     possible = []
-    for level in attack.get("possible_arena_levels") or []:
+    offer=get_offer(attack.get("offer_id"))
+    if not offer:return []
+    for level in attack_arena_levels_for_speed(offer,attack):
         level = safe_int(level)
         if level is not None and 0 <= level <= 20 and level not in possible:
             possible.append(level)
@@ -6111,7 +6146,7 @@ def build_precise_arena_auto_plan(attack):
             continue
 
         distance = travian_distance(offer["x"], offer["y"], x, y)
-        enemy_seconds = travel_time_seconds(distance, arena)
+        enemy_seconds = travel_time_seconds(distance, arena, base_speed=offer_base_speed(offer))
         exit_at = arrival - timedelta(seconds=enemy_seconds)
         scan_before = exit_at - timedelta(seconds=10)
         scan_after = exit_at + timedelta(seconds=10)
@@ -6157,7 +6192,7 @@ def show_precise_arena_auto_plan(chat_id, attack):
 
     offer = get_offer(attack.get("offer_id"))
     owner = get_offer_owner(offer) if offer else None
-    arena = safe_int((attack.get("possible_arena_levels") or [None])[0])
+    arena = tasks[0]["arena"] if tasks else None
 
     lines = [
         "🎯 <b>АРЕНА ОПРЕДЕЛЕНА ОДНОЗНАЧНО</b>",
@@ -6233,7 +6268,9 @@ def build_full_offer_scout_plan(offer_id):
     arenas=offer_arena_hypotheses(offer,attacks)
     state=load_offers().get(offer_id,{})
     related=[a for a in attacks if a.get('offer_id')==offer_id]
-    if arenas==[0] and not state.get('arena_source') and not state.get('arena',0) and not any(a.get('possible_arena_levels') or a.get('estimated_arena_level') is not None for a in related):
+    fixed_known=state.get('arena_source')=='manual' or (state.get('arena_source') and safe_int(state.get('arena_base_speed'),3)==offer_base_speed(offer))
+    reports_known=any(attack_arena_levels_for_speed(offer,a) or (a.get('estimated_arena_level') is not None and safe_int(a.get('base_speed'),3)==offer_base_speed(offer)) for a in related)
+    if arenas==[0] and not fixed_known and not reports_known:
         arenas=list(range(21))
     now=datetime.now(SERVER_TIMEZONE)
     sources=[]
@@ -6245,7 +6282,7 @@ def build_full_offer_scout_plan(offer_id):
         sources.append((source,unit_travel_time_seconds(travian_distance(x,y,offer['x'],offer['y']),speed,arena)))
     grouped={};unavailable=[];bounds={}
     for key,target in targets.items():
-        exits=[(arena,shift_scout_time(arrival,-travel_time_seconds(travian_distance(offer['x'],offer['y'],*key),arena))) for arena in arenas]
+        exits=[(arena,shift_scout_time(arrival,-travel_time_seconds(travian_distance(offer['x'],offer['y'],*key),arena, base_speed=offer_base_speed(offer)))) for arena in arenas]
         bounds[key]=(min(d.timestamp() for _,d in exits),max(d.timestamp() for _,d in exits))
         found=False
         for arena,exit_at in exits:
@@ -6287,7 +6324,8 @@ def show_full_offer_scout_plan(chat_id,offer_id,page=0,message_id=None,golden=Fa
     page=max(0,min(page,max(0,(len(tasks)-1)//per_page)))
     active=[t for t in tasks if t.get('available')]
     total=len({(t['target']['x'],t['target']['y']) for t in tasks})
-    text=f'🔭 <b>ПОЛНЫЙ ПЛАН ПО ОФФЕРУ</b>\nВажных деревень: {total}. Доступных проверок: {len(active)}.\nПорядок — по времени отправки наших сканов. Время сервера Travian.\n'
+    speed=offer_base_speed(get_offer(offer_id))
+    text=f'🔭 <b>ПОЛНЫЙ ПЛАН ПО ОФФЕРУ</b>\nСкорость врага: {speed} полей/ч.\nВажных деревень: {total}. Доступных проверок: {len(active)}.\nПорядок — по времени отправки наших сканов. Время сервера Travian.\n'
     marked=next((t for t in tasks if t.get('golden')),None)
     if marked:
         g=marked['golden']
@@ -6361,7 +6399,7 @@ def build_scout_plan(offer_id=None):
                 distance = travian_distance(
                     offer["x"], offer["y"], target["x"], target["y"]
                 )
-                enemy_seconds = travel_time_seconds(distance, arena)
+                enemy_seconds = travel_time_seconds(distance, arena, base_speed=offer_base_speed(offer))
                 exit_at = operation_arrival - timedelta(seconds=enemy_seconds)
                 scan_before = exit_at - timedelta(seconds=10)
                 scan_after = exit_at + timedelta(seconds=10)
@@ -6434,7 +6472,7 @@ def show_scout_plan(chat_id,offer_id=None):
         lines.extend([
             "━━━━━━━━━━━━━━━━━━",
             f"⚔️ <b>{html.escape(owner or task['offer_id'])}</b> "
-            f"({task['offer_x']}|{task['offer_y']}) • {arena_label}",
+            f"({task['offer_x']}|{task['offer_y']}) • {arena_label} • скорость {offer_base_speed(offer)}",
             "",
             f"🎯 Проверяем атаку на "
             f"<b>{html.escape(target.get('player_name') or 'игрок')} "
@@ -6583,7 +6621,7 @@ def process_callback(
 
     # Изменение Арены и настройки разведки доступны только владельцу в личке.
     owner_only = (
-        data.startswith("offer_delete")
+        data.startswith(("offer_delete","offer_speed"))
         or data == "set_arena"
         or data == "arena_add_offer"
         or data.startswith("manual_offer:")
@@ -6612,6 +6650,20 @@ def process_callback(
             else main_menu(owner_private=False),
         )
 
+        return
+
+    if data.startswith('offer_speed'):
+        if data=='offer_speed_list':
+            edit_message(chat_id,message['message_id'],'⚙️ Выберите оффера. Скорость 3 — катапульты; 4 — тараны без катапульт.',offers_keyboard('offer_speed'))
+        else:
+            parts=data.split(':');offer_id=parts[1] if len(parts)>1 else '';offer=get_offer(offer_id)
+            if not offer:send_message(chat_id,'Оффер уже удалён или не найден.');return
+            if parts[0]=='offer_speed_set':
+                speed=safe_int(parts[2]) if len(parts)>2 else None
+                if not set_offer_speed(offer_id,speed,user_id):send_message(chat_id,'Выберите скорость 3 или 4.');return
+                offer=get_offer(offer_id)
+            owner=get_offer_owner(offer) or offer_id
+            edit_message(chat_id,message['message_id'],f'<b>{html.escape(owner)}</b> ({offer["x"]}|{offer["y"]})\nТекущая скорость: <b>{offer_base_speed(offer)}</b> полей/ч.\n3 — с катапультами; 4 — с таранами без катапульт. Новые расчёты и планы учитывают выбранную скорость.',{'inline_keyboard':[[{'text':'🐌 3 — катапульты','callback_data':f'offer_speed_set:{offer_id}:3'},{'text':'🐏 4 — тараны','callback_data':f'offer_speed_set:{offer_id}:4'}],[{'text':'⬅️ К офферам','callback_data':'offer_speed_list'}]]})
         return
 
     if data.startswith('offer_delete'):
@@ -6896,7 +6948,7 @@ def process_callback(
 
     if data.startswith("arena_suggest:"):
         parts = data.split(":")
-        if len(parts) != 3:
+        if len(parts) not in (3,4):
             send_message(chat_id, "❌ Некорректная рекомендация.")
             return
         offer_id = parts[1]
@@ -6905,6 +6957,9 @@ def process_callback(
             send_message(chat_id, "❌ Некорректный уровень Арены.")
             return
         offer = get_offer(offer_id)
+        suggested_speed=safe_int(parts[3]) if len(parts)==4 else 3
+        if not offer or suggested_speed!=offer_base_speed(offer):
+            send_message(chat_id,"❌ Скорость оффера изменилась. Получите новую подсказку по Арене.");return
         old_arena = safe_int(offer.get("arena"), 0) if offer else 0
         success = set_arena(
             offer_id,
@@ -7757,14 +7812,12 @@ def process_message(
             arena_estimate = estimate_arena_for_time_range(
                 distance,
                 min_travel_seconds,
-                max_travel_seconds,
-            )
+                max_travel_seconds, base_speed=offer_base_speed(offer))
 
             possible = possible_arena_levels_by_time_range(
                 distance,
                 min_travel_seconds,
-                max_travel_seconds,
-            )
+                max_travel_seconds, base_speed=offer_base_speed(offer))
 
             session[
                 "estimated_arena_level"

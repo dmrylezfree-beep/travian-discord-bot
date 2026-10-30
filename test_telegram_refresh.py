@@ -818,3 +818,41 @@ class FullEnemyScoutPlanTests(unittest.TestCase):
   self.mocked('datetime',new=Clock);self.mocked('active_operation_context',return_value=({'arrival_datetime':'2026-10-25T02:30:00+00:00'},[]));self.mocked('travel_time_seconds',return_value=7200)
   tasks,error=self.a.build_scout_plan('offer_1');self.assertIsNone(error);arrival=datetime.fromisoformat('2026-10-25T02:30:00+00:00')
   self.assertEqual(arrival.timestamp()-tasks[0]['exit_at'].timestamp(),7200)
+
+class EnemyOfferSpeedTests(unittest.TestCase):
+ setUp=EnemyOfferManagementTests.setUp
+ click=EnemyOfferManagementTests.click
+ fixture=FullEnemyScoutPlanTests.fixture
+ def test_default_and_owner_only_speed_choice(self):
+  self.assertEqual(self.a.offer_base_speed(self.a.get_offer('offer_1')),3)
+  self.click('offer_speed_set:offer_1:4',uid=2);self.assertEqual(self.a.offer_base_speed(self.a.get_offer('offer_1')),3)
+  self.click('offer_speed_set:offer_1:4',private=False);self.assertEqual(self.a.offer_base_speed(self.a.get_offer('offer_1')),3)
+  self.click('offer_speed_set:offer_1:4');self.assertEqual(self.a.offer_base_speed(self.a.get_offer('offer_1')),4)
+  self.assertEqual(self.a.offer_base_speed(self.a.get_offer('offer_2')),3)
+  self.assertFalse(self.a.set_offer_speed('offer_1',5,1));self.a.ensure_data();self.assertEqual(self.a.offer_base_speed(self.a.get_offer('offer_1')),4)
+ def test_travel_and_arena_estimates_use_speed_four(self):
+  a=self.a
+  for distance in (19,20,80):
+   self.assertAlmostEqual(a.travel_time_seconds(distance,7,base_speed=4),a.travel_time_seconds(distance,7)*.75)
+  seconds=a.travel_time_seconds(80,6,base_speed=4)
+  self.assertIn(6,a.possible_arena_levels(80,seconds,base_speed=4));self.assertEqual(a.estimate_arena_level(80,seconds,base_speed=4)['arena'],6)
+  self.assertIn(6,a.possible_arena_levels_by_time_range(80,seconds,seconds,base_speed=4))
+ def test_full_plan_changes_enemy_times_but_not_our_scout_speed(self):
+  self.fixture();a=self.a;before,error=a.build_scout_plan('offer_1');self.assertIsNone(error)
+  a.set_offer_speed('offer_1',4,1);after,error=a.build_scout_plan('offer_1');self.assertIsNone(error)
+  by_target={t['target']['x']:t for t in before}
+  from datetime import datetime
+  arrival=datetime.fromisoformat('2099-01-02T12:00:00+00:00')
+  for task in after:
+   old=by_target[task['target']['x']]
+   self.assertAlmostEqual(arrival.timestamp()-task['exit_at'].timestamp(),(arrival.timestamp()-old['exit_at'].timestamp())*.75,places=4)
+   self.assertAlmostEqual(task['scan_before'].timestamp()-task['send_before'].timestamp(),old['scan_before'].timestamp()-old['send_before'].timestamp(),places=4)
+  a.show_full_offer_scout_plan(2,'offer_1');self.assertIn('Скорость врага: 4',self.send.call_args.args[1])
+ def test_old_report_arena_is_recalculated_without_rewriting_history(self):
+  a=self.a;a.set_offer_speed('offer_1',4,1);seconds=a.travel_time_seconds(80,6,base_speed=4)
+  report={'base_speed':3,'possible_arena_levels':[0],'own_coords':{'x':80,'y':0},'min_travel_seconds':seconds,'max_travel_seconds':seconds}
+  levels=a.attack_arena_levels_for_speed(a.get_offer('offer_1'),report);self.assertIn(6,levels);self.assertEqual(report['base_speed'],3);self.assertEqual(report['possible_arena_levels'],[0])
+ def test_speed_change_rejects_stale_arena_suggestion(self):
+  self.a.set_offer_speed('offer_1',4,1)
+  with patch.object(self.a,'set_arena') as save:
+   self.click('arena_suggest:offer_1:5:3');save.assert_not_called()
