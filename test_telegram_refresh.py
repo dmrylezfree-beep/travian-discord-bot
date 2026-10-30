@@ -767,7 +767,7 @@ class EnemyOfferManagementTests(unittest.TestCase):
  def test_private_plan_option_for_member_and_only_selected_offer(self):
   self.assertIn('scout_plan_offers',str(self.a.private_menu(False)))
   self.click('scout_plan_offers',2);self.assertIn('scout_plan_offer:offer_2',str(self.edit.call_args))
-  with patch.object(self.a,'show_scout_plan') as show:self.click('scout_plan_offer:offer_2',2);show.assert_called_once_with(2,'offer_2')
+  with patch.object(self.a,'show_full_offer_scout_plan') as show:self.click('scout_plan_offer:offer_2',2);show.assert_called_once_with(2,'offer_2',page=0,message_id=7,golden=False)
  def test_short_distance_arena_hint_includes_boundary(self):
   for x in (19,20):
    notes=self.a.scout_arena_notes(0,0,{'x':x,'y':0},{'x':1,'y':0});self.assertEqual(len(notes),2);self.assertIn('определить её уровень нельзя',notes[0])
@@ -775,6 +775,46 @@ class EnemyOfferManagementTests(unittest.TestCase):
   self.assertEqual(self.a.travel_time_seconds(19,0),self.a.travel_time_seconds(19,20))
  def test_per_offer_plan_filters_and_deduplicates_irrelevant_arena(self):
   head={'arrival_datetime':'2099-01-02T12:00:00+00:00'}
-  self.mocked('active_operation_context',return_value=(head,[]));self.mocked('operation_targets',return_value=[{'x':10,'y':0,'player_name':'Target'}]);self.mocked('load_scout_villages',return_value=[{'x':1,'y':0,'arena':0,'scout_speed':16}]);self.mocked('offer_arena_hypotheses',return_value=[0,5,20])
+  self.mocked('active_operation_context',return_value=(head,[]));self.mocked('operation_targets',return_value=[{'x':10,'y':0,'player_name':'Target'}]);self.mocked('load_important_villages',return_value=[{'x':10,'y':0,'player_name':'Target'}]);self.mocked('load_scout_villages',return_value=[{'x':1,'y':0,'arena':0,'scout_speed':16}]);self.mocked('offer_arena_hypotheses',return_value=[0,5,20])
   tasks,error=self.a.build_scout_plan('offer_1');self.assertIsNone(error);self.assertEqual(len(tasks),1);self.assertEqual(tasks[0]['offer_id'],'offer_1')
   self.a.show_scout_plan(2,'offer_1');text=''.join(call.args[1] for call in self.send.call_args_list);self.assertIn('Арена не влияет',text);self.assertIn('Враг → цель',text)
+
+class FullEnemyScoutPlanTests(unittest.TestCase):
+ setUp=EnemyOfferManagementTests.setUp
+ def fixture(self,count=5):
+  a=self.a
+  self.mocked('active_operation_context',return_value=({'arrival_datetime':'2099-01-02T12:00:00+00:00'},[]))
+  self.targets=[{'x':25+i*5,'y':0,'player_name':'Target '+str(i)} for i in range(count)]
+  self.mocked('load_important_villages',return_value=self.targets)
+  self.mocked('load_scout_villages',return_value=[{'x':1,'y':0,'arena':0,'scout_speed':16}])
+  offers=a.load_offers();offers['offer_1'].update(arena=5,arena_source='manual');a.save_json(a.OFFERS_FILE,offers)
+ def test_every_important_village_is_included_sorted_by_scout_departure(self):
+  self.fixture();tasks,error=self.a.build_scout_plan('offer_1');self.assertIsNone(error)
+  self.assertEqual({(t['target']['x'],t['target']['y']) for t in tasks},{(t['x'],t['y']) for t in self.targets})
+  self.assertEqual(len(tasks),5);self.assertTrue(all(t['available'] for t in tasks))
+  times=[t['send_before'].timestamp() for t in tasks];self.assertEqual(times,sorted(times))
+ def test_golden_middle_counts_targets_once_and_balances_split(self):
+  self.fixture();tasks,_=self.a.build_scout_plan('offer_1');marked=[t['golden'] for t in tasks if t.get('golden')]
+  self.assertEqual(len(marked),1);g=marked[0];self.assertEqual(g['total'],5);self.assertEqual(sorted([g['earlier'],g['later']]),[2,3]);self.assertEqual(g['uncertain'],0)
+ def test_arena_uncertainty_does_not_claim_false_half_split(self):
+  self.fixture(2);self.mocked('offer_arena_hypotheses',return_value=[0,20]);self.targets[1]['x']=self.targets[0]['x']
+  tasks,_=self.a.build_scout_plan('offer_1');self.assertFalse(any(t.get('golden') for t in tasks))
+ def test_unreachable_villages_remain_visible_with_explanation(self):
+  self.fixture();self.mocked('load_scout_villages',return_value=[]);tasks,error=self.a.build_scout_plan('offer_1')
+  self.assertIsNone(error);self.assertEqual(len(tasks),5);self.assertTrue(all(not t['available'] and t['reason'] for t in tasks))
+ def test_pages_edit_current_message_and_jump_to_golden_middle(self):
+  self.fixture(9);self.a.show_full_offer_scout_plan(2,'offer_1',page=1,message_id=7)
+  self.send.assert_not_called();self.assertEqual(self.edit.call_args.args[1],7);self.assertIn('Страница 2/3',self.edit.call_args.args[2]);self.assertLess(len(self.edit.call_args.args[2]),4096)
+  self.a.show_full_offer_scout_plan(2,'offer_1',message_id=7,golden=True);self.assertIn('ЗОЛОТАЯ СЕРЕДИНА',self.edit.call_args.args[2])
+ def test_same_exit_time_targets_do_not_have_artificial_golden_split(self):
+  self.fixture(2);self.targets[0]['x']=25;self.targets[1]['x']=-25
+  tasks,_=self.a.build_scout_plan('offer_1');self.assertEqual(len(tasks),2);self.assertFalse(any(t.get('golden') for t in tasks))
+ def test_new_plan_preserves_elapsed_duration_across_clock_change(self):
+  self.fixture(1)
+  from datetime import datetime
+  class Clock(datetime):
+   @classmethod
+   def now(cls,tz=None):return cls(2026,10,24,12,tzinfo=self.a.SERVER_TIMEZONE)
+  self.mocked('datetime',new=Clock);self.mocked('active_operation_context',return_value=({'arrival_datetime':'2026-10-25T02:30:00+00:00'},[]));self.mocked('travel_time_seconds',return_value=7200)
+  tasks,error=self.a.build_scout_plan('offer_1');self.assertIsNone(error);arrival=datetime.fromisoformat('2026-10-25T02:30:00+00:00')
+  self.assertEqual(arrival.timestamp()-tasks[0]['exit_at'].timestamp(),7200)

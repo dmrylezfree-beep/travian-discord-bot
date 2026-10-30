@@ -6212,7 +6212,119 @@ def scout_arena_notes(offer_x,offer_y,target,scout_village):
     return notes
 
 
+def shift_scout_time(value,seconds):
+    return datetime.fromtimestamp(value.timestamp()+seconds,SERVER_TIMEZONE)
+
+
+def build_full_offer_scout_plan(offer_id):
+    offer=next((o for o in get_all_offers() if (o.get('id') or o.get('offer_id'))==offer_id),None)
+    if not offer:return None,'Оффер удалён или не найден.'
+    head,attacks=active_operation_context()
+    if not head:return None,'Нет активной операции: неизвестно время прибытия атаки.'
+    targets={}
+    for village in load_important_villages():
+        x,y=safe_int(village.get('x')),safe_int(village.get('y'))
+        if x is not None and y is not None:targets[(x,y)]={**village,'x':x,'y':y}
+    if not targets:return None,'В базе нет важных деревень.'
+    try:
+        arrival=datetime.fromisoformat(head.get('operation_arrival_datetime') or head.get('arrival_datetime'))
+        if arrival.tzinfo is None:arrival=arrival.replace(tzinfo=SERVER_TIMEZONE)
+    except (TypeError,ValueError):return None,'Не удалось определить время операции.'
+    arenas=offer_arena_hypotheses(offer,attacks)
+    state=load_offers().get(offer_id,{})
+    related=[a for a in attacks if a.get('offer_id')==offer_id]
+    if arenas==[0] and not state.get('arena_source') and not state.get('arena',0) and not any(a.get('possible_arena_levels') or a.get('estimated_arena_level') is not None for a in related):
+        arenas=list(range(21))
+    now=datetime.now(SERVER_TIMEZONE)
+    sources=[]
+    for source in load_scout_villages():
+        x,y,arena=safe_int(source.get('x')),safe_int(source.get('y')),safe_int(source.get('arena'))
+        try:speed=float(source.get('scout_speed'))
+        except (TypeError,ValueError):continue
+        if x is None or y is None or arena is None or not 0<=arena<=20 or not math.isfinite(speed) or speed<=0:continue
+        sources.append((source,unit_travel_time_seconds(travian_distance(x,y,offer['x'],offer['y']),speed,arena)))
+    grouped={};unavailable=[];bounds={}
+    for key,target in targets.items():
+        exits=[(arena,shift_scout_time(arrival,-travel_time_seconds(travian_distance(offer['x'],offer['y'],*key),arena))) for arena in arenas]
+        bounds[key]=(min(d.timestamp() for _,d in exits),max(d.timestamp() for _,d in exits))
+        found=False
+        for arena,exit_at in exits:
+            before,after=shift_scout_time(exit_at,-10),shift_scout_time(exit_at,10)
+            choices=[]
+            for source,seconds in sources:
+                start,end=shift_scout_time(before,-seconds),shift_scout_time(after,-seconds)
+                if start.timestamp()>now.timestamp():choices.append((start,end,source))
+            if not choices:continue
+            start,end,source=max(choices,key=lambda v:v[0].timestamp())
+            group=(*key,exit_at.timestamp(),source['x'],source['y'])
+            if group not in grouped:
+                grouped[group]={'offer_id':offer_id,'offer_x':offer['x'],'offer_y':offer['y'],'arena':arena,'arenas':[],'target':target,'exit_at':exit_at,'scan_before':before,'scan_after':after,'send_before':start,'send_after':end,'scout_village':source,'available':True}
+            grouped[group]['arenas'].append(arena);found=True
+        if not found:unavailable.append({'available':False,'target':target,'reason':'Нет настроенной скаут-деревни, откуда разведчики ещё успевают.' if sources else 'Не настроены подходящие скаут-деревни.'})
+    tasks=sorted(grouped.values(),key=lambda task:(task['send_before'].timestamp(),task['target']['x'],task['target']['y']))
+    best=None
+    for index,task in enumerate(tasks):
+        for phase in ('scan_before','scan_after'):
+            cutoff=task[phase].timestamp()
+            early=sum(high<cutoff for low,high in bounds.values())
+            late=sum(low>cutoff for low,high in bounds.values())
+            uncertain=len(bounds)-early-late
+            score=(min(early,late),-uncertain,-abs(early-late))
+            if min(early,late)>0 and (best is None or score>best[0]):best=(score,index,phase,early,late,uncertain)
+    if best:
+        _,index,phase,early,late,uncertain=best
+        tasks[index]['golden']={'phase':phase,'earlier':early,'later':late,'uncertain':uncertain,'total':len(bounds)}
+    for task in tasks:task['target_count']=len(targets)
+    return tasks+unavailable,None
+
+
+def show_full_offer_scout_plan(chat_id,offer_id,page=0,message_id=None,golden=False):
+    tasks,error=build_full_offer_scout_plan(offer_id)
+    if error:
+        send_message(chat_id,'🔭 <b>План по офферу</b>\n\n'+html.escape(error));return
+    per_page=3
+    if golden:page=next((i//per_page for i,t in enumerate(tasks) if t.get('golden')),0)
+    page=max(0,min(page,max(0,(len(tasks)-1)//per_page)))
+    active=[t for t in tasks if t.get('available')]
+    total=len({(t['target']['x'],t['target']['y']) for t in tasks})
+    text=f'🔭 <b>ПОЛНЫЙ ПЛАН ПО ОФФЕРУ</b>\nВажных деревень: {total}. Доступных проверок: {len(active)}.\nПорядок — по времени отправки наших сканов. Время сервера Travian.\n'
+    marked=next((t for t in tasks if t.get('golden')),None)
+    if marked:
+        g=marked['golden']
+        text+=f'⭐ Золотая середина: {g["earlier"]} целей с выходом раньше скана / {g["later"]} позже'
+        if g['uncertain']:text+=f'; неопределённых из-за арены: {g["uncertain"]}'
+        text+=' из '+str(g['total'])+'.\n'
+    else:text+='ℹ️ Надёжной золотой середины нет: варианты совпадают или перекрываются, либо нужные сканы уже не успевают.\n'
+    for task in tasks[page*per_page:(page+1)*per_page]:
+        target=task['target'];name=html.escape(target.get('player_name') or target.get('village_name') or 'Важная деревня')
+        text+=f'\n━━━━━━━━━━━━\n🎯 <b>{name}</b> ({target["x"]}|{target["y"]})\n'
+        if not task.get('available'):
+            text+='⚠️ '+task['reason']+'\n';continue
+        label='Арена не влияет' if travian_distance(task['offer_x'],task['offer_y'],target['x'],target['y'])<=20 else 'Арена: '+', '.join(map(str,task['arenas']))
+        text+=label+'\n'
+        for title,key in [('⚔️ Выход врага','exit_at'),('🔎 Скан до выхода','scan_before'),('🔎 Скан после выхода','scan_after'),('🛰 Отправить первый','send_before'),('🛰 Отправить второй','send_after')]:
+            text+=title+': <code>'+task[key].strftime('%d.%m %H:%M:%S')+'</code>\n'
+        source=task['scout_village'];text+=f'🏘 Отправлять из ({source["x"]}|{source["y"]})\n'
+        if task.get('golden'):
+            g=task['golden'];phase='первый' if g['phase']=='scan_before' else 'второй'
+            text+=f'⭐ <b>ЗОЛОТАЯ СЕРЕДИНА — {phase} скан</b>\nЕсли армия уже ушла, это соответствует {g["earlier"]} целям с более ранним выходом; если ещё стоит — {g["later"]} с более поздним.'
+            if g['uncertain']:text+=f' Ещё {g["uncertain"]} целей пока нельзя уверенно разделить из-за арены.'
+            text+=' Это ориентир по присутствию армии, а не доказательство цели.\n'
+        notes=scout_arena_notes(task['offer_x'],task['offer_y'],target,source)
+        text+='\n'.join(notes)+('\n' if notes else '')
+    text+=f'\nСтраница {page+1}/{max(1,(len(tasks)+per_page-1)//per_page)}'
+    nav=[]
+    if page:nav.append({'text':'⬅️ Назад','callback_data':f'scout_plan_offer:{offer_id}:{page-1}'})
+    if (page+1)*per_page<len(tasks):nav.append({'text':'Дальше ➡️','callback_data':f'scout_plan_offer:{offer_id}:{page+1}'})
+    rows=[nav] if nav else []
+    if marked:rows.append([{'text':'⭐ К золотой середине','callback_data':f'scout_plan_golden:{offer_id}'}])
+    rows.append([{'text':'⬅️ Выбрать оффера','callback_data':'scout_plan_offers'}])
+    if message_id:edit_message(chat_id,message_id,text,{'inline_keyboard':rows})
+    else:send_message(chat_id,text,reply_markup={'inline_keyboard':rows})
+
+
 def build_scout_plan(offer_id=None):
+    if offer_id is not None:return build_full_offer_scout_plan(offer_id)
     operation_head, operation_attacks = active_operation_context()
     if not operation_head:
         return None, "Нет активной операции."
@@ -6298,6 +6410,7 @@ def build_scout_plan(offer_id=None):
 
 
 def show_scout_plan(chat_id,offer_id=None):
+    if offer_id is not None:return show_full_offer_scout_plan(chat_id,offer_id)
     tasks, error = build_scout_plan(offer_id)
     if error:
         send_message(chat_id, f"🔭 <b>План скаут-проверок</b>\n\n{html.escape(error)}")
@@ -6515,15 +6628,15 @@ def process_callback(
             name=get_offer_owner(offer) or offer_id
             edit_message(chat_id,message['message_id'],f'Удалить <b>{html.escape(name)}</b> ({offer["x"]}|{offer["y"]})? История сохранится.',{'inline_keyboard':[[{'text':'🗑 Подтвердить удаление','callback_data':'offer_delete_confirm:'+offer_id}],[{'text':'Отмена','callback_data':'offer_delete_list'}]]})
         return
-    if data=='scout_plan_offers' or data.startswith('scout_plan_offer:'):
+    if data=='scout_plan_offers' or data.startswith(('scout_plan_offer:','scout_plan_golden:')):
         if not private_chat:
             answer_callback(callback_id,'Откройте этот раздел в личных сообщениях боту.');return
         if data=='scout_plan_offers':
             edit_message(chat_id,message['message_id'],'🔭 Выберите вражеского оффера для личного плана проверок:',offers_keyboard('scout_plan_offer'))
         else:
-            offer_id=data.split(':',1)[1]
+            parts=data.split(':');offer_id=parts[1]
             if not get_offer(offer_id):send_message(chat_id,'Оффер уже удалён или не найден.');return
-            show_scout_plan(chat_id,offer_id)
+            show_full_offer_scout_plan(chat_id,offer_id,page=safe_int(parts[2],0) if len(parts)>2 else 0,message_id=message['message_id'],golden=parts[0]=='scout_plan_golden')
         return
 
     if data == "scout_plan":
