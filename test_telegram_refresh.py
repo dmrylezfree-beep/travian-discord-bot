@@ -741,3 +741,40 @@ class FeedersDistanceTests(unittest.TestCase):
   with patch.object(feeders,'MAP_SIZE',401),patch.object(feeders,'calculate_inactivity_days',side_effect=lambda uid,*args:0 if uid==3 else 2):
    rows=feeders.find_feeders([self.village(99,200,500),self.village(98,12,500)],villages,date(2026,10,24),{})
   self.assertEqual([r['uid'] for r in rows],[1,2]);self.assertEqual([r['distance'] for r in rows],[1,2])
+
+class EnemyOfferManagementTests(unittest.TestCase):
+ def setUp(self):
+  import tempfile,attacks_bot as a
+  from contextlib import ExitStack
+  self.a=a;self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.stack=ExitStack();self.addCleanup(self.stack.close)
+  def mocked(name,**kw):return self.stack.enter_context(patch.object(a,name,**kw))
+  self.mocked=mocked;root=Path(self.tmp.name)
+  for name,file in [('DATA_DIR','.'),('OFFERS_FILE','offers.json'),('ATTACKS_FILE','attacks.json'),('SCOUTS_FILE','scouts.json')]:mocked(name,new=root/file)
+  mocked('ENEMY_OFFERS',new=[{'id':'offer_1','x':0,'y':0}]);mocked('BOT_OWNER_ID',new=1);mocked('sessions',new={});mocked('is_group_member',return_value=True)
+  self.send=mocked('send_message');self.edit=mocked('edit_message');self.answer=mocked('answer_callback');mocked('persist_attacks_data_to_github');mocked('get_offer_owner',return_value='Enemy')
+  a.save_json(a.OFFERS_FILE,{'offer_1':{'offer_id':'offer_1','x':0,'y':0,'arena':0},'offer_2':{'offer_id':'offer_2','x':50,'y':0,'arena':1,'manually_added':True}})
+  a.save_json(a.ATTACKS_FILE,[{'offer_id':'offer_1','fixture':'keep history'}]);a.save_json(a.SCOUTS_FILE,[{'offer_id':'offer_1','fixture':'keep scout'}])
+ def click(self,data,uid=1,private=True):
+  self.a.process_callback({'id':'fixture','from':{'id':uid},'data':data,'message':{'message_id':7,'chat':{'id':uid if private else -100,'type':'private' if private else 'supergroup'},'message_thread_id':None if private else self.a.TELEGRAM_THREAD_ID}})
+ def test_delete_requires_owner_private_and_confirmation(self):
+  for uid,private in [(2,True),(1,False)]:self.click('offer_delete_confirm:offer_1',uid,private)
+  self.assertIsNotNone(self.a.get_offer('offer_1'))
+  self.click('offer_delete:offer_1');self.assertIn('offer_delete_confirm:offer_1',str(self.edit.call_args));self.assertIsNotNone(self.a.get_offer('offer_1'))
+  self.click('offer_delete_confirm:offer_1');self.assertIsNone(self.a.get_offer('offer_1'));self.assertNotIn('offer_1',[o['id'] for o in self.a.get_all_offers()])
+  self.assertEqual(self.a.load_attacks()[0]['fixture'],'keep history');self.assertEqual(self.a.load_scouts()[0]['fixture'],'keep scout')
+  self.a.ensure_data();self.assertIsNone(self.a.get_offer('offer_1'))
+  new,created=self.a.add_or_get_manual_offer(0,0);self.assertTrue(created);self.assertNotEqual(new,'offer_1')
+ def test_private_plan_option_for_member_and_only_selected_offer(self):
+  self.assertIn('scout_plan_offers',str(self.a.private_menu(False)))
+  self.click('scout_plan_offers',2);self.assertIn('scout_plan_offer:offer_2',str(self.edit.call_args))
+  with patch.object(self.a,'show_scout_plan') as show:self.click('scout_plan_offer:offer_2',2);show.assert_called_once_with(2,'offer_2')
+ def test_short_distance_arena_hint_includes_boundary(self):
+  for x in (19,20):
+   notes=self.a.scout_arena_notes(0,0,{'x':x,'y':0},{'x':1,'y':0});self.assertEqual(len(notes),2);self.assertIn('определить её уровень нельзя',notes[0])
+  self.assertEqual(self.a.scout_arena_notes(0,0,{'x':21,'y':0},{'x':30,'y':0}),[])
+  self.assertEqual(self.a.travel_time_seconds(19,0),self.a.travel_time_seconds(19,20))
+ def test_per_offer_plan_filters_and_deduplicates_irrelevant_arena(self):
+  head={'arrival_datetime':'2099-01-02T12:00:00+00:00'}
+  self.mocked('active_operation_context',return_value=(head,[]));self.mocked('operation_targets',return_value=[{'x':10,'y':0,'player_name':'Target'}]);self.mocked('load_scout_villages',return_value=[{'x':1,'y':0,'arena':0,'scout_speed':16}]);self.mocked('offer_arena_hypotheses',return_value=[0,5,20])
+  tasks,error=self.a.build_scout_plan('offer_1');self.assertIsNone(error);self.assertEqual(len(tasks),1);self.assertEqual(tasks[0]['offer_id'],'offer_1')
+  self.a.show_scout_plan(2,'offer_1');text=''.join(call.args[1] for call in self.send.call_args_list);self.assertIn('Арена не влияет',text);self.assertIn('Враг → цель',text)

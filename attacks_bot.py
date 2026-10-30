@@ -133,6 +133,8 @@ def ensure_data():
             continue
 
         state = offers[offer_id]
+        if state.get("deleted_at"):
+            continue
         for key, value in (
             ("offer_id", offer_id),
             ("x", offer["x"]),
@@ -257,6 +259,8 @@ def get_all_offers():
     for offer in ENEMY_OFFERS:
         offer_id = offer["id"]
         state = offers.get(offer_id, {})
+        if isinstance(state,dict) and state.get("deleted_at"):
+            continue
         item = dict(offer)
         if isinstance(state, dict):
             if state.get("x") is not None:
@@ -267,7 +271,7 @@ def get_all_offers():
         seen.add(offer_id)
 
     for offer_id, state in offers.items():
-        if offer_id in seen or not isinstance(state, dict):
+        if offer_id in seen or not isinstance(state, dict) or state.get("deleted_at"):
             continue
         x = safe_int(state.get("x"))
         y = safe_int(state.get("y"))
@@ -506,11 +510,13 @@ def private_menu(owner_private=False):
         [{"text": "📥 Отчёт об атаке", "callback_data": "attack_report"}],
         [{"text": "🔎 Добавить скаут-проверку", "callback_data": "scout_report"}],
     ]
+    keyboard.append([{"text":"🔭 План по вражескому офферу","callback_data":"scout_plan_offers"}])
     if owner_private:
         keyboard.extend([
             [{"text": "🔭 План скаут-проверок", "callback_data": "scout_plan"}],
             [{"text": "📚 История скаутов", "callback_data": "scout_history"}],
             [{"text": "🏟 Офферы и Арены", "callback_data": "set_arena"}],
+            [{"text":"🗑 Удалить вражеского оффера","callback_data":"offer_delete_list"}],
             [{"text": "⚙️ Настройки разведки", "callback_data": "scout_settings"}],
         ])
     return {"inline_keyboard": keyboard}
@@ -2328,15 +2334,19 @@ def estimate_arena_for_time_range(
 # ОФФЕРЫ
 # ============================================================
 
-def get_offer(
-    offer_id,
-):
+def get_offer(offer_id):
+    offer=load_offers().get(offer_id)
+    return offer if isinstance(offer,dict) and not offer.get('deleted_at') else None
 
-    offers = load_offers()
 
-    return offers.get(
-        offer_id
-    )
+def delete_enemy_offer(offer_id,user_id):
+    offers=load_offers()
+    offer=offers.get(offer_id)
+    if not isinstance(offer,dict) or offer.get('deleted_at'):return False
+    offer.update(deleted_at=time.time(),deleted_by=user_id)
+    save_json(OFFERS_FILE,offers)
+    return True
+
 
 
 def set_arena(
@@ -2528,6 +2538,9 @@ def offers_keyboard(
                 }
             ]
         )
+
+    if prefix=="manual_offer":
+        keyboard.append([{"text":"🗑 Удалить вражеского оффера","callback_data":"offer_delete_list"}])
 
     if prefix in ("attack_offer", "manual_offer"):
         keyboard.append(
@@ -3671,7 +3684,7 @@ def add_or_get_manual_offer(
     offers = load_offers()
 
     for offer_id, offer in offers.items():
-        if not isinstance(offer, dict):
+        if not isinstance(offer, dict) or offer.get("deleted_at"):
             continue
         if (
             safe_int(offer.get("x")) == x
@@ -5666,7 +5679,7 @@ def show_offers_status(
         "",
     ]
 
-    for offer in ENEMY_OFFERS:
+    for offer in get_all_offers():
 
         state = offers.get(
             offer["id"],
@@ -6174,6 +6187,8 @@ def show_precise_arena_auto_plan(chat_id, attack):
             "",
         ])
 
+        lines.extend(scout_arena_notes(offer["x"],offer["y"],target,sv))
+
     chunk = ""
     for line in lines:
         candidate = chunk + line + "\n"
@@ -6186,7 +6201,18 @@ def show_precise_arena_auto_plan(chat_id, attack):
         send_message(chat_id, chunk)
 
 
-def build_scout_plan():
+def scout_arena_notes(offer_x,offer_y,target,scout_village):
+    notes=[]
+    enemy_distance=travian_distance(offer_x,offer_y,target['x'],target['y'])
+    scout_distance=travian_distance(scout_village['x'],scout_village['y'],offer_x,offer_y)
+    if enemy_distance<=20:
+        notes.append(f'ℹ️ Враг → цель: {enemy_distance:.1f} поля (не более 20). Арена врага не влияет на время пути; по этой цели определить её уровень нельзя.')
+    if scout_distance<=20:
+        notes.append(f'ℹ️ Наши разведчики → оффер: {scout_distance:.1f} поля (не более 20). Арена скаут-деревни не влияет на время пути.')
+    return notes
+
+
+def build_scout_plan(offer_id=None):
     operation_head, operation_attacks = active_operation_context()
     if not operation_head:
         return None, "Нет активной операции."
@@ -6212,7 +6238,8 @@ def build_scout_plan():
     tasks = []
 
     for offer in get_all_offers():
-        offer_id = offer.get("id") or offer.get("offer_id")
+        selected_id = offer.get("id") or offer.get("offer_id")
+        if offer_id is not None and selected_id!=offer_id:continue
         arenas = offer_arena_hypotheses(offer, operation_attacks)
         arena_count = len(arenas)
 
@@ -6248,7 +6275,7 @@ def build_scout_plan():
             send_before, send_after, scout_village, scout_seconds = source
 
             tasks.append({
-                "offer_id": offer_id,
+                "offer_id": selected_id,
                 "offer_x": offer["x"],
                 "offer_y": offer["y"],
                 "arena": arena,
@@ -6261,12 +6288,17 @@ def build_scout_plan():
                 "scout_village": scout_village,
             })
 
+    unique={}
+    for task in tasks:
+        key=(task["offer_id"],task["target"]["x"],task["target"]["y"],task["send_before"],task["send_after"])
+        unique.setdefault(key,task)
+    tasks=list(unique.values())
     tasks.sort(key=lambda t: t["send_before"])
     return tasks, None
 
 
-def show_scout_plan(chat_id):
-    tasks, error = build_scout_plan()
+def show_scout_plan(chat_id,offer_id=None):
+    tasks, error = build_scout_plan(offer_id)
     if error:
         send_message(chat_id, f"🔭 <b>План скаут-проверок</b>\n\n{html.escape(error)}")
         return
@@ -6285,10 +6317,11 @@ def show_scout_plan(chat_id):
         owner = get_offer_owner(offer) if offer else None
         target = task["target"]
         sv = task["scout_village"]
+        arena_label="Арена не влияет" if travian_distance(task["offer_x"],task["offer_y"],target["x"],target["y"])<=20 else f"A{task['arena']}"
         lines.extend([
             "━━━━━━━━━━━━━━━━━━",
             f"⚔️ <b>{html.escape(owner or task['offer_id'])}</b> "
-            f"({task['offer_x']}|{task['offer_y']}) • A{task['arena']}",
+            f"({task['offer_x']}|{task['offer_y']}) • {arena_label}",
             "",
             f"🎯 Проверяем атаку на "
             f"<b>{html.escape(target.get('player_name') or 'игрок')} "
@@ -6301,6 +6334,8 @@ def show_scout_plan(chat_id):
             f"<code>{task['send_after'].strftime('%H:%M:%S')}</code>",
             "",
         ])
+
+        lines.extend(scout_arena_notes(task["offer_x"],task["offer_y"],target,sv))
 
     # Telegram message limit: делим длинный план на части.
     chunk = ""
@@ -6435,7 +6470,8 @@ def process_callback(
 
     # Изменение Арены и настройки разведки доступны только владельцу в личке.
     owner_only = (
-        data == "set_arena"
+        data.startswith("offer_delete")
+        or data == "set_arena"
         or data == "arena_add_offer"
         or data.startswith("manual_offer:")
         or data.startswith("arena_suggest:")
@@ -6463,6 +6499,31 @@ def process_callback(
             else main_menu(owner_private=False),
         )
 
+        return
+
+    if data.startswith('offer_delete'):
+        if data=='offer_delete_list':
+            edit_message(chat_id,message['message_id'],'🗑 Выберите оффера для удаления. История атак и сканов сохранится.',offers_keyboard('offer_delete'))
+        elif data.startswith('offer_delete_confirm:'):
+            offer_id=data.split(':',1)[1]
+            removed=delete_enemy_offer(offer_id,user_id)
+            clear_session(chat_id,user_id)
+            send_message(chat_id,'✅ Оффер удалён из базы выбора и новых планов. История сохранена.' if removed else 'Оффер уже удалён или не найден.',reply_markup=private_menu(owner_private=True))
+        elif data.startswith('offer_delete:'):
+            offer_id=data.split(':',1)[1];offer=get_offer(offer_id)
+            if not offer:send_message(chat_id,'Оффер уже удалён или не найден.');return
+            name=get_offer_owner(offer) or offer_id
+            edit_message(chat_id,message['message_id'],f'Удалить <b>{html.escape(name)}</b> ({offer["x"]}|{offer["y"]})? История сохранится.',{'inline_keyboard':[[{'text':'🗑 Подтвердить удаление','callback_data':'offer_delete_confirm:'+offer_id}],[{'text':'Отмена','callback_data':'offer_delete_list'}]]})
+        return
+    if data=='scout_plan_offers' or data.startswith('scout_plan_offer:'):
+        if not private_chat:
+            answer_callback(callback_id,'Откройте этот раздел в личных сообщениях боту.');return
+        if data=='scout_plan_offers':
+            edit_message(chat_id,message['message_id'],'🔭 Выберите вражеского оффера для личного плана проверок:',offers_keyboard('scout_plan_offer'))
+        else:
+            offer_id=data.split(':',1)[1]
+            if not get_offer(offer_id):send_message(chat_id,'Оффер уже удалён или не найден.');return
+            show_scout_plan(chat_id,offer_id)
         return
 
     if data == "scout_plan":
