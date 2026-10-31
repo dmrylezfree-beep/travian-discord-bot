@@ -856,3 +856,29 @@ class EnemyOfferSpeedTests(unittest.TestCase):
   self.a.set_offer_speed('offer_1',4,1)
   with patch.object(self.a,'set_arena') as save:
    self.click('arena_suggest:offer_1:5:3');save.assert_not_called()
+
+
+class ScoutVillageArenaEditTests(EnemyOfferManagementTests):
+ def setUp(self):
+  super().setUp()
+  self.mocked("SCOUT_VILLAGES_FILE",new=Path(self.tmp.name)/"scout_villages.json")
+ def test_update_preserves_other_settings_and_changes_travel(self):
+  a=self.a
+  village={'x':22,'y':63,'arena':7,'scout_speed':16,'tribe_id':1,'player_name':'Scout'}
+  a.save_json(a.SCOUT_VILLAGES_FILE,[village,{'x':1,'y':2,'arena':3,'scout_speed':16}])
+  self.click('scout_arena_list');self.assertIn('22 63',str(self.edit.call_args))
+  self.click('scout_arena_choose:22:63');self.assertIn('scout_arena_set:22:63:20',str(self.edit.call_args))
+  with patch.object(a,'persist_attacks_data_to_github'):
+   self.click('scout_arena_set:22:63:12')
+  saved=a.load_scout_villages();self.assertEqual(saved[0],dict(village,arena=12));self.assertEqual(saved[1]['arena'],3)
+  self.assertLess(a.unit_travel_time_seconds(100,16,saved[0]['arena']),a.unit_travel_time_seconds(100,16,7))
+ def test_only_owner_private_valid_level_and_existing_village(self):
+  a=self.a;a.save_json(a.SCOUT_VILLAGES_FILE,[{'x':22,'y':63,'arena':7}])
+  with patch.object(a,'persist_attacks_data_to_github') as persist:
+   self.click('scout_arena_set:22:63:12',uid=2)
+   self.click('scout_arena_set:22:63:12',private=False)
+   self.click('scout_arena_set:22:63:21')
+   self.click('scout_arena_set:22:63:-1')
+   self.click('scout_arena_set:99:99:12')
+   persist.assert_not_called()
+  self.assertEqual(a.load_scout_villages(),[{'x':22,'y':63,'arena':7}])

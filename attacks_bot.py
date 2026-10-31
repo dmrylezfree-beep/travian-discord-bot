@@ -6506,6 +6506,7 @@ def scout_settings_menu():
         "inline_keyboard": [
             [{"text": "⭐ Добавить важную деревню", "callback_data": "add_important"}],
             [{"text": "🛰 Добавить скаут-деревню", "callback_data": "add_scout_village"}],
+            [{"text": "⚙️ Изменить арену скаут-деревни", "callback_data": "scout_arena_list"}],
             [{"text": "📋 Показать настройки", "callback_data": "show_scout_settings"}],
             [{"text": "⬅️ Назад", "callback_data": "menu"}],
         ]
@@ -6621,7 +6622,7 @@ def process_callback(
 
     # Изменение Арены и настройки разведки доступны только владельцу в личке.
     owner_only = (
-        data.startswith(("offer_delete","offer_speed"))
+        data.startswith(("offer_delete","offer_speed","scout_arena_"))
         or data == "set_arena"
         or data == "arena_add_offer"
         or data.startswith("manual_offer:")
@@ -6747,6 +6748,38 @@ def process_callback(
         session["flow"] = "scout_settings"
         session["step"] = "important_coords"
         send_message(chat_id, "⭐ Введите координаты важной деревни: <code>55 46</code>")
+        return
+
+    if data.startswith("scout_arena_"):
+        parts = data.split(":")
+        villages = load_scout_villages()
+        if data == "scout_arena_list":
+            rows = [[{"text": f"{v['x']} {v['y']} · Арена {v.get('arena', 0)}", "callback_data": f"scout_arena_choose:{v['x']}:{v['y']}"}] for v in villages]
+            rows.append([{"text": "⬅️ Настройки разведки", "callback_data": "scout_settings"}])
+            edit_message(chat_id, message["message_id"], "<b>Выберите скаут-деревню</b>" if villages else "Скаут-деревни пока не добавлены.", {"inline_keyboard": rows})
+            return
+        if len(parts) not in (3, 4):
+            return
+        x, y = parse_integer(parts[1]), parse_integer(parts[2])
+        village = next((v for v in villages if v.get('x') == x and v.get('y') == y), None)
+        if village is None:
+            send_message(chat_id, "Деревня больше не найдена. Откройте настройки заново.")
+            return
+        if parts[0] == "scout_arena_set" and len(parts) == 4:
+            arena = parse_integer(parts[3])
+            if arena is None or not 0 <= arena <= 20:
+                return
+            village['arena'] = arena
+            save_json(SCOUT_VILLAGES_FILE, villages)
+            persist_attacks_data_to_github()
+            edit_message(chat_id, message["message_id"], f"✅ Скаут-деревня <b>{x} {y}</b>: арена <b>{arena}</b>.\nНовые планы будут рассчитаны с этим уровнем. Откройте план заново, чтобы обновить время отправки.", scout_settings_menu())
+            return
+        if parts[0] != "scout_arena_choose" or len(parts) != 3:
+            return
+        buttons = [{"text": str(level), "callback_data": f"scout_arena_set:{x}:{y}:{level}"} for level in range(21)]
+        rows = [buttons[i:i+5] for i in range(0, len(buttons), 5)]
+        rows.append([{"text": "⬅️ К деревням", "callback_data": "scout_arena_list"}])
+        edit_message(chat_id, message["message_id"], f"Скаут-деревня <b>{x} {y}</b> · текущая арена <b>{village.get('arena', 0)}</b>.\nВыберите новый уровень арены:", {"inline_keyboard": rows})
         return
 
     if data == "add_scout_village":
