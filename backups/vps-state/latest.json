@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-10-31T19:52:44.958086+00:00",
+  "created_at": "2026-10-31T20:52:58.061282+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -2901,7 +2901,7 @@
         "required_def": 5000,
         "status": "active",
         "created_at": "2026-10-31 14:18:55",
-        "optimal_plan_updated_at": "2026-10-31 19:38:13",
+        "optimal_plan_updated_at": "2026-10-31 20:43:00",
         "contributions": [
           {
             "platform": "discord",
@@ -2936,9 +2936,9 @@
           }
         ],
         "collected_def": 2000,
-        "optimal_plan_message_id": 98275,
+        "optimal_plan_message_id": 98295,
         "optimal_plan_chat_id": -1002493230303,
-        "optimal_plan_signature": "<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #47</b>\n\n🎯 Цель: <a href=\"https://ts8.x1.asia.travian.com/karte.php?x=76&amp;y=79\">76 79</a> — <b>Kenny</b>\n⚔️ Атака: <b>31.10.2026 22:00:00</b>\n🛡 Осталось закрыть: <b>3000</b> очков\n\n<b>Рекомендуется:</b>\n\n🏘 <b>96 67</b> — Баунт\n🐎 <b>500</b> Друиды = <b>1000</b> очков\n📏 23.3 поля · отправить до <b>20:40:32</b>\n\n🏘 <b>29 92</b> — nullpoint\n🐎 <b>350</b> Друиды = <b>700</b> очков\n📏 48.8 поля · отправить до <b>20:06:28</b>\n\n🏘 <b>51 16</b> — Обморок\n🐎 <b>650</b> Друиды + герой = <b>1300</b> очков\n📏 67.8 поля · отправить до <b>19:54:51</b>\n\n📊 План: <b>3000 / 3000</b>\n🚶 Пехота: <b>0</b> · 🐎 Конница: <b>3000</b>\n⚠️ Для полного закрытия по текущему расчёту требуется конница.\n\nℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна."
+        "optimal_plan_signature": "<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #47</b>\n\n🎯 Цель: <a href=\"https://ts8.x1.asia.travian.com/karte.php?x=76&amp;y=79\">76 79</a> — <b>Kenny</b>\n⚔️ Атака: <b>31.10.2026 22:00:00</b>\n🛡 Осталось закрыть: <b>3000</b> очков\n\n📊 План: <b>0 / 3000</b>\n🚶 Пехота: <b>0</b> · 🐎 Конница: <b>0</b>\n⚠️ По указанным в настройках войскам не хватает: <b>3000</b> очков\n\nℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна."
       },
       {
         "id": 48,
@@ -2954,7 +2954,7 @@
         "required_def": 5000,
         "status": "active",
         "created_at": "2026-10-31 14:19:39",
-        "optimal_plan_updated_at": "2026-10-31 18:44:58",
+        "optimal_plan_updated_at": "2026-10-31 20:35:41",
         "contributions": [
           {
             "platform": "discord",
@@ -2974,9 +2974,9 @@
           }
         ],
         "collected_def": 4300,
-        "optimal_plan_message_id": 98262,
+        "optimal_plan_message_id": 98294,
         "optimal_plan_chat_id": -1002493230303,
-        "optimal_plan_signature": "<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #48</b>\n\n🎯 Цель: <a href=\"https://ts8.x1.asia.travian.com/karte.php?x=62&amp;y=74\">62 74</a> — <b>Reynor</b>\n⚔️ Атака: <b>31.10.2026 22:00:00</b>\n🛡 Осталось закрыть: <b>700</b> очков\n\n<b>Рекомендуется:</b>\n\n🏘 <b>43 47</b> — CrazyDaizy\n🐎 <b>350</b> Друиды = <b>700</b> очков\n📏 33.0 поля · отправить до <b>19:56:11</b>\n\n📊 План: <b>700 / 700</b>\n🚶 Пехота: <b>0</b> · 🐎 Конница: <b>700</b>\n⚠️ Для полного закрытия по текущему расчёту требуется конница.\n\nℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна."
+        "optimal_plan_signature": "<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #48</b>\n\n🎯 Цель: <a href=\"https://ts8.x1.asia.travian.com/karte.php?x=62&amp;y=74\">62 74</a> — <b>Reynor</b>\n⚔️ Атака: <b>31.10.2026 22:00:00</b>\n🛡 Осталось закрыть: <b>700</b> очков\n\n📊 План: <b>0 / 700</b>\n🚶 Пехота: <b>0</b> · 🐎 Конница: <b>0</b>\n⚠️ По указанным в настройках войскам не хватает: <b>700</b> очков\n\nℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна."
       },
       {
         "id": 49,
@@ -4208,20 +4208,20 @@
       "14175563": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 5,
+        "arena": 7,
         "army": {
           "troops": {
             "Вождь": 0,
-            "Дубинщик": 2318,
-            "Катапульта": 75,
+            "Дубинщик": 3928,
+            "Катапульта": 120,
             "Копейщик": 0,
             "Паладин": 0,
             "Скаут": 0,
-            "Стенобитное орудие": 47,
-            "Тевтонская конница": 183,
+            "Стенобитное орудие": 120,
+            "Тевтонская конница": 331,
             "Топорщик": 0
           },
-          "updated_at": "2026-10-23T23:42:56+03:00"
+          "updated_at": "2026-10-31T23:17:12+03:00"
         },
         "player": "ZHSA",
         "player_id": 933,
@@ -4618,7 +4618,7 @@
       "40|51": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-24T11:59:16+03:00",
         "map_missing": false,
@@ -4635,9 +4635,9 @@
         "y": 51
       },
       "49|21": {
-        "alliance": "KE2",
-        "alliance_id": 29,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance": "",
+        "alliance_id": 0,
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-25T00:20:28+03:00",
         "map_missing": false,
@@ -4659,7 +4659,7 @@
         "alliance_snapshot": "map_2026-10-27.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:12+03:00",
-        "map_missing": false,
+        "map_missing": true,
         "player": "卡卡東",
         "player_id": 769,
         "population": 603,
@@ -4675,7 +4675,7 @@
       "50|17": {
         "alliance": "KE",
         "alliance_id": 1,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-25T00:24:32+03:00",
         "map_missing": false,
@@ -4692,9 +4692,9 @@
         "y": 17
       },
       "51|30": {
-        "alliance": "東方華人2",
+        "alliance": "東华KE2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-25T00:24:58+03:00",
         "map_missing": false,
@@ -4705,7 +4705,7 @@
         "tribe_id": 3,
         "type": "Столица",
         "updated_at": "2026-10-25T00:24:58+03:00",
-        "village": "01-4446",
+        "village": "4446",
         "village_id": 25707,
         "x": 51,
         "y": 30
@@ -4713,7 +4713,7 @@
       "55|28": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:47+03:00",
         "map_missing": false,
@@ -4730,9 +4730,9 @@
         "y": 28
       },
       "61|23": {
-        "alliance": "東方華人2",
+        "alliance": "東华KE2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-25T00:23:34+03:00",
         "map_missing": false,
@@ -4751,7 +4751,7 @@
       "63|65": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-27.sql",
+        "alliance_snapshot": "map_2026-10-31.sql",
         "comment": "",
         "created_at": "2026-10-10T17:45:56+03:00",
         "map_missing": false,
