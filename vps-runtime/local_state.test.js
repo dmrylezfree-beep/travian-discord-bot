@@ -245,3 +245,17 @@ test('Discord commits full overfill before refreshing displays and rejects close
   assert.ok((await saveDiscordPledge({}, {},'55',78,'en',250)).error);
  }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
 });
+
+test('amount submission without configured villages records defence immediately',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-direct-'));const oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;process.env.DEFENCE_DATA_DIR=dir;
+ const background=[];
+ globalThis.fetch=async()=>new Response('{}',{status:200,headers:{'content-type':'application/json'}});
+ try{
+  await saveState('data/defence/discord_players.json',{'55':{travian_uid:10,player_name:'fixture',villages:[]}},(await readState('data/defence/discord_players.json')).sha);
+  await saveState('data/defence/requests.json',[{id:77,status:'active',required_def:1000,collected_def:0,target_x:1,target_y:2,attack_time:'2030-01-02 22:00:00'}],(await readState('data/defence/requests.json')).sha);
+  const response=await handleDiscordInteraction({type:5,guild_id:'1430982178074005507',channel_id:'1430982180401578153',member:{user:{id:'55'}},token:'fixture',application_id:'fixture',data:{custom_id:'def_sendamount_77_en',components:[{components:[{value:'250'}]}]}},{DISCORD_BOT_TOKEN:'fixture',DEFENCE_REMINDERS:{send:async()=>{}}},{waitUntil(p){background.push(p);}});
+  await Promise.all(background);
+  assert.equal(response.status,200);
+  const q=(await readState('data/defence/requests.json')).data[0];assert.equal(q.collected_def,250);assert.equal(q.contributions.length,1);assert.deepEqual(q.contributions[0].plan,[]);
+ }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});

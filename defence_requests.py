@@ -1479,11 +1479,14 @@ def process_text(message):
         player["state"]["required_def"] = required
         player["state"]["type"] = "request_confirm"
         save_request_wizard_state(data)
-        confirmation=bot.send(chat_id, request_summary(player), confirm_keyboard())
-        if isinstance(confirmation,dict) and confirmation.get('message_id'):
-            player['state']['confirmation_message_id']=confirmation['message_id']
-            player['state']['confirmation_chat_id']=chat_id
+        progress = bot.send(chat_id, "⏳ Сохраняю заявку…")
+        if isinstance(progress, dict) and progress.get('message_id'):
+            player['state']['confirmation_message_id'] = progress['message_id']
+            player['state']['confirmation_chat_id'] = chat_id
             save_request_wizard_state(data)
+            callback_query({'from': user, 'data': 'request_confirm', 'message': dict(message, message_id=progress['message_id'])})
+        else:
+            bot.send(chat_id, "Не удалось начать сохранение. Попробуйте ещё раз.", confirm_keyboard())
         return
 
     return _original_process_text(message)
@@ -1503,7 +1506,8 @@ def callback_query(q):
     data, player = bot.get_player(user)
     sync_player_race(player)
     chat_id, msg_id = message["chat"]["id"], message["message_id"]
-    bot.answer_callback(q.get("id"))
+    if q.get("id"):
+        bot.answer_callback(q.get("id"))
 
     if action == "menu":
         # Return only the transient control message to the main view.  The
@@ -1833,7 +1837,7 @@ def callback_query(q):
         bot.save_players(data)
         used = [x["village_idx"] for x in draft]
         can_add = any(x["idx"] not in used for x in village_send_options(player, req))
-        bot.edit(chat_id, msg_id, draft_summary(player["state"], req), draft_actions_keyboard(req_id, can_add))
+        callback_query(dict(q, id=None, data=f"send_finish:{req_id}"))
         return
 
     if action.startswith("send_add:"):
@@ -1882,7 +1886,10 @@ def callback_query(q):
         result = draft_summary({"draft": accepted_draft or draft}, req) + f"\n\n✅ Записано: <b>{accepted_total}</b> очков."
         if req.get("status") != "closed":
             result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
-        bot.edit(chat_id, msg_id, result, request_menu())
+        menu = request_menu()
+        if req.get("status") == "active":
+            menu = bot.kb([[{"text": "➕ Отправить ещё деф", "callback_data": f"send_req:{req_id}"}]])
+        bot.edit(chat_id, msg_id, result, menu)
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
@@ -1960,7 +1967,7 @@ def callback_query(q):
                 current=bot.load_json(bot.REQUESTS_FILE,[])
                 req=next((r for r in current if r.get('submission_key')==submission_key),None)
                 if req is None:
-                    bot.answer_callback(q.get('id'),'Не удалось подтвердить сохранение. Нажмите эту же кнопку ещё раз — новая заявка не создастся.')
+                    bot.edit(chat_id,msg_id,'❌ Не удалось сохранить заявку. Повторите попытку — дубликат не создастся.',bot.kb([[{'text':'🔄 Повторить сохранение','callback_data':'request_confirm'}]]))
                     return
             saved=req
         player['last_request_confirmation']={'submission_key':submission_key,'request_id':saved['id']}

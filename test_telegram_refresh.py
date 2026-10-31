@@ -555,7 +555,7 @@ class DefenceConfirmationTests(unittest.TestCase):
  def test_failed_save_keeps_form_for_safe_retry(self):
   original=self.sync.side_effect;self.sync.side_effect=lambda req:None
   defence.callback_query(self.q);self.assertEqual(self.db,[]);self.assertEqual(self.player['state']['type'],'request_confirm')
-  self.edit.assert_not_called();self.sync.side_effect=original;defence.callback_query(self.q);self.assertEqual(len(self.db),1)
+  self.assertIn('Повторите',self.edit.call_args.args[2]);self.sync.side_effect=original;defence.callback_query(self.q);self.assertEqual(len(self.db),1)
  def test_unrelated_old_message_does_not_submit_or_erase_new_form(self):
   self.player['state']['confirmation_message_id']=222;before=self.copy(self.player['state']);defence.callback_query(self.q)
   self.assertEqual(self.player['state'],before);self.sync.assert_not_called();self.edit.assert_not_called()
@@ -882,3 +882,33 @@ class ScoutVillageArenaEditTests(EnemyOfferManagementTests):
    self.click('scout_arena_set:99:99:12')
    persist.assert_not_called()
   self.assertEqual(a.load_scout_villages(),[{'x':22,'y':63,'arena':7}])
+
+
+class DefenceDirectCreationTests(DefenceConfirmationTests):
+ def test_amount_commits_without_confirmation_buttons(self):
+  self.player['state']=dict(self.form,type='request_def_amount')
+  message=dict(self.q['message'],text='2000',**{'from':self.q['from']})
+  with patch.object(defence.bot,'send',return_value={'message_id':111}) as send, patch.object(defence.bot,'in_def_thread',return_value=True),patch.object(defence,'adopt_pinned_centre',return_value=False):
+   defence.process_text(message)
+  self.assertEqual(len(self.db),1);self.assertEqual(self.db[0]['required_def'],2000);self.assertIsNone(self.player['state'])
+  self.assertEqual(send.call_args.args,(-100,'⏳ Сохраняю заявку…'))
+  self.assertEqual(self.notify.call_count,1)
+
+
+class DefenceDirectPledgeTests(unittest.TestCase):
+ def test_route_choice_immediately_records_and_reminds(self):
+  from contextlib import ExitStack
+  plan=[dict(village='1|2',def_points=150,speed_mode='foot',deadline='20:00',reminder_time='19:55'),dict(village='3|4',def_points=100,speed_mode='foot',deadline='21:00',reminder_time='20:55')]
+  player={'state':{'type':'send_village_amount','request_id':77,'village_idx':0,'pending_amount':250,'draft':[]}};req=dict(id=77,status='active',required_def=1000,collected_def=900,contributions=[],target_x=1,target_y=2,attack_time_display='fixture')
+  q={'id':'test','from':{'id':55},'data':'send_speed:77:0:foot','message':{'chat':{'id':-100,'type':'supergroup'},'message_id':111,'message_thread_id':defence.bot.THREAD_ID}}
+  with ExitStack() as stack:
+   def mocked(obj,name,**kw):return stack.enter_context(patch.object(obj,name,**kw))
+   mocked(defence.bot,'get_player',return_value=({'55':player},player));mocked(defence,'sync_player_race');mocked(defence.bot,'handle_guide_callback',return_value=False)
+   mocked(defence.bot,'telegram_member_tag',return_value='fixture');mocked(defence.bot,'answer_callback');mocked(defence.bot,'load_json',return_value=[req]);mocked(defence.bot,'save_json');mocked(defence.bot,'save_players')
+   sync=mocked(defence,'sync_request_to_worker',side_effect=lambda r:r);reminders=mocked(defence,'schedule_defence_reminders');mocked(defence,'refresh_optimal_plans');mocked(defence,'refresh_center');edit=mocked(defence.bot,'edit')
+   from datetime import datetime
+   deadline=datetime(2030,1,2,20,0,tzinfo=defence.SERVER_TZ)
+   mocked(defence,'village_send_options',return_value=[{'idx':0,'village':{'coordinates':'1|2'},'variants':[{'key':'foot','deadline':deadline,'label':'foot'}]}])
+   defence.callback_query(q)
+   self.assertEqual(req['collected_def'],1150);self.assertEqual(req['status'],'closed');self.assertEqual(defence.request_remaining(req),0)
+   self.assertEqual(req['contributions'][0]['def_points'],250);self.assertEqual(len(req['contributions'][0]['plan']),1);self.assertEqual(req['contributions'][0]['plan'][0]['def_points'],250);reminders.assert_called_once_with(req,req['contributions'][0]);sync.assert_called_once();self.assertIsNone(player['state']);self.assertIn('250',edit.call_args.args[2])
