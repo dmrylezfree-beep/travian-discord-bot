@@ -960,3 +960,52 @@ class DefencePrivateTimedPledgeTests(unittest.TestCase):
    defence.callback_query(q)
    self.assertEqual(req['collected_def'],1150);self.assertEqual(req['status'],'closed');self.assertEqual(defence.request_remaining(req),0)
    self.assertEqual(req['contributions'][0]['def_points'],250);self.assertEqual(len(req['contributions'][0]['plan']),1);self.assertEqual(req['contributions'][0]['plan'][0]['def_points'],250);reminders.assert_called_once_with(req,req['contributions'][0]);sync.assert_called_once();self.assertIsNone(player['state']);self.assertIn('250',edit.call_args.args[2])
+
+class DelegatedDefenceTests(unittest.TestCase):
+ def setUp(self):
+  import copy
+  from contextlib import ExitStack
+  self.copy=copy.deepcopy;self.stack=ExitStack();self.addCleanup(self.stack.close)
+  def mocked(obj,name,**kw):return self.stack.enter_context(patch.object(obj,name,**kw))
+  self.mocked=mocked
+  self.actor={'telegram_id':55,'first_name':'Deputy','state':None,'villages':[],'private_chat_id':55}
+  self.owner={'telegram_id':99,'first_name':'Owner','substitutes':[55],'villages':[{'coordinates':'10 20'}],'state':{'type':'settings'},'hero_inventory':{'standards':[30]},'private_chat_id':99}
+  self.data={'55':self.actor,'99':self.owner};self.req=dict(id=77,status='active',required_def=2000,collected_def=0,contributions=[],target_x=1,target_y=2,target_player='Target',attack_time='2030-01-02 22:00:00',attack_time_display='fixture')
+  self.message={'chat':{'id':55,'type':'private'},'message_id':111};self.user={'id':55,'first_name':'Deputy'}
+  mocked(defence.bot,'get_player',return_value=(self.data,self.actor));mocked(defence.bot,'players',side_effect=lambda:self.data);mocked(defence,'sync_player_race');mocked(defence.bot,'handle_guide_callback',return_value=False);mocked(defence,'adopt_pinned_centre',return_value=False)
+  mocked(defence.bot,'telegram_member_tag',side_effect=lambda uid:{55:'Deputy',99:'Owner'}.get(uid,''));mocked(defence.bot,'player_name',side_effect=lambda p:p.get('first_name','fixture'));mocked(defence.bot,'answer_callback');mocked(defence.bot,'load_json',return_value=[self.req]);mocked(defence.bot,'save_json');mocked(defence.bot,'save_players')
+  self.options=mocked(defence,'village_send_options',return_value=[]);mocked(defence,'best_source_options',return_value=[])
+  mocked(defence,'sync_request_to_worker',side_effect=lambda r:r);mocked(defence,'refresh_optimal_plans');mocked(defence,'refresh_center');self.send=mocked(defence.bot,'send');self.edit=mocked(defence.bot,'edit');self.original_schedule=defence.schedule_defence_reminders;self.reminders=mocked(defence,'schedule_defence_reminders')
+ def click(self,action):defence.callback_query({'id':'fixture','from':self.user,'message':self.message,'data':action})
+ def text(self,value):defence.process_text(dict(self.message,text=value,**{'from':self.user}))
+ def test_buttons_and_single_account_immediate_amount(self):
+  keyboard=str(defence.send_def_plan_keyboard(self.actor,self.req));self.assertIn('Отправить деф от себя',keyboard);self.assertIn('send_other:77',keyboard)
+  before=self.copy(self.owner);self.click('send_other:77');self.assertEqual(self.actor['state']['type'],'send_total_amount');self.assertIn('Owner',self.send.call_args.args[1]);self.assertEqual(self.owner,before)
+  self.text('250');c=self.req['contributions'][0];self.assertEqual(c['telegram_id'],99);self.assertEqual(c['recorded_by_telegram_id'],55);self.assertEqual(c['reminder_telegram_id'],55);self.assertEqual(c['def_points'],250);self.assertEqual(self.owner,before);self.assertIn('записал',self.send.call_args.args[1])
+ def test_multiple_accounts_choose_and_forged_or_revoked_access(self):
+  self.data['100']=dict(self.owner,telegram_id=100,first_name='Second')
+  self.click('send_other:77');self.assertIn('send_account:77:99',str(self.edit.call_args));self.assertIn('send_account:77:100',str(self.edit.call_args));self.assertIsNone(self.actor['state'])
+  self.click('send_account:77:101');self.assertIsNone(self.actor['state']);self.assertEqual(self.req['contributions'],[])
+  self.click('send_account:77:99');self.owner['substitutes']=[];self.text('250');self.assertEqual(self.req['contributions'],[]);self.assertIsNone(self.actor['state'])
+ def test_own_button_resets_selected_account(self):
+  self.click('send_other:77');self.click('send_amount:77');self.text('250');c=self.req['contributions'][0];self.assertEqual(c['telegram_id'],55);self.assertNotIn('recorded_by_telegram_id',c)
+ def test_owner_troops_hero_and_arena_used_for_timed_send(self):
+  from datetime import datetime
+  before=self.copy(self.owner);deadline=datetime(2030,1,2,20,0,tzinfo=defence.SERVER_TZ)
+  self.options.return_value=[{'idx':0,'village':{'coordinates':'10 20'},'variants':[{'key':'foot','deadline':deadline,'label':'Owner route'}]}]
+  self.mocked(defence,'send_village_keyboard',return_value={})
+  self.click('send_other:77');self.text('250');self.click('send_village:77:0');self.click('send_speed:77:0:foot')
+  self.assertTrue(all(call.args[0] is self.owner for call in self.options.call_args_list));self.assertEqual(self.owner,before)
+  c=self.req['contributions'][0];self.assertEqual(c['telegram_id'],99);self.assertEqual(c['plan'][0]['village'],'10 20');self.reminders.assert_called_once_with(self.req,c)
+ def test_revocation_before_route_click_and_wrong_request_blocks_write(self):
+  self.click('send_other:77');self.owner['substitutes']=[];self.click('send_speed:77:0:foot');self.assertEqual(self.req['contributions'],[])
+  self.owner['substitutes']=[55];self.click('send_other:77');self.click('send_finish:78');self.assertEqual(self.req['contributions'],[])
+ def test_no_delegation_button_or_access_without_owner_grant(self):
+  self.owner['substitutes']=[];self.assertNotIn('send_other:',str(defence.send_def_plan_keyboard(self.actor,self.req)))
+  self.click('send_account:77:99');self.assertEqual(self.req['contributions'],[]);self.assertIsNone(self.actor['state'])
+ def test_reminder_recipient_is_operator_not_troop_owner(self):
+  import os
+  contribution={'telegram_id':99,'reminder_telegram_id':55,'plan':[{'village':'10 20','def_points':250,'reminder_at':'2030-01-02 19:55:00','reminder_at_ms':1893614100000}]}
+  with patch.dict(os.environ,{'DEFENCE_TELEGRAM_TOKEN':'fixture'}),patch.object(defence.requests,'post') as post:
+   self.assertTrue(self.original_schedule(self.req,contribution))
+   queued=post.call_args.kwargs['json']['reminders'][0];self.assertEqual(queued['telegram_id'],55);self.assertEqual(queued['private_chat_id'],55)

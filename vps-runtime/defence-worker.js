@@ -1007,13 +1007,15 @@ export default {
                     contribution?.platform || "telegram",
                     contribution?.user_id ?? contribution?.telegram_id ?? "",
                     contribution?.created_at || "",
-                    Number(contribution?.def_points || 0)
+                    Number(contribution?.def_points || 0),
+                    contribution?.recorded_by_telegram_id || ""
                   ]);
                   const exists = merged.some(existing => JSON.stringify([
                     existing?.platform || "telegram",
                     existing?.user_id ?? existing?.telegram_id ?? "",
                     existing?.created_at || "",
-                    Number(existing?.def_points || 0)
+                    Number(existing?.def_points || 0),
+                    existing?.recorded_by_telegram_id || ""
                   ]) === key);
                   if (exists) continue;
                   // Keep the actual pledge and all departure reminders, even

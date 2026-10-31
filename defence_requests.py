@@ -27,6 +27,42 @@ _original_process_text = bot.process_text
 _original_callback_query = bot.callback_query
 
 
+def delegated_accounts(data, actor_id):
+    if not isinstance(data, dict):
+        return []
+    return [(str(key), value) for key, value in data.items() if isinstance(value, dict)
+            and str(key) != str(actor_id) and str(actor_id) in {str(x) for x in value.get("substitutes", [])}]
+
+
+def defence_source_player(data, actor, actor_id, request_id):
+    context = actor.get("defence_send_account") or {}
+    if not context:
+        return actor
+    if str(context.get("request_id")) != str(request_id):
+        return None
+    return next((value for key, value in delegated_accounts(data, actor_id) if key == str(context.get("owner_id"))), None)
+
+
+def pledge_identity(actor, source, user):
+    context = actor.get("defence_send_account") or {}
+    owner_id = int(context.get("owner_id") or user["id"])
+    result = {"telegram_id": owner_id, "username": source.get("username", user.get("username", "")),
+              "first_name": bot.telegram_member_tag(owner_id) or source.get("first_name", user.get("first_name", ""))}
+    if owner_id != int(user["id"]):
+        result.update({"recorded_by_telegram_id": int(user["id"]), "recorded_by_username": user.get("username", ""),
+                       "recorded_by_name": bot.telegram_member_tag(user["id"]) or user.get("first_name", ""),
+                       "reminder_telegram_id": int(user["id"])})
+    return result
+
+
+def pledge_account_text(contribution):
+    if not contribution.get("recorded_by_telegram_id"):
+        return ""
+    owner = html.escape(str(contribution.get("first_name") or contribution["telegram_id"]))
+    actor = html.escape(str(contribution.get("recorded_by_name") or contribution["recorded_by_telegram_id"]))
+    return f'\n👤 Войска: <a href="tg://user?id={int(contribution["telegram_id"])}">{owner}</a> · записал <a href="tg://user?id={int(contribution["recorded_by_telegram_id"])}">{actor}</a>\n'
+
+
 def schedule_defence_reminders(req, contribution):
     """Queue exact private reminders without any permanent GitHub cron."""
     token = os.environ.get("DEFENCE_TELEGRAM_TOKEN")
@@ -35,7 +71,7 @@ def schedule_defence_reminders(req, contribution):
         return False
 
     players = bot.players()
-    player = players.get(str(contribution.get("telegram_id"))) or {}
+    player = players.get(str(contribution.get("reminder_telegram_id") or contribution.get("telegram_id"))) or {}
     private_chat_id = player.get("private_chat_id")
     if not private_chat_id or not player.get("private_notifications", True):
         print("Reminder scheduling skipped: private notifications are unavailable", flush=True)
@@ -48,7 +84,7 @@ def schedule_defence_reminders(req, contribution):
             continue
         reminders.append({
             "request_id": req.get("id"),
-            "telegram_id": contribution.get("telegram_id"),
+            "telegram_id": contribution.get("reminder_telegram_id") or contribution.get("telegram_id"),
             "private_chat_id": int(private_chat_id),
             "village": item.get("village"),
             "def_points": int(item.get("def_points", 0) or 0),
@@ -674,14 +710,16 @@ def send_def_plan_text(player, req):
     return "\n".join(lines)
 
 
-def send_def_plan_keyboard(player, req):
+def send_def_plan_keyboard(player, req, players_data=None):
     # A player may pledge defence even when troop settings are empty or stale.
     # Settings are advisory: they are used for travel-time calculations and
     # notifications, never as a prerequisite for declaring an actual send.
     rows = [[{
-        "text": "🛡 Отправить деф",
+        "text": "🛡 Отправить деф от себя",
         "callback_data": f"send_amount:{req['id']}",
     }]]
+    if delegated_accounts(players_data if players_data is not None else bot.players(), player.get("telegram_id")):
+        rows.append([{"text": "👥 Отправить деф с другого аккаунта", "callback_data": f"send_other:{req['id']}"}])
     rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
     return bot.kb(rows)
 
@@ -1332,6 +1370,15 @@ def process_text(message):
         return _original_process_text(message)
 
     typ = state.get("type")
+    source_player = player
+    if typ in {"send_total_amount", "send_village_amount", "send_draft"}:
+        source_player = defence_source_player(data, player, user["id"], state.get("request_id"))
+        if source_player is None:
+            player["state"] = None
+            player.pop("defence_send_account", None)
+            bot.save_players(data)
+            bot.send(chat_id, "❌ Доступ к аккаунту больше недоступен. Выберите отправку заново.", request_menu())
+            return
     if typ == "send_total_amount":
         amount = bot.to_int(text)
         req_id = int(state.get("request_id", 0) or 0)
@@ -1346,7 +1393,7 @@ def process_text(message):
             bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
             return
 
-        options = village_send_options(player, req)
+        options = village_send_options(source_player, req)
         if options:
             player["state"] = {
                 "type": "send_draft",
@@ -1360,7 +1407,7 @@ def process_text(message):
                 f"<b>🛡 Указано: {amount} очков дефа</b>\n\n"
                 "Теперь выберите деревню отправки. Настройки используются только "
                 "для расчёта времени отправки:",
-                send_village_keyboard(player, req),
+                send_village_keyboard(source_player, req),
             )
             return
 
@@ -1368,9 +1415,7 @@ def process_text(message):
         # We cannot calculate a departure deadline without a configured source
         # village/unit speed, so save the contribution without a timing plan.
         contribution = {
-            "telegram_id": int(user.get("id", 0)),
-            "username": user.get("username", ""),
-            "first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""),
+            **pledge_identity(player, source_player, user),
             "def_points": amount,
             "plan": [],
             "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -1385,7 +1430,8 @@ def process_text(message):
         refresh_center(chat_id=chat_id, create_if_missing=True)
         bot.send(
             chat_id,
-            f"✅ Принято: <b>{amount}</b> очков дефа в заявку #{req_id}.\n\n"
+            f"✅ Принято: <b>{amount}</b> очков дефа в заявку #{req_id}.\n"
+            + pledge_account_text(contribution) + "\n"
             "⏱ Время отправки не рассчитано, потому что в настройках нет подходящих данных о дефе.",
             request_menu(),
         )
@@ -1405,7 +1451,7 @@ def process_text(message):
             bot.save_players(data)
             bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
             return
-        option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None)
+        option = next((x for x in village_send_options(source_player, req) if x["idx"] == village_idx), None)
         if option is None:
             bot.send(chat_id, "❌ Эта деревня уже не успевает.", request_menu())
             return
@@ -1502,7 +1548,7 @@ def callback_query(q):
     is_private = message.get("chat", {}).get("type") == "private"
     if is_private:
         private_action = q.get("data", "")
-        if private_action != "send_def" and not private_action.startswith(("send_req:", "send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
+        if private_action != "send_def" and not private_action.startswith(("send_other:", "send_account:", "send_req:", "send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
             return _original_callback_query(q)
     if not is_private and message.get("message_thread_id") != bot.THREAD_ID:
         return
@@ -1516,6 +1562,40 @@ def callback_query(q):
         bot.save_json(bot.PLAYERS_FILE, data)
     if q.get("id"):
         bot.answer_callback(q.get("id"))
+
+    source_player = player
+    selected_account = False
+    if action.startswith("send_other:"):
+        req_id = int(action.split(":")[1])
+        accounts = delegated_accounts(data, user["id"])
+        if not accounts:
+            bot.edit(chat_id, msg_id, "Вам пока не доверили другие аккаунты. Владелец должен добавить ваш Telegram ID в «Мои настройки → Заместители».", request_menu())
+            return
+        if len(accounts) > 1:
+            rows = [[{"text": str(bot.player_name(owner))[:60], "callback_data": f"send_account:{req_id}:{key}"}] for key, owner in accounts]
+            rows.append([{"text": "⬅️ К заявке", "callback_data": f"send_req:{req_id}"}])
+            bot.edit(chat_id, msg_id, "👥 С какого аккаунта отправить деф?", bot.kb(rows))
+            return
+        action = f"send_account:{req_id}:{accounts[0][0]}"
+    if action.startswith("send_account:"):
+        _, req_s, owner_id = action.split(":")
+        source_player = next((owner for key, owner in delegated_accounts(data, user["id"]) if key == owner_id), None)
+        if source_player is None:
+            bot.edit(chat_id, msg_id, "❌ У вас нет доступа к этому аккаунту.", request_menu())
+            return
+        player["defence_send_account"] = {"request_id": int(req_s), "owner_id": int(owner_id)}
+        selected_account = True
+        action = f"send_amount:{req_s}"
+    if action in {"send_def", "menu"} or action.startswith("send_req:") or (action.startswith("send_amount:") and not selected_account):
+        player.pop("defence_send_account", None)
+    if action.startswith(("send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
+        source_player = defence_source_player(data, player, user["id"], action.split(":")[1])
+        if source_player is None:
+            player["state"] = None
+            player.pop("defence_send_account", None)
+            bot.save_players(data)
+            bot.edit(chat_id, msg_id, "❌ Доступ к аккаунту отозван. Выберите отправку заново.", request_menu())
+            return
 
     if action == "menu":
         # Return only the transient control message to the main view.  The
@@ -1743,7 +1823,7 @@ def callback_query(q):
         # This is transient wizard state. Do not block a Telegram button on
         # GitHub pull/rebase/push just to clear it.
         bot.save_json(bot.PLAYERS_FILE, data)
-        bot.edit(chat_id, msg_id, send_def_plan_text(player, req), send_def_plan_keyboard(player, req))
+        bot.edit(chat_id, msg_id, send_def_plan_text(player, req), send_def_plan_keyboard(player, req, data))
         return
 
     if action.startswith("send_amount:"):
@@ -1758,7 +1838,8 @@ def callback_query(q):
         bot.save_json(bot.PLAYERS_FILE, data)
         bot.send(
             chat_id,
-            f"<b>🛡 ОТПРАВИТЬ ДЕФ #{req_id}</b>\n\n"
+            f"<b>🛡 ОТПРАВИТЬ ДЕФ #{req_id}</b>\n"
+            f"👤 Аккаунт: <b>{html.escape(str(bot.player_name(source_player)))}</b>\n\n"
             f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
             f"🛡 Осталось закрыть: <b>{request_remaining(req)}</b> очков\n\n"
             "Сколько дефа вы фактически отправите?\n"
@@ -1772,7 +1853,7 @@ def callback_query(q):
         req_id, village_idx = int(req_s), int(idx_s)
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
-        option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None) if req else None
+        option = next((x for x in village_send_options(source_player, req) if x["idx"] == village_idx), None) if req else None
         if option is None:
             bot.edit(chat_id, msg_id, "❌ Эта деревня уже не успевает.", request_menu())
             return
@@ -1818,7 +1899,7 @@ def callback_query(q):
             return
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
-        option = next((x for x in village_send_options(player, req) if x["idx"] == village_idx), None) if req else None
+        option = next((x for x in village_send_options(source_player, req) if x["idx"] == village_idx), None) if req else None
         variant = next((v for v in option["variants"] if v["key"] == mode), None) if option else None
         pending_amount = int(state.get("pending_amount", 0) or 0)
         if variant is None:
@@ -1844,7 +1925,7 @@ def callback_query(q):
         player["state"] = {"type": "send_draft", "request_id": req_id, "draft": draft}
         bot.save_players(data)
         used = [x["village_idx"] for x in draft]
-        can_add = any(x["idx"] not in used for x in village_send_options(player, req))
+        can_add = any(x["idx"] not in used for x in village_send_options(source_player, req))
         callback_query(dict(q, id=None, data=f"send_finish:{req_id}"))
         return
 
@@ -1857,7 +1938,7 @@ def callback_query(q):
             bot.edit(chat_id, msg_id, "❌ План отправки устарел.", request_menu())
             return
         used = [x["village_idx"] for x in state.get("draft", [])]
-        bot.edit(chat_id, msg_id, "<b>🏘 Выберите ещё одну деревню:</b>", send_village_keyboard(player, req, used))
+        bot.edit(chat_id, msg_id, "<b>🏘 Выберите ещё одну деревню:</b>", send_village_keyboard(source_player, req, used))
         return
 
     if action.startswith("send_finish:"):
@@ -1871,8 +1952,7 @@ def callback_query(q):
             return
         total = sum(int(x["def_points"]) for x in draft)
         req.setdefault("contributions", []).append({
-            "telegram_id": int(user.get("id", 0)), "username": user.get("username", ""),
-            "first_name": bot.telegram_member_tag(user.get("id")) or user.get("first_name", ""), "def_points": total,
+            **pledge_identity(player, source_player, user), "def_points": total,
             "plan": draft, "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         })
         req["collected_def"] = int(req.get("collected_def", 0) or 0) + total
@@ -1891,7 +1971,7 @@ def callback_query(q):
         bot.save_players(data)
         accepted_total = int(accepted_contribution.get("def_points", 0) or 0) if accepted_contribution else 0
         accepted_draft = accepted_contribution.get("plan", []) if accepted_contribution else []
-        result = draft_summary({"draft": accepted_draft or draft}, req) + f"\n\n✅ Записано: <b>{accepted_total}</b> очков."
+        result = draft_summary({"draft": accepted_draft or draft}, req) + pledge_account_text(accepted_contribution or {}) + f"\n\n✅ Записано: <b>{accepted_total}</b> очков."
         if req.get("status") != "closed":
             result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
         menu = request_menu()

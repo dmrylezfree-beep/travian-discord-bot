@@ -259,3 +259,18 @@ test('amount submission without configured villages records defence immediately'
   const q=(await readState('data/defence/requests.json')).data[0];assert.equal(q.collected_def,250);assert.equal(q.contributions.length,1);assert.deepEqual(q.contributions[0].plan,[]);
  }finally{globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
 });
+
+
+test('delegated pledge sync keeps owner attribution, operator and distinct deputies',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'travian-delegated-')),oldDir=process.env.DEFENCE_DATA_DIR,oldFetch=globalThis.fetch;process.env.DEFENCE_DATA_DIR=dir;
+ globalThis.fetch=async()=>{throw Error('fixture display unavailable');};const background=[];
+ const env={TELEGRAM_BOT_TOKEN:'fixture',DEFENCE_REMINDERS:{send:async()=>{}}},ctx={waitUntil(p){background.push(Promise.resolve(p).catch(()=>{}));}};
+ try{
+  const c={telegram_id:99,recorded_by_telegram_id:55,recorded_by_name:'Deputy',reminder_telegram_id:55,first_name:'Owner',def_points:250,created_at:'2030-01-01 10:00:00',plan:[]};
+  const q={id:77,status:'active',required_def:2000,collected_def:250,attack_time:'2030-01-02 22:00:00',contributions:[c]};
+  await saveState('data/defence/requests.json',[q],(await readState('data/defence/requests.json')).sha);
+  const incoming={...q,contributions:[c,{...c,recorded_by_telegram_id:56,reminder_telegram_id:56}]};
+  const submit=()=>worker.fetch(new Request('http://127.0.0.1/discord/request-sync',{method:'POST',headers:{Authorization:'Bearer fixture','Content-Type':'application/json'},body:JSON.stringify({request:incoming})}),env,ctx);
+  await submit();await submit();const saved=(await readState('data/defence/requests.json')).data[0];assert.equal(saved.collected_def,500);assert.equal(saved.contributions.length,2);assert.deepEqual(saved.contributions.map(c=>c.telegram_id),[99,99]);assert.deepEqual(saved.contributions.map(c=>c.recorded_by_telegram_id),[55,56]);assert.deepEqual(saved.contributions.map(c=>c.reminder_telegram_id),[55,56]);
+ }finally{await Promise.allSettled(background);globalThis.fetch=oldFetch;if(oldDir===undefined)delete process.env.DEFENCE_DATA_DIR;else process.env.DEFENCE_DATA_DIR=oldDir;await rm(dir,{recursive:true,force:true});}
+});
