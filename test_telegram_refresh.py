@@ -1009,3 +1009,34 @@ class DelegatedDefenceTests(unittest.TestCase):
   with patch.dict(os.environ,{'DEFENCE_TELEGRAM_TOKEN':'fixture'}),patch.object(defence.requests,'post') as post:
    self.assertTrue(self.original_schedule(self.req,contribution))
    queued=post.call_args.kwargs['json']['reminders'][0];self.assertEqual(queued['telegram_id'],55);self.assertEqual(queued['private_chat_id'],55)
+
+class UntimedDefencePledgeTests(unittest.TestCase):
+ setUp=DelegatedDefenceTests.setUp
+ click=DelegatedDefenceTests.click
+ text=DelegatedDefenceTests.text
+ def test_fast_button_records_only_points_despite_configured_villages(self):
+  self.options.return_value=[{'idx':0,'village':{'coordinates':'1 2'},'max_def':500,'variants':[]}]
+  self.assertIn('send_quick:77',str(defence.send_def_plan_keyboard(self.actor,self.req,self.data)))
+  self.click('send_quick:77');self.assertTrue(self.actor['state']['without_timing']);self.text('250')
+  self.options.assert_not_called();self.reminders.assert_not_called();c=self.req['contributions'][0];self.assertEqual(c['def_points'],250);self.assertEqual(c['telegram_id'],55);self.assertEqual(c['plan'],[]);self.assertEqual(c['timing_mode'],'none');self.assertIsNone(self.actor['state'])
+ def test_delegate_uses_already_entered_points_without_timing(self):
+  self.options.return_value=[{'idx':0,'village':{'coordinates':'10 20'},'max_def':500,'variants':[]}]
+  self.click('send_other:77');self.text('250');self.assertEqual(self.actor['state']['type'],'send_draft')
+  self.assertIn('send_untimed:77',str(self.send.call_args))
+  self.click('send_untimed:77');c=self.req['contributions'][0];self.assertEqual(c['telegram_id'],99);self.assertEqual(c['recorded_by_telegram_id'],55);self.assertEqual(c['def_points'],250);self.assertEqual(c['plan'],[]);self.reminders.assert_not_called()
+  self.click('send_untimed:77');self.assertEqual(len(self.req['contributions']),1)
+ def test_invalid_amount_and_closed_request_are_rejected(self):
+  self.click('send_quick:77');self.text('0');self.text('-1');self.text('no');self.assertEqual(self.req['contributions'],[])
+  self.req['status']='closed';self.text('250');self.assertEqual(self.req['contributions'],[])
+ def test_delegation_revocation_and_wrong_request_reject_untimed(self):
+  self.actor['state']={'type':'send_draft','request_id':77,'pending_amount':250};self.actor['defence_send_account']={'request_id':77,'owner_id':99}
+  self.click('send_untimed:78');self.assertEqual(self.req['contributions'],[])
+  self.actor['state']={'type':'send_draft','request_id':77,'pending_amount':250};self.actor['defence_send_account']={'request_id':77,'owner_id':99};self.owner['substitutes']=[]
+  self.click('send_untimed:77');self.assertEqual(self.req['contributions'],[])
+ def test_fast_own_button_does_not_keep_previous_delegate(self):
+  self.click('send_other:77');self.click('send_quick:77');self.text('250');self.assertEqual(self.req['contributions'][0]['telegram_id'],55)
+ def test_fast_flow_works_in_group_topic(self):
+  self.message={'chat':{'id':-100,'type':'supergroup'},'message_id':111,'message_thread_id':defence.bot.THREAD_ID}
+  with patch.object(defence.bot,'in_def_thread',return_value=True):
+   self.click('send_quick:77');self.text('250')
+  self.assertEqual(self.req['collected_def'],250);self.assertEqual(self.req['contributions'][0]['plan'],[])

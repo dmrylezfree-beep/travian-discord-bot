@@ -609,6 +609,7 @@ def send_village_keyboard(player, req, exclude=None):
             "text": f"🏘 {item['village'].get('coordinates', '?')} — до {item['max_def']}",
             "callback_data": f"send_village:{req['id']}:{item['idx']}",
         }])
+    rows.append([{"text": "⚡ Отправить деф без расчёта времени", "callback_data": f"send_untimed:{req['id']}"}])
     rows.append([{"text": "⬅️ К заявке", "callback_data": f"send_req:{req['id']}"}])
     return bot.kb(rows)
 
@@ -720,6 +721,7 @@ def send_def_plan_keyboard(player, req, players_data=None):
     }]]
     if delegated_accounts(players_data if players_data is not None else bot.players(), player.get("telegram_id")):
         rows.append([{"text": "👥 Отправить деф с другого аккаунта", "callback_data": f"send_other:{req['id']}"}])
+    rows.append([{"text": "⚡ Отправить деф без расчёта времени", "callback_data": f"send_quick:{req['id']}"}])
     rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
     return bot.kb(rows)
 
@@ -1393,7 +1395,7 @@ def process_text(message):
             bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
             return
 
-        options = village_send_options(source_player, req)
+        options = [] if state.get("without_timing") else village_send_options(source_player, req)
         if options:
             player["state"] = {
                 "type": "send_draft",
@@ -1417,6 +1419,7 @@ def process_text(message):
         contribution = {
             **pledge_identity(player, source_player, user),
             "def_points": amount,
+            "timing_mode": "none",
             "plan": [],
             "created_at": datetime.now(SERVER_TZ).strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -1432,7 +1435,7 @@ def process_text(message):
             chat_id,
             f"✅ Принято: <b>{amount}</b> очков дефа в заявку #{req_id}.\n"
             + pledge_account_text(contribution) + "\n"
-            "⏱ Время отправки не рассчитано, потому что в настройках нет подходящих данных о дефе.",
+            "⏱ Записаны только очки дефа. Время отправки и напоминание не назначены.",
             request_menu(),
         )
         return
@@ -1548,7 +1551,7 @@ def callback_query(q):
     is_private = message.get("chat", {}).get("type") == "private"
     if is_private:
         private_action = q.get("data", "")
-        if private_action != "send_def" and not private_action.startswith(("send_other:", "send_account:", "send_req:", "send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
+        if private_action != "send_def" and not private_action.startswith(("send_quick:", "send_untimed:", "send_other:", "send_account:", "send_req:", "send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
             return _original_callback_query(q)
     if not is_private and message.get("message_thread_id") != bot.THREAD_ID:
         return
@@ -1565,6 +1568,9 @@ def callback_query(q):
 
     source_player = player
     selected_account = False
+    without_timing = action.startswith("send_quick:")
+    if without_timing:
+        action = "send_amount:" + action.split(":", 1)[1]
     if action.startswith("send_other:"):
         req_id = int(action.split(":")[1])
         accounts = delegated_accounts(data, user["id"])
@@ -1588,7 +1594,7 @@ def callback_query(q):
         action = f"send_amount:{req_s}"
     if action in {"send_def", "menu"} or action.startswith("send_req:") or (action.startswith("send_amount:") and not selected_account):
         player.pop("defence_send_account", None)
-    if action.startswith(("send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
+    if action.startswith(("send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:", "send_untimed:")):
         source_player = defence_source_player(data, player, user["id"], action.split(":")[1])
         if source_player is None:
             player["state"] = None
@@ -1596,6 +1602,18 @@ def callback_query(q):
             bot.save_players(data)
             bot.edit(chat_id, msg_id, "❌ Доступ к аккаунту отозван. Выберите отправку заново.", request_menu())
             return
+
+    if action.startswith("send_untimed:"):
+        req_id = int(action.split(":", 1)[1])
+        state = player.get("state") or {}
+        amount = state.get("pending_amount", 0)
+        if state.get("type") != "send_draft" or int(state.get("request_id", 0)) != req_id or not amount:
+            bot.edit(chat_id, msg_id, "Эта форма уже завершена. Выберите отправку заново.", request_menu())
+            return
+        player["state"] = {"type": "send_total_amount", "request_id": req_id, "without_timing": True}
+        bot.save_players(data)
+        process_text(dict(message, text=str(amount), **{"from": user}))
+        return
 
     if action == "menu":
         # Return only the transient control message to the main view.  The
@@ -1833,7 +1851,7 @@ def callback_query(q):
         if req is None or request_closed(req):
             bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
             return
-        player["state"] = {"type": "send_total_amount", "request_id": req_id}
+        player["state"] = {"type": "send_total_amount", "request_id": req_id, "without_timing": without_timing}
         # Wizard state is local runtime state; saving it must be immediate.
         bot.save_json(bot.PLAYERS_FILE, data)
         bot.send(
@@ -1842,7 +1860,8 @@ def callback_query(q):
             f"👤 Аккаунт: <b>{html.escape(str(bot.player_name(source_player)))}</b>\n\n"
             f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
             f"🛡 Осталось закрыть: <b>{request_remaining(req)}</b> очков\n\n"
-            "Сколько дефа вы фактически отправите?\n"
+            + ("⚡ Только учёт очков: без расчёта времени и напоминания.\n" if without_timing else "")
+            + "Сколько дефа вы фактически отправите?\n"
             "Введите количество очков дефа, например: <code>10000</code>",
             force_reply=True,
         )
