@@ -912,3 +912,51 @@ class DefenceDirectPledgeTests(unittest.TestCase):
    defence.callback_query(q)
    self.assertEqual(req['collected_def'],1150);self.assertEqual(req['status'],'closed');self.assertEqual(defence.request_remaining(req),0)
    self.assertEqual(req['contributions'][0]['def_points'],250);self.assertEqual(len(req['contributions'][0]['plan']),1);self.assertEqual(req['contributions'][0]['plan'][0]['def_points'],250);reminders.assert_called_once_with(req,req['contributions'][0]);sync.assert_called_once();self.assertIsNone(player['state']);self.assertIn('250',edit.call_args.args[2])
+
+class DefencePrivatePledgeTests(unittest.TestCase):
+ def test_private_menu_amount_and_pledge_without_village(self):
+  from contextlib import ExitStack
+  player={'state':None};data={'55':player};req=dict(id=77,status='active',required_def=1000,collected_def=0,contributions=[],target_x=1,target_y=2,attack_time='2030-01-02 22:00:00',attack_time_display='fixture')
+  message={'chat':{'id':55,'type':'private'},'message_id':111}
+  user={'id':55,'first_name':'fixture'}
+  with ExitStack() as stack:
+   def mocked(obj,name,**kw):return stack.enter_context(patch.object(obj,name,**kw))
+   mocked(defence.bot,'get_player',return_value=(data,player));mocked(defence,'sync_player_race');mocked(defence.bot,'handle_guide_callback',return_value=False);mocked(defence,'adopt_pinned_centre',return_value=False)
+   mocked(defence.bot,'telegram_member_tag',return_value='fixture');mocked(defence.bot,'answer_callback');mocked(defence.bot,'load_json',return_value=[req]);mocked(defence.bot,'save_json');mocked(defence.bot,'save_players');mocked(defence,'village_send_options',return_value=[])
+   mocked(defence,'sync_request_to_worker',side_effect=lambda r:r);mocked(defence,'refresh_optimal_plans');mocked(defence,'refresh_center');send=mocked(defence.bot,'send');mocked(defence.bot,'edit');original=mocked(defence,'_original_callback_query');original_text=mocked(defence,'_original_process_text')
+   def click(action):defence.callback_query({'id':'fixture','from':user,'message':message,'data':action})
+   click('send_def');self.assertIn('Выберите заявку',send.call_args.args[1]);original.assert_not_called()
+   click('send_req:77');click('send_amount:77');self.assertEqual(player['state']['type'],'send_total_amount')
+   defence.process_text(dict(message,text='250',**{'from':user}));original_text.assert_not_called()
+   self.assertEqual(req['collected_def'],250);self.assertEqual(len(req['contributions']),1);self.assertEqual(req['contributions'][0]['telegram_id'],55);self.assertIsNone(player['state']);self.assertEqual(player['private_chat_id'],55)
+   click('settings');original.assert_called_once()
+ def test_private_request_creation_still_uses_original_handler(self):
+  q={'id':'fixture','from':{'id':55},'message':{'chat':{'id':55,'type':'private'},'message_id':1},'data':'request_def'}
+  with patch.object(defence.bot,'handle_guide_callback',return_value=False),patch.object(defence,'_original_callback_query') as original:
+   defence.callback_query(q);original.assert_called_once_with(q)
+ def test_private_chat_never_becomes_pinned_centre(self):
+  with patch.object(defence,'load_state',return_value={}),patch.object(defence.bot,'send') as send,patch.object(defence,'save_state') as save:
+   self.assertFalse(defence.refresh_center(chat_id=55,create_if_missing=True));send.assert_not_called();save.assert_not_called()
+ def test_private_plan_refresh_uses_group_centre(self):
+  req={'id':77,'status':'closed','optimal_plan_message_id':111}
+  with patch.object(defence,'load_state',return_value={'center_chat_id':-100}),patch.object(defence.bot,'load_json',return_value=[req]),patch.object(defence,'_delete_plan_message') as delete,patch.object(defence.bot,'save_json'):
+   defence.refresh_optimal_plans(chat_id=55)
+   delete.assert_called_once_with(req,-100)
+
+class DefencePrivateTimedPledgeTests(unittest.TestCase):
+ def test_route_choice_immediately_records_and_reminds(self):
+  from contextlib import ExitStack
+  plan=[dict(village='1|2',def_points=150,speed_mode='foot',deadline='20:00',reminder_time='19:55'),dict(village='3|4',def_points=100,speed_mode='foot',deadline='21:00',reminder_time='20:55')]
+  player={'state':{'type':'send_village_amount','request_id':77,'village_idx':0,'pending_amount':250,'draft':[]}};req=dict(id=77,status='active',required_def=1000,collected_def=900,contributions=[],target_x=1,target_y=2,attack_time_display='fixture')
+  q={'id':'test','from':{'id':55},'data':'send_speed:77:0:foot','message':{'chat':{'id':55,'type':'private'},'message_id':111,'message_thread_id':defence.bot.THREAD_ID}}
+  with ExitStack() as stack:
+   def mocked(obj,name,**kw):return stack.enter_context(patch.object(obj,name,**kw))
+   mocked(defence.bot,'get_player',return_value=({'55':player},player));mocked(defence,'sync_player_race');mocked(defence.bot,'handle_guide_callback',return_value=False)
+   mocked(defence.bot,'telegram_member_tag',return_value='fixture');mocked(defence.bot,'answer_callback');mocked(defence.bot,'load_json',return_value=[req]);mocked(defence.bot,'save_json');mocked(defence.bot,'save_players')
+   sync=mocked(defence,'sync_request_to_worker',side_effect=lambda r:r);reminders=mocked(defence,'schedule_defence_reminders');mocked(defence,'refresh_optimal_plans');mocked(defence,'refresh_center');edit=mocked(defence.bot,'edit')
+   from datetime import datetime
+   deadline=datetime(2030,1,2,20,0,tzinfo=defence.SERVER_TZ)
+   mocked(defence,'village_send_options',return_value=[{'idx':0,'village':{'coordinates':'1|2'},'variants':[{'key':'foot','deadline':deadline,'label':'foot'}]}])
+   defence.callback_query(q)
+   self.assertEqual(req['collected_def'],1150);self.assertEqual(req['status'],'closed');self.assertEqual(defence.request_remaining(req),0)
+   self.assertEqual(req['contributions'][0]['def_points'],250);self.assertEqual(len(req['contributions'][0]['plan']),1);self.assertEqual(req['contributions'][0]['plan'][0]['def_points'],250);reminders.assert_called_once_with(req,req['contributions'][0]);sync.assert_called_once();self.assertIsNone(player['state']);self.assertIn('250',edit.call_args.args[2])

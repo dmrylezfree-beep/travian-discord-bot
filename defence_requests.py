@@ -943,7 +943,7 @@ def _delete_plan_message(req, chat_id=None):
 def refresh_optimal_plans(chat_id=None, force=False):
     """Recalculate active recommendations and repost only when the plan changed."""
     state = load_state()
-    target_chat_id = chat_id or state.get("center_chat_id")
+    target_chat_id = chat_id if chat_id is not None and int(chat_id) < 0 else state.get("center_chat_id")
     if not target_chat_id:
         return False
 
@@ -1193,7 +1193,7 @@ def unpin_center(chat_id, message_id):
 
 def refresh_center(chat_id=None, create_if_missing=False):
     state = load_state()
-    center_chat_id = state.get("center_chat_id") or chat_id
+    center_chat_id = state.get("center_chat_id") or (chat_id if chat_id is not None and int(chat_id) < 0 else None)
     center_message_id = state.get("center_message_id")
     if center_chat_id is None:
         return False
@@ -1298,8 +1298,11 @@ def process_text(message):
     if not text:
         return
     if is_private:
-        return _original_process_text(message)
-    if not bot.in_def_thread(message):
+        _, private_player = bot.get_player(user)
+        private_state = private_player.get("state") or {}
+        if private_state.get("type") not in {"send_total_amount", "send_village_amount", "send_draft"} or text.startswith("/"):
+            return _original_process_text(message)
+    if not is_private and not bot.in_def_thread(message):
         return
 
     data, player = bot.get_player(user)
@@ -1498,14 +1501,19 @@ def callback_query(q):
     message = q.get("message", {})
     is_private = message.get("chat", {}).get("type") == "private"
     if is_private:
-        return _original_callback_query(q)
-    if message.get("message_thread_id") != bot.THREAD_ID:
+        private_action = q.get("data", "")
+        if private_action != "send_def" and not private_action.startswith(("send_req:", "send_amount:", "send_village:", "send_speed:", "send_add:", "send_finish:")):
+            return _original_callback_query(q)
+    if not is_private and message.get("message_thread_id") != bot.THREAD_ID:
         return
     action = q.get("data", "")
     user = q.get("from", {})
     data, player = bot.get_player(user)
     sync_player_race(player)
     chat_id, msg_id = message["chat"]["id"], message["message_id"]
+    if is_private and player.get("private_chat_id") != chat_id:
+        player["private_chat_id"] = chat_id
+        bot.save_json(bot.PLAYERS_FILE, data)
     if q.get("id"):
         bot.answer_callback(q.get("id"))
 
