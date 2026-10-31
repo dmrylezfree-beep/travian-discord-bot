@@ -609,7 +609,7 @@ def send_village_keyboard(player, req, exclude=None):
             "text": f"🏘 {item['village'].get('coordinates', '?')} — до {item['max_def']}",
             "callback_data": f"send_village:{req['id']}:{item['idx']}",
         }])
-    rows.append([{"text": "⚡ Отправить деф без расчёта времени", "callback_data": f"send_untimed:{req['id']}"}])
+    rows.insert(0, [{"text": "⚡ Отправить деф без расчёта времени", "callback_data": f"send_untimed:{req['id']}"}])
     rows.append([{"text": "⬅️ К заявке", "callback_data": f"send_req:{req['id']}"}])
     return bot.kb(rows)
 
@@ -721,7 +721,7 @@ def send_def_plan_keyboard(player, req, players_data=None):
     }]]
     if delegated_accounts(players_data if players_data is not None else bot.players(), player.get("telegram_id")):
         rows.append([{"text": "👥 Отправить деф с другого аккаунта", "callback_data": f"send_other:{req['id']}"}])
-    rows.append([{"text": "⚡ Отправить деф без расчёта времени", "callback_data": f"send_quick:{req['id']}"}])
+    rows.insert(0, [{"text": "⚡ Отправить деф без расчёта времени", "callback_data": f"send_quick:{req['id']}"}])
     rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
     return bot.kb(rows)
 
