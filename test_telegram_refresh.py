@@ -1040,3 +1040,25 @@ class UntimedDefencePledgeTests(unittest.TestCase):
   with patch.object(defence.bot,'in_def_thread',return_value=True):
    self.click('send_quick:77');self.text('250')
   self.assertEqual(self.req['collected_def'],250);self.assertEqual(self.req['contributions'][0]['plan'],[])
+
+
+class MapDownloadEncodingTests(unittest.TestCase):
+ def test_explicit_utf8_preserves_all_languages_despite_wrong_guess(self):
+  import travian_bot as b
+  names=['Обморок','Труп На Льдине','Сокол','村の名前','日本語','العربية','café','Łódź','玩家','⚔️']
+  row="INSERT INTO `x_world` VALUES (1,39,41,3,12,'"+names[3]+"',44,'"+names[0]+"',8,'"+names[2]+"',658);"
+  payload=row+'\n-- '+' | '.join(names)
+  response=requests.Response();response.status_code=200;response._content=payload.encode('utf-8');response.encoding='mac_cyrillic'
+  with patch.object(b.requests,'get',return_value=response):
+   raw=b.download_map_data()
+  self.assertEqual(raw,payload)
+  villages,_=b.parse_map_data(raw);v=next(iter(villages.values()));self.assertEqual(v['player'],'Обморок');self.assertEqual(v['name'],'村の名前');self.assertEqual(v['alliance'],'Сокол')
+ def test_invalid_utf8_and_empty_download_are_rejected(self):
+  import travian_bot as b
+  for payload in (b'\xff',b'',b'  \n'):
+   response=requests.Response();response.status_code=200;response._content=payload
+   with self.subTest(payload=payload),patch.object(b.requests,'get',return_value=response),self.assertRaises(RuntimeError):b.download_map_data()
+ def test_utf8_bom_is_supported(self):
+  import travian_bot as b
+  response=requests.Response();response.status_code=200;response._content=b'\xef\xbb\xbf'+"-- 日本語 и русский".encode('utf-8')
+  with patch.object(b.requests,'get',return_value=response):self.assertEqual(b.download_map_data(),'-- 日本語 и русский')

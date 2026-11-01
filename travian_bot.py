@@ -103,16 +103,18 @@ def download_map_data():
             f"Ошибка скачивания данных Travian: {exc}"
         )
 
-    if not response.text.strip():
-        fail(
-            "Travian вернул пустой map.sql."
-        )
+    # Travian exports map.sql as UTF-8 without an HTTP charset. Automatic
+    # detection can mistake multilingual names for legacy Mac encodings.
+    try:
+        raw_data = response.content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        fail("map.sql содержит некорректный UTF-8; снимок не сохранён.")
 
-    print(
-        f"Получено: {len(response.text):,} символов"
-    )
+    if not raw_data.strip():
+        fail("Travian вернул пустой map.sql.")
 
-    return response.text
+    print(f"Получено: {len(raw_data):,} символов")
+    return raw_data
 
 
 # ============================================================
