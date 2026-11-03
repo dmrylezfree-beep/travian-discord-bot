@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-03T05:59:30.166214+00:00",
+  "created_at": "2026-11-03T06:59:34.696253+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -567,9 +567,9 @@
         "villages": [
           {
             "coordinates": "51 16",
-            "arena": 10,
+            "arena": 12,
             "troops": {
-              "druidrider": 2600
+              "druidrider": 3100
             },
             "hero": {
               "present": true
