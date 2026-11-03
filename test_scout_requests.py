@@ -91,7 +91,7 @@ class ScoutRequestTests(unittest.TestCase):
         if album:message['media_group_id']=album
         return self.app.handle({'update_id':self.seq,'message':message})
     def test_screenshot_is_bound_to_selected_request_and_not_auto_completed(self):
-        ident,_=self.create();self.click('scan:view:'+str(ident),COORDINATOR_ID)
+        ident,_=self.create();self.click('scan:view:'+str(ident),COORDINATOR_ID);self.click('scan:upload:'+str(ident),COORDINATOR_ID)
         binding=self.store.db.execute('SELECT message FROM scout_bindings WHERE request=?',(ident,)).fetchone()[0]
         self.photo(binding,user=2);self.assertEqual(self.store.db.execute('SELECT count(*) FROM scout_results').fetchone()[0],0)
         self.assertFalse(self.photo(binding+100))
@@ -101,13 +101,13 @@ class ScoutRequestTests(unittest.TestCase):
         self.click('scan:done:'+str(ident),COORDINATOR_ID);self.assertEqual(self.app.jobs(),[]);self.assertEqual(len(self.app.jobs(results=True)),1)
         self.assertIn('/5/9000',self.app.job_text(self.app.job(ident)))
     def test_private_coordinator_result_is_published_into_exact_topic(self):
-        ident,_=self.create();self.click('scan:view:'+str(ident),COORDINATOR_ID,COORDINATOR_ID)
+        ident,_=self.create();self.click('scan:view:'+str(ident),COORDINATOR_ID,COORDINATOR_ID);self.click('scan:upload:'+str(ident),COORDINATOR_ID,COORDINATOR_ID)
         binding=self.store.db.execute('SELECT message FROM scout_bindings WHERE chat=?',(COORDINATOR_ID,)).fetchone()[0]
         self.photo(binding,chat=COORDINATOR_ID)
         copies=[d for m,d in self.api.calls if m=='copyMessage'];self.assertEqual(len(copies),1)
         self.assertEqual((copies[0]['chat_id'],copies[0]['message_thread_id']),(GROUP_ID,THREAD_ID));self.assertIn('40|63',copies[0]['caption'])
     def test_album_results_follow_first_bound_photo(self):
-        ident,_=self.create();self.click('scan:view:'+str(ident),COORDINATOR_ID)
+        ident,_=self.create();self.click('scan:view:'+str(ident),COORDINATOR_ID);self.click('scan:upload:'+str(ident),COORDINATOR_ID)
         binding=self.store.db.execute('SELECT message FROM scout_bindings').fetchone()[0]
         self.photo(binding,message_id=9000,album='album');self.photo(None,message_id=9001,album='album')
         self.assertEqual(self.store.db.execute('SELECT count(*) FROM scout_results').fetchone()[0],2)
@@ -188,3 +188,92 @@ class ScoutCalculationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'через пробел'):coordinates('bad')
 
 if __name__=='__main__':unittest.main()
+
+class ScoutMenuTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    text=ScoutRequestTests.text
+    draft=ScoutRequestTests.draft
+    create=ScoutRequestTests.create
+    photo=ScoutRequestTests.photo
+    def panel(self,user=1,chat=GROUP_ID):
+        return self.store.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,user)).fetchone()[0]
+    def sent(self):return sum(method=='sendMessage' for method,data in self.api.calls)
+    def test_navigation_and_pagination_edit_one_panel_and_keep_pinned_centre(self):
+        for user in range(1,11):self.create(user)
+        centre=self.app.setting('centre_id');panel=self.panel();sent=self.sent()
+        for action in ('scan:list:0','scan:list:1','scan:view:1','scan:results:0','scan:list:0'):self.click(action)
+        self.assertEqual(self.sent(),sent);self.assertEqual(self.panel(),panel);self.assertNotEqual(panel,centre)
+        edited=[data for method,data in self.api.calls if method=='editMessageText' and data['message_id']==panel]
+        self.assertTrue(any('Заявка на скан #1' in data['text'] for data in edited))
+        self.app=ScoutRequests(self.store,self.api,now=lambda:self.now);self.click('scan:list:1');self.assertEqual(self.sent(),sent);self.assertEqual(self.panel(),panel)
+    def test_prompts_validation_and_submit_share_message(self):
+        self.app.ensure_centre();self.click('scan:new');panel=self.panel();sent=self.sent();self.assertEqual(self.app.session(GROUP_ID,1)['prompt_message_id'],panel)
+        self.text('invalid');self.assertEqual(self.app.session(GROUP_ID,1)['prompt_message_id'],panel)
+        self.text('40 63');self.click('scan:kind:resources');self.click('scan:any')
+        self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.sent(),sent)
+        for method,data in self.api.calls:
+            if method=='editMessageText':self.assertNotIn('force_reply',data.get('reply_markup',{}))
+    def test_foreign_user_cannot_operate_another_panel(self):
+        self.click('scan:new',1);panel=self.panel();before=len(self.api.calls)
+        update={'update_id':99,'callback_query':{'id':'foreign','from':{'id':2},'data':'scan:kind:resources','message':{'message_id':panel,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID}}}
+        self.assertTrue(self.app.handle(update));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords');self.assertEqual(self.app.session(GROUP_ID,2),{})
+        self.assertFalse(any(method in ('sendMessage','editMessageText') for method,data in self.api.calls[before:]))
+    def test_timeouts_and_not_modified_never_create_duplicate_panel(self):
+        import requests
+        self.click('scan:new');panel=self.panel();sent=self.sent();user={'id':1}
+        with patch.object(self.app,'call',side_effect=requests.Timeout('fixture')):
+            with self.assertRaises(requests.Timeout):self.app.render(GROUP_ID,'test',user=user)
+        self.assertEqual(self.sent(),sent);self.assertEqual(self.panel(),panel)
+        response=requests.Response();response.status_code=400;response._content=b'{"description":"Bad Request: message is not modified"}'
+        with patch.object(self.app,'call',side_effect=requests.HTTPError(response=response)):
+            self.assertEqual(self.app.render(GROUP_ID,'test',user=user)['message_id'],panel)
+        self.assertEqual(self.sent(),sent)
+    def test_deleted_menu_is_replaced_once_then_reused(self):
+        import requests
+        self.click('scan:new');old=self.panel();sent=self.sent();original=self.app.call
+        response=requests.Response();response.status_code=400;response._content=b'{"description":"Bad Request: message to edit not found"}'
+        def api(method,**data):
+            if method=='editMessageText' and data.get('message_id')==old:raise requests.HTTPError(response=response)
+            return original(method,**data)
+        with patch.object(self.app,'call',side_effect=api):
+            self.app.render(GROUP_ID,'new',user={'id':1});self.app.render(GROUP_ID,'next',user={'id':1})
+        self.assertNotEqual(self.panel(),old);self.assertEqual(self.sent(),sent+1)
+    def test_screenshot_binding_stays_with_first_job_after_menu_switches(self):
+        first,_=self.create(1);second,_=self.create(2)
+        self.click('scan:upload:'+str(first),COORDINATOR_ID);binding=self.store.db.execute('SELECT message FROM scout_bindings WHERE request=?',(first,)).fetchone()[0]
+        sent=self.sent();self.click('scan:upload:'+str(first),COORDINATOR_ID);self.assertEqual(self.sent(),sent)
+        self.click('scan:view:'+str(second),COORDINATOR_ID);self.assertNotEqual(binding,self.panel(COORDINATOR_ID))
+        self.photo(binding);result=self.store.db.execute('SELECT request FROM scout_results').fetchone()[0];self.assertEqual(result,first)
+    def test_old_private_result_cards_are_not_adopted_as_menu(self):
+        self.store.db.execute('INSERT INTO scout_bindings VALUES(?,?,?)',(COORDINATOR_ID,77,1));self.store.db.commit()
+        self.click('scan:list:0',COORDINATOR_ID,COORDINATOR_ID)
+        self.assertNotEqual(self.panel(COORDINATOR_ID,COORDINATOR_ID),77)
+        self.assertFalse(any(method=='editMessageText' and data.get('message_id')==77 for method,data in self.api.calls))
+    def calculator_update(self,text=None,action=None,user=1,chat=GROUP_ID):
+        from scout_bot import handle_calculator
+        message={'message_id':1000+self.seq,'chat':{'id':chat,'type':'supergroup' if chat==GROUP_ID else 'private'},'message_thread_id':THREAD_ID}
+        actor={'id':user,'first_name':'User'}
+        if action:
+            try:message['message_id']=self.panel(user,chat)
+            except TypeError:message['message_id']=77
+            update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'message':message,'from':actor,'data':action}}
+        else:
+            message.update(text=text,**{'from':actor});state=self.store.load(chat,user)
+            if state.get('prompt_message_id'):message['reply_to_message']={'message_id':state['prompt_message_id']}
+            update={'update_id':self.seq,'message':message}
+        self.seq+=1
+        return self.app.handle(update) or handle_calculator(update,self.app,self.store)
+    def test_crop_calculator_and_scan_navigation_reuse_same_menu(self):
+        self.app.ensure_centre();self.calculator_update(text='/start');panel=self.panel();sent=self.sent()
+        self.calculator_update(action='crop:start');self.calculator_update(action='crop:oasis')
+        for value in ('22:02:50','2749','22:03:11','2767'):self.calculator_update(text=value)
+        self.assertEqual(self.sent(),sent);self.assertEqual(self.panel(),panel);self.assertEqual(self.store.load(GROUP_ID,1),{})
+        self.assertIn('+30 857,14',self.api.calls[-1][1]['text'])
+        self.click('scan:new');self.text('40 63');self.calculator_update(action='crop:start');self.assertEqual(self.app.session(GROUP_ID,1),{})
+        self.calculator_update(action='crop:oasis');self.click('scan:list:0');self.assertEqual(self.store.load(GROUP_ID,1),{})
+        self.assertEqual(self.sent(),sent)
+    def test_private_menu_adopts_existing_message_and_keeps_input_ids(self):
+        self.calculator_update(action='crop:start',chat=1);self.assertEqual(self.panel(1,1),77);self.assertEqual(self.sent(),0)
+        self.calculator_update(action='crop:village',chat=1);self.calculator_update(text='22:02:50',chat=1)
+        self.assertEqual(self.store.load(1,1)['prompt_message_id'],77);self.assertEqual(self.sent(),0)

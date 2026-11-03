@@ -96,6 +96,8 @@ class ScoutRequests:
         CREATE TABLE IF NOT EXISTS scout_settings(key TEXT PRIMARY KEY,data TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS scout_bindings(chat INTEGER,message INTEGER,request INTEGER NOT NULL,PRIMARY KEY(chat,message));
         CREATE TABLE IF NOT EXISTS scout_results(id INTEGER PRIMARY KEY AUTOINCREMENT,request INTEGER NOT NULL,source_chat INTEGER NOT NULL,source_message INTEGER NOT NULL,public_message INTEGER NOT NULL,created REAL NOT NULL,UNIQUE(source_chat,source_message));
+        CREATE TABLE IF NOT EXISTS scout_panels(chat INTEGER,user INTEGER,message INTEGER NOT NULL,PRIMARY KEY(chat,user));
+        CREATE TABLE IF NOT EXISTS scout_uploads(chat INTEGER,request INTEGER,message INTEGER NOT NULL,PRIMARY KEY(chat,request));
         CREATE TABLE IF NOT EXISTS scout_albums(chat INTEGER,album TEXT,request INTEGER NOT NULL,PRIMARY KEY(chat,album));
         ''')
         self.db.execute('INSERT OR IGNORE INTO scout_settings VALUES(?,?)',('coordinator',json.dumps({'user_id':COORDINATOR_ID,'x':22,'y':63,'arena':7})))
@@ -159,8 +161,41 @@ class ScoutRequests:
         if reply_to:args['reply_parameters']={'message_id':reply_to,'allow_sending_without_reply':True}
         return self.call('sendMessage',**args)
 
+    def foreign_panel(self,message,user):
+        row=self.db.execute('SELECT user FROM scout_panels WHERE chat=? AND message=?',(message['chat']['id'],message['message_id'])).fetchone()
+        return bool(row and row[0]!=user['id'])
+
+    def adopt_panel(self,message,user):
+        chat=message['chat']
+        if chat.get('type')=='private' and not self.db.execute('SELECT 1 FROM scout_bindings WHERE chat=? AND message=?',(chat['id'],message['message_id'])).fetchone() and not self.db.execute('SELECT 1 FROM scout_panels WHERE chat=? AND user=?',(chat['id'],user['id'])).fetchone():
+            self.db.execute('INSERT INTO scout_panels VALUES(?,?,?)',(chat['id'],user['id'],message['message_id']))
+
+    def render(self,chat,text,keyboard=None,user=None,force=False):
+        """One durable working panel per user; the shared pinned queue stays separate."""
+        uid=user['id'];keyboard=keyboard or main_buttons()
+        if chat==GROUP_ID:
+            text=self.mention(uid,user)+'\n'+text
+            if force:text+='\n\nОтветьте на это сообщение. Отмена: /cancel'
+        args={'chat_id':chat,'text':text,'parse_mode':'HTML','reply_markup':keyboard}
+        row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,uid)).fetchone()
+        if row:
+            try:
+                self.call('editMessageText',message_id=row[0],**args)
+                return {'message_id':row[0]}
+            except Exception as error:
+                response=getattr(error,'response',None)
+                description=(response.text or '').lower() if response is not None else ''
+                if response is not None and response.status_code==400 and 'message is not modified' in description:
+                    return {'message_id':row[0]}
+                missing=response is not None and response.status_code==400 and any(value in description for value in ('message to edit not found','message_id_invalid',"message can't be edited",'message cannot be edited'))
+                if not missing:raise
+        if chat==GROUP_ID:args['message_thread_id']=THREAD_ID
+        sent=self.call('sendMessage',**args)
+        self.db.execute('INSERT OR REPLACE INTO scout_panels VALUES(?,?,?)',(chat,uid,sent['message_id']))
+        return sent
+
     def prompt(self,chat,user,state,text,keyboard=None,force=False):
-        sent=self.send(chat,text,keyboard,user,force)
+        sent=self.render(chat,text,keyboard or (cancelled() if force else None),user,force)
         state['prompt_message_id']=sent['message_id'];self.save_session(chat,user['id'],state)
 
     def schedule(self,job):
@@ -237,13 +272,26 @@ class ScoutRequests:
     def detail(self,chat,user,job):
         text=self.job_text(job);rows=[[{'text':'🏹 Открыть пункт сбора','url':rally_url(job['x'],job['y'])}]]
         if user['id']==COORDINATOR_ID and job['status']!='cancelled':
-            text+='\n\n📷 Прикрепите скриншот ответом на это сообщение. Он будет доступен участникам в общей ветке.'
+            text+='\n\n📷 Нажмите «Прикрепить результат», затем ответьте скриншотом на отдельное сообщение с координатами.'
+            rows.append([{'text':'📷 Прикрепить результат','callback_data':f'scan:upload:{job["id"]}'}])
             rows.append([{'text':'✅ Выполнена' if job['status']=='pending' else '↩️ Вернуть в очередь','callback_data':f'scan:done:{job["id"]}' if job['status']=='pending' else f'scan:reopen:{job["id"]}'}])
         if user['id']==job['creator'] and job['status']=='pending':
             rows.append([{'text':'🗑 Удалить мою заявку','callback_data':f'scan:delete:{job["id"]}'}])
         rows.append([{'text':'📋 К заявкам','callback_data':'scan:list:0'}])
-        sent=self.send(chat,text,{'inline_keyboard':rows},user)
-        if user['id']==COORDINATOR_ID:self.db.execute('INSERT OR REPLACE INTO scout_bindings VALUES(?,?,?)',(chat,sent['message_id'],job['id']))
+        self.render(chat,text,{'inline_keyboard':rows},user)
+
+    def upload_prompt(self,chat,user,job):
+        row=self.db.execute('SELECT message FROM scout_uploads WHERE chat=? AND request=?',(chat,job['id'])).fetchone()
+        if not row:
+            text=f'<b>📷 Результат скана #{job["id"]}</b>\n🎯 {target_link(job["x"],job["y"])}\n📋 {KINDS[job["kind"]]}\n\nПрикрепите скриншот ответом на это сообщение. Эта привязка сохранится при переходах по меню.'
+            sent=self.send(chat,text,user=user,force=True)
+            message_id=sent['message_id']
+            self.db.execute('INSERT INTO scout_uploads VALUES(?,?,?)',(chat,job['id'],message_id))
+            self.db.execute('INSERT OR REPLACE INTO scout_bindings VALUES(?,?,?)',(chat,message_id,job['id']))
+        else:message_id=row[0]
+        text=f'📷 Для заявки #{job["id"]} ответьте скриншотом на сообщение «Результат скана #{job["id"]}» с координатами {job["x"]} {job["y"]}.'
+        if chat==GROUP_ID:text+=f'\n<a href="{public_link(message_id)}">Открыть сообщение для скриншота</a>'
+        self.render(chat,text,{'inline_keyboard':[[{'text':'⬅️ К заявке','callback_data':f'scan:view:{job["id"]}'}]]},user)
 
     def publish_photo(self,message,user):
         chat=message['chat']['id'];reply=(message.get('reply_to_message') or {}).get('message_id')
@@ -252,11 +300,11 @@ class ScoutRequests:
         if not row and album:row=self.db.execute('SELECT request FROM scout_albums WHERE chat=? AND album=?',(chat,album)).fetchone()
         if not row:return False
         if user['id']!=COORDINATOR_ID:
-            self.send(chat,'Прикреплять результаты заявок может только координатор.',user=user);return True
+            self.render(chat,'Прикреплять результаты заявок может только координатор.',user=user);return True
         if self.db.execute('SELECT 1 FROM scout_results WHERE source_chat=? AND source_message=?',(chat,message['message_id'])).fetchone():return True
         document=message.get('document') or {}
         if not message.get('photo') and not str(document.get('mime_type','')).startswith('image/'):
-            self.send(chat,'Пришлите скриншот как фотографию или файл изображения.',user=user);return True
+            self.render(chat,'Пришлите скриншот как фотографию или файл изображения.',user=user);return True
         job=self.job(row[0]);caption=f'📷 <b>Результат скана #{job["id"]}</b>\n🎯 {target_link(job["x"],job["y"])}\n📋 {KINDS[job["kind"]]}'
         if chat==GROUP_ID:
             public_message=message['message_id']
@@ -264,7 +312,7 @@ class ScoutRequests:
         else:
             sent=self.call('copyMessage',chat_id=GROUP_ID,message_thread_id=THREAD_ID,from_chat_id=chat,message_id=message['message_id'],caption=caption,parse_mode='HTML')
             public_message=sent['message_id']
-            self.send(chat,'✅ Скриншот опубликован в общей ветке.\n'+f'<a href="{public_link(public_message)}">Открыть результат</a>',user=user)
+            self.render(chat,'✅ Скриншот опубликован в общей ветке.\n'+f'<a href="{public_link(public_message)}">Открыть результат</a>',user=user)
         self.db.execute('INSERT INTO scout_results(request,source_chat,source_message,public_message,created) VALUES(?,?,?,?,?)',(job['id'],chat,message['message_id'],public_message,self.now()))
         if album:self.db.execute('INSERT OR REPLACE INTO scout_albums VALUES(?,?,?)',(chat,album,job['id']))
         self.ensure_centre();return True
@@ -273,6 +321,11 @@ class ScoutRequests:
         q=update.get('callback_query') or {};message=update.get('message') or q.get('message') or {}
         chat=message.get('chat') or {};user=(q.get('from') if q else message.get('from')) or {}
         if not user.get('id') or not (chat.get('type')=='private' or (chat.get('id')==GROUP_ID and message.get('message_thread_id')==THREAD_ID)):return False
+        if q:
+            if self.foreign_panel(message,user):
+                self.call('answerCallbackQuery',callback_query_id=q['id'],text='Это меню другого участника. Откройте своё через /scout.')
+                return True
+            self.adopt_panel(message,user)
         if chat.get('type')=='private' and user['id']!=COORDINATOR_ID:
             raw_command=str(message.get('text') or '').split()
             raw_command=raw_command[0].split('@')[0] if raw_command else ''
@@ -306,6 +359,7 @@ class ScoutRequests:
         if command=='/settings':action='scan:settings'
         if command=='/cancel' and state:action='scan:cancel'
         if action.startswith('scan:'):
+            self.db.execute('INSERT OR REPLACE INTO sessions VALUES(?,?,?)',(chat,uid,'{}'))
             return self.action(chat,user,state,action)
         if message.get('photo') or message.get('document'):
             return self.publish_photo(message,user)
@@ -315,37 +369,41 @@ class ScoutRequests:
 
     def action(self,chat,user,state,action):
         uid=user['id'];parts=action.split(':');verb=parts[1] if len(parts)>1 else ''
-        if verb in ('settings','origin','arena','done','reopen') and uid!=COORDINATOR_ID:
-            self.send(chat,'Эта функция доступна только скаут-координатору.',user=user);return True
+        if verb in ('list','results','settings','view','done','reopen','delete','upload'):self.save_session(chat,uid,{})
+        if verb in ('settings','origin','arena','done','reopen','upload') and uid!=COORDINATOR_ID:
+            self.render(chat,'Эта функция доступна только скаут-координатору.',user=user);return True
         if verb=='new':
             self.db.execute('INSERT OR REPLACE INTO sessions VALUES(?,?,?)',(chat,uid,'{}'))
             self.prompt(chat,user,{'stage':'coords','token':uuid.uuid4().hex},'Введите координаты деревни, которую нужно разведать, <b>через пробел</b>: <code>145 52</code>. Формат: X Y.',force=True)
         elif verb=='cancel':
-            self.save_session(chat,uid,{});self.send(chat,'Действие отменено.',main_buttons(),user)
+            self.save_session(chat,uid,{});self.render(chat,'Действие отменено.',main_buttons(),user)
         elif verb in ('list','results'):
             page=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else 0
-            self.send(chat,*self.queue_view(page,verb=='results'),user=user);self.ensure_centre()
+            self.render(chat,*self.queue_view(page,verb=='results'),user=user);self.ensure_centre()
         elif verb=='delete':
             ident=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else -1
             job=self.job(ident)
             if not job or job['creator']!=uid:
-                self.send(chat,'Можно удалить только свою заявку.',user=user);return True
+                self.render(chat,'Можно удалить только свою заявку.',user=user);return True
             if job['status'] not in ('pending','cancelled'):
-                self.send(chat,'Эта заявка уже выполнена. Результат сохранён.',user=user);return True
+                self.render(chat,'Эта заявка уже выполнена. Результат сохранён.',user=user);return True
             self.db.execute("UPDATE scout_jobs SET status='cancelled' WHERE id=?",(ident,))
             self.ensure_centre()
-            self.send(chat,f'🗑 Заявка #{ident} удалена из очереди.',main_buttons(),user)
-        elif verb in ('view','done','reopen'):
+            self.render(chat,f'🗑 Заявка #{ident} удалена из очереди.',main_buttons(),user)
+        elif verb in ('view','done','reopen','upload'):
             ident=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else -1;job=self.job(ident)
-            if not job:self.send(chat,'Заявка не найдена.',user=user);return True
+            if not job:self.render(chat,'Заявка не найдена.',user=user);return True
             if verb in ('done','reopen') and job['status']=='cancelled':
-                self.send(chat,'Заявка удалена автором.',user=user);return True
+                self.render(chat,'Заявка удалена автором.',user=user);return True
             if verb in ('done','reopen'):
                 self.db.execute('UPDATE scout_jobs SET status=? WHERE id=?',('done' if verb=='done' else 'pending',ident));self.ensure_centre();job=self.job(ident)
-            self.detail(chat,user,job)
+            if verb=='upload':
+                if job['status']=='cancelled':self.render(chat,'Заявка удалена автором.',user=user)
+                else:self.upload_prompt(chat,user,job)
+            else:self.detail(chat,user,job)
         elif verb=='settings':
             s=self.setting('coordinator')
-            self.send(chat,f'<b>⚙️ Настройки координатора</b>\nTelegram ID: {COORDINATOR_ID}\n🏘 Деревня: {s["x"]}|{s["y"]}\n🏟 Арена: {s["arena"]}\n🐎 Римские разведчики: 16 полей/ч\n\nИзменения пересчитывают время отправки открытых заявок.',{'inline_keyboard':[[{'text':'🏘 Изменить деревню','callback_data':'scan:origin'},{'text':'🏟 Изменить арену','callback_data':'scan:arena'}],[{'text':'📋 К заявкам','callback_data':'scan:list:0'}]]},user)
+            self.render(chat,f'<b>⚙️ Настройки координатора</b>\nTelegram ID: {COORDINATOR_ID}\n🏘 Деревня: {s["x"]}|{s["y"]}\n🏟 Арена: {s["arena"]}\n🐎 Римские разведчики: 16 полей/ч\n\nИзменения пересчитывают время отправки открытых заявок.',{'inline_keyboard':[[{'text':'🏘 Изменить деревню','callback_data':'scan:origin'},{'text':'🏟 Изменить арену','callback_data':'scan:arena'}],[{'text':'📋 К заявкам','callback_data':'scan:list:0'}]]},user)
         elif verb in ('origin','arena'):
             self.prompt(chat,user,{'stage':verb},'Введите координаты деревни отправки <b>через пробел</b>: <code>22 63</code>. Формат: X Y.' if verb=='origin' else 'Введите уровень арены от 0 до 20.',force=True)
         elif verb=='kind' and state.get('stage')=='kind' and len(parts)>2 and parts[2] in KINDS:
@@ -359,11 +417,11 @@ class ScoutRequests:
         elif verb=='confirm' and len(parts)>2:
             token=parts[2];existing=self.db.execute('SELECT id,data FROM scout_jobs WHERE submit_key=?',(token,)).fetchone()
             if existing:
-                if json.loads(existing[1])['creator']!=uid:self.send(chat,'Это подтверждение другого пользователя.',user=user)
-                else:self.send(chat,f'✅ Заявка #{existing[0]} уже создана.',main_buttons(),user)
+                if json.loads(existing[1])['creator']!=uid:self.render(chat,'Это подтверждение другого пользователя.',user=user)
+                else:self.render(chat,f'✅ Заявка #{existing[0]} уже создана.',main_buttons(),user)
                 self.ensure_centre();return True
             if state.get('stage')!='confirm' or token!=state.get('token'):
-                self.send(chat,'Это старое подтверждение. Создайте заявку заново.',main_buttons(),user);return True
+                self.render(chat,'Это старое подтверждение. Создайте заявку заново.',main_buttons(),user);return True
             payload={k:state[k] for k in ('x','y','kind','arrival')}
             payload.update(creator=uid,creator_name=user.get('first_name') or str(uid),creator_username=user.get('username'),created=self.now())
             timing=self.schedule(payload)
@@ -371,8 +429,8 @@ class ScoutRequests:
                 state['stage']='arrival';self.prompt(chat,user,state,'К этому времени разведчики уже не успеют. Введите более позднее время прибытия (ЧЧ:ММ или ЧЧ:ММ:СС).',force=True);return True
             row=self.db.execute("INSERT INTO scout_jobs(submit_key,status,data) VALUES(?,'pending',?)",(token,json.dumps(payload)));ident=row.lastrowid
             self.save_session(chat,uid,{});self.ensure_centre()
-            self.send(chat,f'✅ Заявка на скан #{ident} добавлена в общую очередь.',{'inline_keyboard':[[{'text':'🔎 Открыть заявку','callback_data':f'scan:view:{ident}'}],[{'text':'🗑 Удалить мою заявку','callback_data':f'scan:delete:{ident}'}]]},user)
-        else:self.send(chat,'Эта кнопка устарела. Откройте нужный раздел заново.',main_buttons(),user)
+            self.render(chat,f'✅ Заявка на скан #{ident} добавлена в общую очередь.',{'inline_keyboard':[[{'text':'🔎 Открыть заявку','callback_data':f'scan:view:{ident}'}],[{'text':'🗑 Удалить мою заявку','callback_data':f'scan:delete:{ident}'}]]},user)
+        else:self.render(chat,'Эта кнопка устарела. Откройте нужный раздел заново.',main_buttons(),user)
         return True
 
     def submit(self,chat,user,state):
@@ -392,7 +450,7 @@ class ScoutRequests:
                     if not re.fullmatch(r'\d{1,2}',text) or not 0<=int(text)<=20:raise ValueError('Уровень арены — целое число от 0 до 20.')
                     settings['arena']=int(text)
                 self.set_setting('coordinator',settings);self.save_session(chat,user['id'],{});self.ensure_centre()
-                self.send(chat,'✅ Настройки сохранены. Время открытых заявок пересчитано.',main_buttons(),user);return
+                self.render(chat,'✅ Настройки сохранены. Время открытых заявок пересчитано.',main_buttons(),user);return
             if stage=='coords':
                 state['x'],state['y']=coordinates(text);state['stage']='kind'
                 self.prompt(chat,user,state,'Какой скан нужен?',{'inline_keyboard':[[{'text':'🌾 Ресурсы и войска','callback_data':'scan:kind:resources'}],[{'text':'🏛 Строения и войска','callback_data':'scan:kind:buildings'}],cancelled()['inline_keyboard'][0]]});return

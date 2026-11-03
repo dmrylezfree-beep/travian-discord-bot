@@ -36,7 +36,7 @@ from scout_requests import ScoutRequests, main_buttons
 MENU = main_buttons()
 CANCEL = {"inline_keyboard": [[{"text": "❌ Отменить", "callback_data": "cancel"}]]}
 KINDS = {"inline_keyboard": [[{"text": "🏘 Деревня", "callback_data": "crop:village"}, {"text": "🌴 Оазис игрока (×10)", "callback_data": "crop:oasis"}], [{"text": "❌ Отменить", "callback_data": "cancel"}]]}
-HELP = ("🔎 Заявки на скан: выберите координаты, тип разведки и время. Координатор открывает заявку и прикрепляет скриншот ответом на сообщение бота; результаты видны в общей ветке. Заявка убирается из очереди кнопкой «Выполнена». Время прибытия и отправки — по Travian, настройки деревни и арены меняет только координатор.\n\n📖 Расчёт по двум сканам\n\nВыберите деревню или оазис игрока, затем введите время и кроп первого и второго скана. "
+HELP = ("🔎 Заявки на скан: выберите координаты, тип разведки и время. Координатор открывает заявку, нажимает «Прикрепить результат» и отвечает скриншотом на отдельное сообщение с координатами; результаты видны в общей ветке. Заявка убирается из очереди кнопкой «Выполнена». Время прибытия и отправки — по Travian, настройки деревни и арены меняет только координатор.\n\n📖 Расчёт по двум сканам\n\nВыберите деревню или оазис игрока, затем введите время и кроп первого и второго скана. "
         "Для оазиса бот умножает показанные ресурсы на 10. Для деревни множитель — 1.\n\n"
         "Формула: (кроп₂ − кроп₁) × множитель × 3600 ÷ секунды между сканами.\n\n"
         "Плюс означает накопление кропа, минус — уменьшение запаса. Это чистый баланс с учётом производства, а не отдельное содержание армии. "
@@ -166,6 +166,24 @@ class Store:
         self.db.execute('INSERT OR REPLACE INTO progress VALUES(1,?)', (value,));self.db.commit()
 
 
+def handle_calculator(update,scout,store):
+    q=update.get('callback_query') or {};message=update.get('message') or q.get('message') or {}
+    chat=message.get('chat') or {};user=(q.get('from') if q else message.get('from')) or {}
+    if not accepted(message) or not user.get('id') or user.get('is_bot'):return False
+    if q:
+        if scout.foreign_panel(message,user):return True
+        scout.adopt_panel(message,user)
+    text=message.get('text') if not q else None
+    if text and text.startswith('/'):text=text.split()[0].split('@')[0]
+    previous=store.load(chat['id'],user['id'])
+    if not (q or (text and accepts_input(message,previous))):return False
+    state,reply,keyboard=respond(previous,text,q.get('data'))
+    sent=scout.render(chat['id'],html.escape(reply),keyboard,user,force=state.get('stage') not in (None,'kind'))
+    if state.get('stage'):state['prompt_message_id']=sent['message_id']
+    store.save(chat['id'],user['id'],state,update['update_id']+1)
+    return True
+
+
 def main():
     import requests
     token = os.environ['SCOUT_TELEGRAM_TOKEN']
@@ -202,30 +220,16 @@ def main():
                 chat = message.get('chat') or {}
                 user = (q.get('from') if q else message.get('from')) or {}
                 if q:
+                    if accepted(message) and user.get('id') and scout.foreign_panel(message,user):
+                        call('answerCallbackQuery',callback_query_id=q['id'],text='Это меню другого участника. Откройте своё через /scout.')
+                        store.acknowledge(update['update_id']+1)
+                        continue
                     try:call('answerCallbackQuery',callback_query_id=q['id'])
                     except Exception:pass
                 if scout.handle(update):
                     store.acknowledge(update['update_id']+1)
                     continue
-                if accepted(message) and user.get('id') and not user.get('is_bot'):
-                    text = message.get('text') if not q else None
-                    if text and text.startswith('/'):
-                        text = text.split()[0].split('@')[0]
-                    previous = store.load(chat['id'],user['id'])
-                    if q or (text and accepts_input(message,previous)):
-                        state, reply, keyboard = respond(previous,text, q.get('data'))
-                        data = dict(chat_id=chat['id'],text=reply,reply_markup=keyboard)
-                        if chat.get('type') != 'private':
-                            data['message_thread_id'] = THREAD_ID
-                            data['parse_mode'] = 'HTML'
-                            data['text'] = scout.mention(user['id'],user) + '\n' + html.escape(reply)
-                            if state.get('stage') not in (None,'kind'):
-                                data['reply_markup'] = {'force_reply': True, 'selective': True}
-                                data['text'] += '\n\nОтветьте на это сообщение. Отмена: /cancel'
-                        sent = call('sendMessage',**data)
-                        if state.get('stage'):
-                            state['prompt_message_id'] = sent['message_id']
-                        store.save(chat['id'],user['id'],state,update['update_id']+1)
+                handle_calculator(update,scout,store)
                 store.acknowledge(update['update_id']+1)
             except Exception:
                 # Do not log request URLs, tokens, scan contents or personal IDs.
