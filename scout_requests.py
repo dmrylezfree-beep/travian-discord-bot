@@ -302,8 +302,35 @@ class ScoutRequests:
                 try:self.call('pinChatMessage',chat_id=GROUP_ID,message_id=message_id,disable_notification=True)
                 except Exception:return False
                 self.set_setting('pinned_id',message_id)
+            remaining=[]
+            for old_id in self.setting('retired_centre_ids',[]):
+                if old_id==message_id:continue
+                try:self.call('unpinChatMessage',chat_id=GROUP_ID,message_id=old_id)
+                except Exception as error:
+                    response=getattr(error,'response',None)
+                    description=(response.text or '').lower() if response is not None else ''
+                    gone=response is not None and response.status_code==400 and any(value in description for value in ('message is not pinned','message to unpin not found','message_id_invalid'))
+                    if not gone:remaining.append(old_id)
+            self.set_setting('retired_centre_ids',remaining)
+            if remaining:return False
             self.last_refresh=self.now()
             return True
+
+    def restart_centre(self,chat,user):
+        previous=self.setting('centre_id');text,keyboard=self.queue_view()
+        sent=self.send(GROUP_ID,text,keyboard);message_id=sent['message_id']
+        retired=self.setting('retired_centre_ids',[])
+        if previous and previous!=message_id and previous not in retired:retired.append(previous)
+        self.set_setting('centre_id',message_id);self.set_setting('retired_centre_ids',retired)
+        # Save the posted message ID before pinning: failures retry the pin,
+        # rather than creating another centre on the next periodic refresh.
+        self.db.commit()
+        self.ensure_centre()
+        row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,user['id'])).fetchone()
+        if row and row[0] not in (previous,message_id) and not self.db.execute('SELECT 1 FROM scout_bindings WHERE chat=? AND message=?',(chat,row[0])).fetchone():
+            try:self.call('editMessageReplyMarkup',chat_id=chat,message_id=row[0],reply_markup={'inline_keyboard':[]})
+            except Exception:pass
+        self.fresh_panels.discard((chat,user['id']))
 
     def tick(self):
         if self.now()-self.last_refresh>=60:self.ensure_centre()
@@ -396,6 +423,11 @@ class ScoutRequests:
         command=text.split()[0] if text.startswith('/') else ''
         if '@' in command and command.split('@',1)[1].lower()!='scout_travian_bot':return False
         command=command.split('@')[0]
+        if command=='/start' and chat==GROUP_ID:
+            self.save_session(chat,uid,{})
+            self.db.execute('INSERT OR REPLACE INTO sessions VALUES(?,?,?)',(chat,uid,'{}'))
+            self.restart_centre(chat,user)
+            return True
         if action.startswith('crop:') or action in ('help','cancel') or command in ('/start','/crop','/help'):
             self.save_session(chat,uid,{});return False
         if command in ('/scout','/requests'):action='scan:list:0'

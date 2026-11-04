@@ -266,7 +266,7 @@ class ScoutMenuTests(unittest.TestCase):
         self.seq+=1
         return self.app.handle(update) or handle_calculator(update,self.app,self.store)
     def test_crop_calculator_and_scan_navigation_reuse_same_menu(self):
-        self.app.ensure_centre();self.calculator_update(text='/start');panel=self.panel();sent=self.sent()
+        self.app.ensure_centre();self.calculator_update(text='/crop');panel=self.panel();sent=self.sent()
         self.calculator_update(action='crop:start');self.calculator_update(action='crop:oasis')
         for value in ('22:02:50','2749','22:03:11','2767'):self.calculator_update(text=value)
         self.assertEqual(self.sent(),sent);self.assertEqual(self.panel(),panel);self.assertEqual(self.store.load(GROUP_ID,1),{})
@@ -349,8 +349,9 @@ class ScoutMenuFocusTests(unittest.TestCase):
         def command(text):
             message={'message_id':1000+self.seq,'text':text,'from':user,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID};update={'update_id':self.seq,'message':message};self.seq+=1
             return self.app.handle(update) or handle_calculator(update,self.app,self.store)
-        command('/start');old=self.panel();command('/start@Scout_travian_bot');self.assertNotEqual(self.panel(),old)
-        self.assertIn('Scout Travian',next(d['text'] for m,d in reversed(self.api.calls) if m=='sendMessage'))
+        command('/start');old=self.app.setting('centre_id');command('/start@Scout_travian_bot');self.assertNotEqual(self.app.setting('centre_id'),old)
+        self.assertEqual(self.app.setting('pinned_id'),self.app.setting('centre_id'))
+        self.assertIn('ЦЕНТР РАЗВЕДКИ',next(d['text'] for m,d in reversed(self.api.calls) if m=='sendMessage'))
     def test_pinned_root_does_not_change_others_or_duplicate_jobs(self):
         self.app.ensure_centre();self.click('scan:new',1);first=self.panel(1);self.click('scan:new',2);second=self.panel(2)
         self.pinned_click('scan:list:0',1);self.assertNotEqual(self.panel(1),first);self.assertEqual(self.panel(2),second);self.assertEqual(self.app.jobs(),[])
@@ -363,3 +364,38 @@ class ScoutMenuFocusTests(unittest.TestCase):
         with patch.object(self.app,'call',side_effect=api):
             with self.assertRaises(requests.Timeout):self.pinned_click('scan:new')
         self.assertEqual(self.panel(),old);self.assertFalse(any(m=='editMessageReplyMarkup' for m,d in self.api.calls[before:]))
+
+class ScoutStartPinTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    text=ScoutRequestTests.text
+    create=ScoutRequestTests.create
+    draft=ScoutRequestTests.draft
+    panel=ScoutMenuTests.panel
+    def test_start_posts_and_pins_shared_centre_then_unpins_only_old_centre(self):
+        self.app.ensure_centre();old=self.app.setting('centre_id');self.create();jobs=self.app.jobs();self.click('scan:new');working=self.panel();begin=len(self.api.calls)
+        self.text('/start@Scout_travian_bot',reply=False);new=self.app.setting('centre_id')
+        self.assertNotEqual(new,old);self.assertEqual(self.app.setting('pinned_id'),new);self.assertEqual(self.app.jobs(),jobs)
+        calls=self.api.calls[begin:];pin=next(i for i,(m,d) in enumerate(calls) if m=='pinChatMessage');unpin=next(i for i,(m,d) in enumerate(calls) if m=='unpinChatMessage')
+        self.assertLess(pin,unpin);self.assertEqual(calls[unpin][1],{'chat_id':GROUP_ID,'message_id':old});self.assertFalse(any(m=='unpinAllForumTopicMessages' for m,d in calls))
+        posted=[d for m,d in calls if m=='sendMessage'];self.assertEqual(len(posted),1);self.assertIn('ЦЕНТР РАЗВЕДКИ',posted[0]['text']);self.assertEqual(posted[0]['message_thread_id'],THREAD_ID)
+        self.assertTrue(any(m=='editMessageReplyMarkup' and d['message_id']==working for m,d in calls));self.assertEqual(self.app.session(GROUP_ID,1),{})
+    def test_failed_pin_retries_same_post_before_unpinning_previous(self):
+        self.app.ensure_centre();old=self.app.setting('centre_id');self.api.pin=False;self.text('/start',reply=False);new=self.app.setting('centre_id');self.assertNotEqual(new,old)
+        self.assertEqual(self.app.setting('pinned_id'),old);self.assertFalse(any(m=='unpinChatMessage' for m,d in self.api.calls))
+        sends=sum(m=='sendMessage' for m,d in self.api.calls);self.api.pin=True;self.app.ensure_centre()
+        self.assertEqual(self.app.setting('pinned_id'),new);self.assertEqual(sum(m=='sendMessage' for m,d in self.api.calls),sends);self.assertEqual(self.app.setting('retired_centre_ids'),[])
+    def test_failed_old_unpin_retries_without_reposting(self):
+        self.app.ensure_centre();old=self.app.setting('centre_id');original=self.app.call
+        def fail(method,**data):
+            if method=='unpinChatMessage':raise RuntimeError('fixture unavailable')
+            return original(method,**data)
+        with patch.object(self.app,'call',side_effect=fail):self.text('/start',reply=False)
+        new=self.app.setting('centre_id');self.assertEqual(self.app.setting('pinned_id'),new);self.assertEqual(self.app.setting('retired_centre_ids'),[old])
+        sends=sum(m=='sendMessage' for m,d in self.api.calls);self.app.ensure_centre();self.assertEqual(sum(m=='sendMessage' for m,d in self.api.calls),sends);self.assertEqual(self.app.setting('retired_centre_ids'),[])
+    def test_private_start_opens_menu_without_changing_group_pin(self):
+        from scout_bot import handle_calculator
+        self.app.ensure_centre();centre=self.app.setting('centre_id');before=len(self.api.calls)
+        update={'update_id':99,'message':{'message_id':999,'text':'/start','from':{'id':1},'chat':{'id':1,'type':'private'}}}
+        self.assertFalse(self.app.handle(update));self.assertTrue(handle_calculator(update,self.app,self.store));self.assertEqual(self.app.setting('centre_id'),centre)
+        self.assertFalse(any(m in ('pinChatMessage','unpinChatMessage') for m,d in self.api.calls[before:]))
