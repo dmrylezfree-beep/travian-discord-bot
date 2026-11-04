@@ -1062,3 +1062,33 @@ class MapDownloadEncodingTests(unittest.TestCase):
   import travian_bot as b
   response=requests.Response();response.status_code=200;response._content=b'\xef\xbb\xbf'+"-- 日本語 и русский".encode('utf-8')
   with patch.object(b.requests,'get',return_value=response):self.assertEqual(b.download_map_data(),'-- 日本語 и русский')
+
+class DefenceLatencyTests(unittest.TestCase):
+ def test_planner_looks_up_only_selected_owners_not_all_profiles(self):
+  from datetime import datetime,timedelta
+  a=defence;players={str(i):{'telegram_id':i,'first_name':str(i),'villages':[]} for i in range(100,143)}
+  players['1']={'telegram_id':1,'first_name':'Near','villages':[{'coordinates':'1 1'}]};players['2']={'telegram_id':2,'first_name':'Far','villages':[{'coordinates':'2 2'}]};players['3']={'telegram_id':3,'first_name':'Cavalry','villages':[{'coordinates':'3 3'}]}
+  req={'id':77,'status':'active','required_def':200,'collected_def':0,'attack_time':(datetime.now(a.SERVER_TZ)+timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')}
+  def units(p,v,r):
+   uid=p['telegram_id'];cavalry=uid==3
+   return [{'key':'druidrider' if cavalry else 'phalanx','name':'units','amount':500,'value':2 if cavalry else 1,'distance':1 if cavalry else uid*10,'no_hero_seconds':100,'hero_seconds':None}]
+  def label(p):
+   self.assertEqual(p['telegram_id'],1);return 'Current chat tag'
+  with patch.object(a.bot,'players',return_value=players),patch.object(a,'source_village_units',side_effect=units),patch.object(a,'_player_label',side_effect=label) as names:
+   plan=a.build_optimal_plan(req)
+  names.assert_called_once_with(players['1']);self.assertEqual(plan['covered'],200);self.assertEqual(plan['items'][0]['player'],'Current chat tag');self.assertEqual(plan['items'][0]['unit_key'],'phalanx');self.assertNotIn('_player_key',plan['items'][0])
+ def test_tags_are_cached_and_refreshed_without_changing_authorization(self):
+  a=defence.bot
+  response=unittest.mock.Mock(ok=True);response.json.side_effect=[{'ok':True,'result':{'tag':'Old'}},{'ok':True,'result':{'tag':'New'}}]
+  with patch.object(a,'TELEGRAM_TOKEN','fixture'),patch.object(a,'load_json',return_value={'center_chat_id':-100}),patch.object(a,'_member_tag_cache',{}),patch.object(a.time,'monotonic',return_value=100) as clock,patch.object(a.requests,'get',return_value=response) as get:
+   self.assertEqual(a.telegram_member_tag(1),'Old');self.assertEqual(a.telegram_member_tag(1),'Old');self.assertEqual(get.call_count,1)
+   clock.return_value=401;self.assertEqual(a.telegram_member_tag(1),'New');self.assertEqual(get.call_count,2)
+   self.assertLessEqual(max(get.call_args.kwargs['timeout']),3)
+ def test_profile_network_failure_uses_stale_tag_and_backs_off(self):
+  a=defence.bot;cache={('-100','1'):{'tag':'Known name','expires':99}}
+  with patch.object(a,'TELEGRAM_TOKEN','fixture'),patch.object(a,'load_json',return_value={'center_chat_id':-100}),patch.object(a,'_member_tag_cache',cache),patch.object(a.time,'monotonic',return_value=100),patch.object(a.requests,'get',side_effect=requests.Timeout('fixture')) as get:
+   self.assertEqual(a.telegram_member_tag(1),'Known name');self.assertEqual(a.telegram_member_tag(1),'Known name');get.assert_called_once()
+ def test_successful_empty_tag_is_cached(self):
+  a=defence.bot;response=unittest.mock.Mock(ok=True);response.json.return_value={'ok':True,'result':{}}
+  with patch.object(a,'TELEGRAM_TOKEN','fixture'),patch.object(a,'load_json',return_value={'center_chat_id':-100}),patch.object(a,'_member_tag_cache',{}),patch.object(a.requests,'get',return_value=response) as get:
+   self.assertEqual(a.telegram_member_tag(2),'');self.assertEqual(a.telegram_member_tag(2),'');get.assert_called_once()

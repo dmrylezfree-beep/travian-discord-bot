@@ -313,29 +313,39 @@ def fmt_num(value):
     return f"{int(value):,}".replace(",", " ")
 
 
+_member_tag_cache = {}
+
+
 def telegram_member_tag(telegram_id):
-    """Return the administrator-assigned Telegram member tag when available."""
+    """Cache optional chat tags; profile lookup must not hold up defence work."""
     if not TELEGRAM_TOKEN or not telegram_id:
         return ""
     state = load_json(STATE_FILE, {})
     group_chat_id = state.get("center_chat_id") if isinstance(state, dict) else None
     if not group_chat_id:
         return ""
+    key = (str(group_chat_id), str(telegram_id))
+    now = time.monotonic()
+    cached = _member_tag_cache.get(key)
+    if cached and cached["expires"] > now:
+        return cached["tag"]
+    tag = cached["tag"] if cached else ""
+    ttl = 30
     try:
         response = requests.get(
             f"{API}/getChatMember",
             params={"chat_id": int(group_chat_id), "user_id": int(telegram_id)},
-            timeout=REQUEST_TIMEOUT,
+            timeout=(2, 3),
             proxies=TELEGRAM_PROXIES,
         )
         payload = response.json()
-        if not response.ok or not payload.get("ok"):
-            return ""
-        member = payload.get("result") or {}
-        return str(member.get("tag") or "").strip()
-    except Exception as exc:
-        print(f"Telegram member tag lookup failed for {telegram_id}: {exc}", flush=True)
-        return ""
+        if response.ok and payload.get("ok"):
+            tag = str((payload.get("result") or {}).get("tag") or "").strip()
+            ttl = 300
+    except Exception:
+        print("Telegram member tag lookup unavailable; using cached label.", flush=True)
+    _member_tag_cache[key] = {"tag": tag, "expires": time.monotonic() + ttl}
+    return tag
 
 
 def player_name(p):

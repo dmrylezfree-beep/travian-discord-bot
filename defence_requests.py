@@ -845,10 +845,12 @@ def build_optimal_plan(req):
 
     candidates = []
     players = bot.players()
-    for player in players.values() if isinstance(players, dict) else []:
+    for player_key, player in players.items() if isinstance(players, dict) else []:
         if not isinstance(player, dict):
             continue
-        label = _player_label(player)
+        # Candidate sorting needs only a stable local label. Chat tags are
+        # fetched for the selected owners after the troop calculation.
+        label = str(player.get("player_name") or player.get("first_name") or player.get("username") or player_key)
         for village in player.get("villages", []):
             coords = str(village.get("coordinates", "?"))
             for item in source_village_units(player, village, req):
@@ -872,6 +874,7 @@ def build_optimal_plan(req):
                 cavalry = item["key"] in CAVALRY_UNITS
                 candidates.append({
                     "player": label,
+                    "_player_key": player_key,
                     "telegram_id": player.get("telegram_id"),
                     "village": coords,
                     "unit_key": item["key"],
@@ -912,6 +915,13 @@ def build_optimal_plan(req):
         picked["def_points"] = points
         chosen.append(picked)
         need -= points
+
+    labels = {}
+    for item in chosen:
+        player_key = item.pop("_player_key")
+        if player_key not in labels:
+            labels[player_key] = _player_label(players[player_key])
+        item["player"] = labels[player_key]
 
     return {
         "remaining": remaining,
