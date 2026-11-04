@@ -174,6 +174,7 @@ def handle_calculator(update,scout,store):
         scout.adopt_panel(message,user)
     text=message.get('text') if not q else None
     if text and text.startswith('/'):text=text.split()[0].split('@')[0]
+    scout.focus_panel(message,user,q.get('data',''),text if text and text.startswith('/') else '')
     previous=store.load(chat['id'],user['id'])
     row=store.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat['id'],user['id'])).fetchone()
     if not (q or (text and accepts_input(message,previous,scout.now(),row[0] if row else None))):return False

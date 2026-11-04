@@ -131,6 +131,7 @@ class ScoutRequests:
         self.last_refresh=0
         self.members={}
         self.member_labels={}
+        self.fresh_panels=set()
 
     def setting(self,key,default=None):
         row=self.db.execute('SELECT data FROM scout_settings WHERE key=?',(key,)).fetchone()
@@ -197,6 +198,12 @@ class ScoutRequests:
         if chat.get('type')=='private' and not self.db.execute('SELECT 1 FROM scout_bindings WHERE chat=? AND message=?',(chat['id'],message['message_id'])).fetchone() and not self.db.execute('SELECT 1 FROM scout_panels WHERE chat=? AND user=?',(chat['id'],user['id'])).fetchone():
             self.db.execute('INSERT INTO scout_panels VALUES(?,?,?)',(chat['id'],user['id'],message['message_id']))
 
+    def focus_panel(self,message,user,action='',command=''):
+        chat=message['chat']['id'];key=(chat,user['id'])
+        row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',key).fetchone()
+        if command in ('/start','/scout','/requests','/settings','/crop','/help') or (panel_entry(action) and row and row[0]!=message['message_id']):
+            self.fresh_panels.add(key)
+
     def render(self,chat,text,keyboard=None,user=None,force=False):
         """One durable working panel per user; the shared pinned queue stays separate."""
         uid=user['id'];keyboard=keyboard or main_buttons()
@@ -205,7 +212,8 @@ class ScoutRequests:
             if force:text+='\n\nМожно просто написать ответ в эту ветку или ответить на это меню. Отмена: /cancel'
         args={'chat_id':chat,'text':text,'parse_mode':'HTML','reply_markup':keyboard}
         row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,uid)).fetchone()
-        if row:
+        fresh=(chat,uid) in self.fresh_panels
+        if row and not fresh:
             try:
                 self.call('editMessageText',message_id=row[0],**args)
                 return {'message_id':row[0]}
@@ -219,6 +227,10 @@ class ScoutRequests:
         if chat==GROUP_ID:args['message_thread_id']=THREAD_ID
         sent=self.call('sendMessage',**args)
         self.db.execute('INSERT OR REPLACE INTO scout_panels VALUES(?,?,?)',(chat,uid,sent['message_id']))
+        self.fresh_panels.discard((chat,uid))
+        if row and row[0]!=sent['message_id'] and row[0]!=self.setting('centre_id') and not self.db.execute('SELECT 1 FROM scout_bindings WHERE chat=? AND message=?',(chat,row[0])).fetchone():
+            try:self.call('editMessageReplyMarkup',chat_id=chat,message_id=row[0],reply_markup={'inline_keyboard':[]})
+            except Exception:pass
         return sent
 
     def prompt(self,chat,user,state,text,keyboard=None,force=False):
@@ -370,6 +382,10 @@ class ScoutRequests:
                     self.send(chat['id'],'Заявки на скан доступны участникам чата альянса. Откройте меню в общей ветке или проверьте членство в группе.',user=user)
                     return True
         with self.db:
+            raw=str(message.get('text') or '').split() if not q else []
+            command=raw[0] if raw else ''
+            if '@' not in command or command.split('@',1)[1].lower()=='scout_travian_bot':
+                self.focus_panel(message,user,q.get('data',''),command.split('@')[0])
             handled=self._handle(update,q,message,chat['id'],user)
             if handled and isinstance(update.get('update_id'),int):
                 self.db.execute('INSERT OR REPLACE INTO progress VALUES(1,?)',(update['update_id']+1,))

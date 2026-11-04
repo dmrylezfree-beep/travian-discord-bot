@@ -22,7 +22,8 @@ class ScoutRequestTests(unittest.TestCase):
         self.api=FakeTelegram();self.now=datetime(2026,10,21,15,tzinfo=timezone.utc).timestamp()
         self.app=ScoutRequests(self.store,self.api,now=lambda:self.now);self.seq=1
     def click(self,data,user=1,chat=GROUP_ID):
-        update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'from':{'id':user,'first_name':'User '+str(user)},'data':data,'message':{'message_id':77,'chat':{'id':chat,'type':'supergroup' if chat==GROUP_ID else 'private'},'message_thread_id':THREAD_ID}}};self.seq+=1
+        panel=self.store.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,user)).fetchone()
+        update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'from':{'id':user,'first_name':'User '+str(user)},'data':data,'message':{'message_id':panel[0] if panel else 77,'chat':{'id':chat,'type':'supergroup' if chat==GROUP_ID else 'private'},'message_thread_id':THREAD_ID}}};self.seq+=1
         return self.app.handle(update)
     def text(self,text,user=1,chat=GROUP_ID,reply=True):
         state=self.app.session(chat,user)
@@ -322,3 +323,43 @@ class ScoutPlainInputTests(unittest.TestCase):
     def test_invalid_numeric_coordinates_are_validated_not_silently_ignored(self):
         self.click('scan:new');self.assertTrue(self.text('201 63',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
         self.assertIn('❌',self.api.calls[-1][1]['text'])
+
+class ScoutMenuFocusTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    text=ScoutRequestTests.text
+    panel=ScoutMenuTests.panel
+    def pinned_click(self,action,user=1):
+        update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'from':{'id':user,'first_name':'User'},'data':action,'message':{'message_id':self.app.setting('centre_id'),'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID}}};self.seq+=1
+        return self.app.handle(update)
+    def test_pinned_new_request_opens_visible_menu_then_edits_in_place(self):
+        self.app.ensure_centre();centre=self.app.setting('centre_id');self.click('scan:new');old=self.panel();sent=sum(m=='sendMessage' for m,d in self.api.calls)
+        self.pinned_click('scan:new');new=self.panel();self.assertNotEqual(new,old);self.assertNotEqual(new,centre)
+        self.assertEqual(sum(m=='sendMessage' for m,d in self.api.calls),sent+1)
+        retired=[d for m,d in self.api.calls if m=='editMessageReplyMarkup'];self.assertEqual(retired[-1]['message_id'],old);self.assertEqual(retired[-1]['reply_markup'],{'inline_keyboard':[]})
+        self.text('40 63',reply=False);self.click('scan:kind:resources');self.click('scan:any');self.assertEqual(self.panel(),new)
+        self.assertEqual(sum(m=='sendMessage' for m,d in self.api.calls),sent+1);self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.setting('centre_id'),centre)
+        self.assertFalse(any(m=='editMessageReplyMarkup' and d['message_id']==centre for m,d in self.api.calls))
+    def test_scout_command_reopens_menu_at_bottom(self):
+        self.app.ensure_centre();self.click('scan:list:0');old=self.panel();self.text('/scout',reply=False);self.assertNotEqual(self.panel(),old)
+        panel=self.panel();self.click('scan:new');self.assertEqual(self.panel(),panel)
+    def test_start_command_reopens_shared_calculator_menu(self):
+        from scout_bot import handle_calculator
+        user={'id':1,'first_name':'User'}
+        def command(text):
+            message={'message_id':1000+self.seq,'text':text,'from':user,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID};update={'update_id':self.seq,'message':message};self.seq+=1
+            return self.app.handle(update) or handle_calculator(update,self.app,self.store)
+        command('/start');old=self.panel();command('/start@Scout_travian_bot');self.assertNotEqual(self.panel(),old)
+        self.assertIn('Scout Travian',next(d['text'] for m,d in reversed(self.api.calls) if m=='sendMessage'))
+    def test_pinned_root_does_not_change_others_or_duplicate_jobs(self):
+        self.app.ensure_centre();self.click('scan:new',1);first=self.panel(1);self.click('scan:new',2);second=self.panel(2)
+        self.pinned_click('scan:list:0',1);self.assertNotEqual(self.panel(1),first);self.assertEqual(self.panel(2),second);self.assertEqual(self.app.jobs(),[])
+    def test_failed_fresh_send_keeps_existing_menu_and_buttons(self):
+        import requests
+        self.app.ensure_centre();self.click('scan:new');old=self.panel();original=self.app.call;before=len(self.api.calls)
+        def api(method,**data):
+            if method=='sendMessage':raise requests.Timeout('fixture')
+            return original(method,**data)
+        with patch.object(self.app,'call',side_effect=api):
+            with self.assertRaises(requests.Timeout):self.pinned_click('scan:new')
+        self.assertEqual(self.panel(),old);self.assertFalse(any(m=='editMessageReplyMarkup' for m,d in self.api.calls[before:]))
