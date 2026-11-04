@@ -83,7 +83,7 @@ class ScoutRequestTests(unittest.TestCase):
         self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'arrival');self.assertEqual(self.app.jobs(),[])
     def test_reply_binding_and_separate_users_prevent_chat_capture(self):
         self.click('scan:new',1);self.click('scan:new',2)
-        self.assertFalse(self.text('40|63',1,reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+        self.assertFalse(self.text('Обычный разговор',1,reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
         self.text('40|63',1);self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind');self.assertEqual(self.app.session(GROUP_ID,2)['stage'],'coords')
     def photo(self,reply,user=COORDINATOR_ID,chat=GROUP_ID,message_id=9000,album=None):
         message={'message_id':message_id,'chat':{'id':chat,'type':'supergroup' if chat==GROUP_ID else 'private'},'message_thread_id':THREAD_ID,'from':{'id':user,'first_name':'Coordinator'},'photo':[{'file_id':'fixture'}]}
@@ -277,3 +277,48 @@ class ScoutMenuTests(unittest.TestCase):
         self.calculator_update(action='crop:start',chat=1);self.assertEqual(self.panel(1,1),77);self.assertEqual(self.sent(),0)
         self.calculator_update(action='crop:village',chat=1);self.calculator_update(text='22:02:50',chat=1)
         self.assertEqual(self.store.load(1,1)['prompt_message_id'],77);self.assertEqual(self.sent(),0)
+
+class ScoutPlainInputTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    text=ScoutRequestTests.text
+    panel=ScoutMenuTests.panel
+    def test_member_creates_scan_without_reply_at_any_input_step(self):
+        self.click('scan:new');panel=self.panel()
+        self.assertTrue(self.text('40 63',reply=False));self.click('scan:kind:resources');self.click('scan:any')
+        self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.jobs()[0]['creator'],1);self.assertEqual(self.panel(),panel)
+    def test_timed_scan_and_settings_accept_plain_text(self):
+        self.click('scan:new');self.text('40 63',reply=False);self.click('scan:kind:buildings');self.click('scan:timed');self.text('20:00',reply=False)
+        self.assertEqual(len(self.app.jobs()),1);self.assertIsNotNone(self.app.jobs()[0]['arrival'])
+        self.click('scan:arena',COORDINATOR_ID);self.text('12',COORDINATOR_ID,reply=False);self.assertEqual(self.app.setting('coordinator')['arena'],12)
+    def test_regular_chat_other_users_and_replies_to_others_are_ignored(self):
+        self.click('scan:new',1)
+        self.assertFalse(self.text('Обычный разговор',1,reply=False));self.assertFalse(self.text('40 63',2,reply=False))
+        message={'message_id':1000,'from':{'id':1},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'text':'40 63','reply_to_message':{'message_id':99999}}
+        self.assertFalse(self.app.handle({'update_id':99,'message':message}));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+    def test_plain_input_expires_but_explicit_reply_can_continue(self):
+        self.click('scan:new');self.now+=901;self.assertFalse(self.text('40 63',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+        self.assertTrue(self.text('40 63',reply=True));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind')
+    def test_existing_pending_menu_without_timestamp_recovers(self):
+        self.click('scan:new');state=self.app.session(GROUP_ID,1);state.pop('input_requested_at');self.app.save_session(GROUP_ID,1,state);self.store.db.commit()
+        self.assertTrue(self.text('40 63',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind')
+    def test_new_request_from_another_members_menu_opens_own_panel(self):
+        self.click('scan:new',1);first=self.panel(1)
+        update={'update_id':99,'callback_query':{'id':'new','from':{'id':2,'first_name':'Second'},'data':'scan:new','message':{'message_id':first,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID}}}
+        self.assertTrue(self.app.handle(update));self.assertNotEqual(self.panel(2),first);self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords');self.assertEqual(self.app.session(GROUP_ID,2)['stage'],'coords')
+        self.assertTrue(self.text('40 63',2,reply=False))
+    def test_crop_calculator_accepts_plain_time_and_resource_values(self):
+        from scout_bot import handle_calculator
+        def process(text=None,action=None):
+            message={'message_id':1000+self.seq,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID};user={'id':1,'first_name':'User'}
+            if action:
+                message['message_id']=self.panel();update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'message':message,'from':user,'data':action}}
+            else:
+                message.update(text=text,**{'from':user});update={'update_id':self.seq,'message':message}
+            self.seq+=1;return self.app.handle(update) or handle_calculator(update,self.app,self.store)
+        process(text='/crop');process(action='crop:oasis')
+        for value in ('22:02:50','2749','22:03:11','2767'):self.assertTrue(process(text=value))
+        self.assertEqual(self.store.load(GROUP_ID,1),{});self.assertIn('+30 857,14',self.api.calls[-1][1]['text'])
+    def test_invalid_numeric_coordinates_are_validated_not_silently_ignored(self):
+        self.click('scan:new');self.assertTrue(self.text('201 63',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+        self.assertIn('❌',self.api.calls[-1][1]['text'])

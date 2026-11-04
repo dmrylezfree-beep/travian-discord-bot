@@ -76,6 +76,32 @@ def public_link(message_id):
     return f'https://t.me/c/2493230303/{THREAD_ID}/{int(message_id)}'
 
 
+def panel_entry(action):
+    # Shared navigation opens the caller's own panel; form buttons stay private.
+    return action in ('scan:new','scan:settings','crop:start','help') or action.startswith(('scan:list:','scan:results:','scan:view:'))
+
+
+def accepts_panel_input(message,state,now,legacy_panel=None):
+    prompt=state.get('prompt_message_id')
+    if not prompt:return False
+    reply=(message.get('reply_to_message') or {}).get('message_id')
+    if reply is not None:return reply==prompt
+    requested=state.get('input_requested_at')
+    if requested is None:
+        if legacy_panel!=prompt:return False
+    elif not 0<=now-requested<=15*60:return False
+    text=re.sub(r'[\u202a-\u202e\u2066-\u2069]','',str(message.get('text') or '')).strip()
+    stage=state.get('stage')
+    if stage in ('coords','origin'):
+        return bool(re.fullmatch(r'\(?\s*-?\d{1,3}\s*(?:\||,|\s)\s*-?\d{1,3}\s*\)?',text))
+    if stage=='arrival':return bool(re.fullmatch(r'\d{2}:\d{2}(?::\d{2})?',text))
+    if stage=='arena':return bool(re.fullmatch(r'\d{1,3}',text))
+    if stage in ('time1','time2'):
+        return bool(re.fullmatch(r'(?:\d{2}\.\d{2}\.\d{4} )?\d{2}:\d{2}:\d{2}',text))
+    if stage in ('crop1','crop2'):return bool(re.fullmatch(r'[0-9][0-9 \u00a0\u202f]*',text))
+    return False
+
+
 def main_buttons():
     return {'inline_keyboard':[
         [{'text':'📝 Заявка на скан','callback_data':'scan:new'},{'text':'📋 Заявки на скан','callback_data':'scan:list:0'}],
@@ -161,7 +187,8 @@ class ScoutRequests:
         if reply_to:args['reply_parameters']={'message_id':reply_to,'allow_sending_without_reply':True}
         return self.call('sendMessage',**args)
 
-    def foreign_panel(self,message,user):
+    def foreign_panel(self,message,user,action=""):
+        if panel_entry(action):return False
         row=self.db.execute('SELECT user FROM scout_panels WHERE chat=? AND message=?',(message['chat']['id'],message['message_id'])).fetchone()
         return bool(row and row[0]!=user['id'])
 
@@ -175,7 +202,7 @@ class ScoutRequests:
         uid=user['id'];keyboard=keyboard or main_buttons()
         if chat==GROUP_ID:
             text=self.mention(uid,user)+'\n'+text
-            if force:text+='\n\nОтветьте на это сообщение. Отмена: /cancel'
+            if force:text+='\n\nМожно просто написать ответ в эту ветку или ответить на это меню. Отмена: /cancel'
         args={'chat_id':chat,'text':text,'parse_mode':'HTML','reply_markup':keyboard}
         row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,uid)).fetchone()
         if row:
@@ -196,7 +223,7 @@ class ScoutRequests:
 
     def prompt(self,chat,user,state,text,keyboard=None,force=False):
         sent=self.render(chat,text,keyboard or (cancelled() if force else None),user,force)
-        state['prompt_message_id']=sent['message_id'];self.save_session(chat,user['id'],state)
+        state['prompt_message_id']=sent['message_id'];state['input_requested_at']=self.now();self.save_session(chat,user['id'],state)
 
     def schedule(self,job):
         settings=self.setting('coordinator')
@@ -322,7 +349,7 @@ class ScoutRequests:
         chat=message.get('chat') or {};user=(q.get('from') if q else message.get('from')) or {}
         if not user.get('id') or not (chat.get('type')=='private' or (chat.get('id')==GROUP_ID and message.get('message_thread_id')==THREAD_ID)):return False
         if q:
-            if self.foreign_panel(message,user):
+            if self.foreign_panel(message,user,q.get("data", "")):
                 self.call('answerCallbackQuery',callback_query_id=q['id'],text='Это меню другого участника. Откройте своё через /scout.')
                 return True
             self.adopt_panel(message,user)
@@ -364,7 +391,9 @@ class ScoutRequests:
         if message.get('photo') or message.get('document'):
             return self.publish_photo(message,user)
         if not state.get('stage') or q:return False
-        if chat==GROUP_ID and (message.get('reply_to_message') or {}).get('message_id')!=state.get('prompt_message_id'):return False
+        if chat==GROUP_ID:
+            row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,uid)).fetchone()
+            if not accepts_panel_input(message,state,self.now(),row[0] if row else None):return False
         self.input(chat,user,state,text);return True
 
     def action(self,chat,user,state,action):

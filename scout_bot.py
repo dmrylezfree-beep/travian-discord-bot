@@ -18,7 +18,7 @@ def accepted(message):
     return chat.get("type") == "private" or (chat.get("id") == GROUP_ID and message.get("message_thread_id") == THREAD_ID)
 
 
-def accepts_input(message, state):
+def accepts_input(message, state, now=None, legacy_panel=None):
     if not accepted(message):
         return False
     if (message.get("chat") or {}).get("type") == "private":
@@ -27,11 +27,10 @@ def accepts_input(message, state):
     if text.split("@",1)[0].split(" ",1)[0] in ("/start", "/crop", "/help", "/cancel"):
         command = text.split()[0]
         return "@" not in command or command.split("@",1)[1].lower() == "scout_travian_bot"
-    return bool(state.get("stage") not in (None,"kind") and state.get("prompt_message_id")
-                and (message.get("reply_to_message") or {}).get("message_id") == state["prompt_message_id"])
+    return bool(state.get("stage") not in (None,"kind") and accepts_panel_input(message,state,time.time() if now is None else now,legacy_panel))
 
 
-from scout_requests import ScoutRequests, main_buttons
+from scout_requests import ScoutRequests, main_buttons, accepts_panel_input
 
 MENU = main_buttons()
 CANCEL = {"inline_keyboard": [[{"text": "❌ Отменить", "callback_data": "cancel"}]]}
@@ -171,15 +170,17 @@ def handle_calculator(update,scout,store):
     chat=message.get('chat') or {};user=(q.get('from') if q else message.get('from')) or {}
     if not accepted(message) or not user.get('id') or user.get('is_bot'):return False
     if q:
-        if scout.foreign_panel(message,user):return True
+        if scout.foreign_panel(message,user,q.get("data", "")):return True
         scout.adopt_panel(message,user)
     text=message.get('text') if not q else None
     if text and text.startswith('/'):text=text.split()[0].split('@')[0]
     previous=store.load(chat['id'],user['id'])
-    if not (q or (text and accepts_input(message,previous))):return False
+    row=store.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat['id'],user['id'])).fetchone()
+    if not (q or (text and accepts_input(message,previous,scout.now(),row[0] if row else None))):return False
     state,reply,keyboard=respond(previous,text,q.get('data'))
     sent=scout.render(chat['id'],html.escape(reply),keyboard,user,force=state.get('stage') not in (None,'kind'))
-    if state.get('stage'):state['prompt_message_id']=sent['message_id']
+    if state.get('stage'):
+        state['prompt_message_id']=sent['message_id'];state['input_requested_at']=scout.now()
     store.save(chat['id'],user['id'],state,update['update_id']+1)
     return True
 
@@ -220,7 +221,7 @@ def main():
                 chat = message.get('chat') or {}
                 user = (q.get('from') if q else message.get('from')) or {}
                 if q:
-                    if accepted(message) and user.get('id') and scout.foreign_panel(message,user):
+                    if accepted(message) and user.get('id') and scout.foreign_panel(message,user,q.get("data", "")):
                         call('answerCallbackQuery',callback_query_id=q['id'],text='Это меню другого участника. Откройте своё через /scout.')
                         store.acknowledge(update['update_id']+1)
                         continue
