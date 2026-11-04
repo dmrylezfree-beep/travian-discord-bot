@@ -112,6 +112,10 @@ def main_buttons():
         [{'text':'🌾 Расход кропа','callback_data':'crop:start'},{'text':'📖 Как пользоваться','callback_data':'help'}]]}
 
 
+def scan_kind_buttons():
+    return {'inline_keyboard':[[{'text':'🌾 Ресурсы и войска','callback_data':'scan:kind:resources'}],[{'text':'🏛 Строения и войска','callback_data':'scan:kind:buildings'}],cancelled()['inline_keyboard'][0]]}
+
+
 def cancelled():
     return {'inline_keyboard':[[{'text':'❌ Отменить','callback_data':'scan:cancel'}]]}
 
@@ -441,6 +445,14 @@ class ScoutRequests:
         if command in ('/scout','/requests'):action='scan:list:0'
         if command=='/settings':action='scan:settings'
         if command=='/cancel' and state:action='scan:cancel'
+        if not q and not user.get('is_bot') and chat==GROUP_ID and re.fullmatch(r'-?\d{1,3}\s+-?\d{1,3}',re.sub(r'[\u202a-\u202e\u2066-\u2069]','',text)):
+            crop_state=self.store.load(chat,uid)
+            row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat,uid)).fetchone();panel=row[0] if row else None
+            in_settings=state.get('stage') in ('origin','arena') and accepts_panel_input(message,state,self.now(),panel)
+            in_calculator=crop_state.get('stage') in ('time1','crop1','time2','crop2') and accepts_panel_input(message,crop_state,self.now(),panel)
+            if not in_settings and not in_calculator:
+                self.start_coordinates(chat,user,message,state,text)
+                return True
         if action.startswith('scan:'):
             self.db.execute('INSERT OR REPLACE INTO sessions VALUES(?,?,?)',(chat,uid,'{}'))
             return self.action(chat,user,state,action)
@@ -518,6 +530,24 @@ class ScoutRequests:
         else:self.render(chat,'Эта кнопка устарела. Откройте нужный раздел заново.',main_buttons(),user)
         return True
 
+    def start_coordinates(self,chat,user,message,state,text):
+        token=uuid.uuid5(uuid.NAMESPACE_URL,f'scout-coordinate:{chat}:{user["id"]}:{message["message_id"]}').hex
+        existing=self.db.execute('SELECT id FROM scout_jobs WHERE submit_key=?',(token,)).fetchone()
+        if existing:
+            self.render(chat,f'✅ Заявка #{existing[0]} уже создана.',main_buttons(),user)
+            return
+        if state.get('token')==token:return
+        self.db.execute('INSERT OR REPLACE INTO sessions VALUES(?,?,?)',(chat,user['id'],'{}'))
+        state={'stage':'coords','token':token}
+        try:state['x'],state['y']=coordinates(text)
+        except ValueError as error:
+            self.prompt(chat,user,state,'❌ '+html.escape(str(error)),cancelled(),force=True)
+            return
+        state['stage']='kind'
+        self.fresh_panels.add((chat,user['id']))
+        self.prompt(chat,user,state,f'<b>🔎 Новая заявка на скан</b>\n🎯 {target_link(state["x"],state["y"])}\n\nКакой скан нужен?',scan_kind_buttons())
+        print('Scout coordinate draft started',flush=True)
+
     def submit(self,chat,user,state):
         # Reuse the durable submission key for retry protection and old buttons.
         state['stage']='confirm'
@@ -538,7 +568,7 @@ class ScoutRequests:
                 self.render(chat,'✅ Настройки сохранены. Время открытых заявок пересчитано.',main_buttons(),user);return
             if stage=='coords':
                 state['x'],state['y']=coordinates(text);state['stage']='kind'
-                self.prompt(chat,user,state,'Какой скан нужен?',{'inline_keyboard':[[{'text':'🌾 Ресурсы и войска','callback_data':'scan:kind:resources'}],[{'text':'🏛 Строения и войска','callback_data':'scan:kind:buildings'}],cancelled()['inline_keyboard'][0]]});return
+                self.prompt(chat,user,state,'Какой скан нужен?',scan_kind_buttons());return
             if stage=='arrival':
                 state['arrival']=parse_arrival(text,self.now());self.submit(chat,user,state);return
             raise ValueError('Выберите вариант кнопкой под вопросом бота.')

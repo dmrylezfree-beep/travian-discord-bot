@@ -211,7 +211,7 @@ class ScoutMenuTests(unittest.TestCase):
     def test_prompts_validation_and_submit_share_message(self):
         self.app.ensure_centre();self.click('scan:new');panel=self.panel();sent=self.sent();self.assertEqual(self.app.session(GROUP_ID,1)['prompt_message_id'],panel)
         self.text('invalid');self.assertEqual(self.app.session(GROUP_ID,1)['prompt_message_id'],panel)
-        self.text('40 63');self.click('scan:kind:resources');self.click('scan:any')
+        self.text('40|63');self.click('scan:kind:resources');self.click('scan:any')
         self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.sent(),sent)
         for method,data in self.api.calls:
             if method=='editMessageText':self.assertNotIn('force_reply',data.get('reply_markup',{}))
@@ -271,7 +271,7 @@ class ScoutMenuTests(unittest.TestCase):
         for value in ('22:02:50','2749','22:03:11','2767'):self.calculator_update(text=value)
         self.assertEqual(self.sent(),sent);self.assertEqual(self.panel(),panel);self.assertEqual(self.store.load(GROUP_ID,1),{})
         self.assertIn('+30 857,14',self.api.calls[-1][1]['text'])
-        self.click('scan:new');self.text('40 63');self.calculator_update(action='crop:start');self.assertEqual(self.app.session(GROUP_ID,1),{})
+        self.click('scan:new');self.text('40|63');self.calculator_update(action='crop:start');self.assertEqual(self.app.session(GROUP_ID,1),{})
         self.calculator_update(action='crop:oasis');self.click('scan:list:0');self.assertEqual(self.store.load(GROUP_ID,1),{})
         self.assertEqual(self.sent(),sent)
     def test_private_menu_adopts_existing_message_and_keeps_input_ids(self):
@@ -287,19 +287,19 @@ class ScoutPlainInputTests(unittest.TestCase):
     def test_member_creates_scan_without_reply_at_any_input_step(self):
         self.click('scan:new');panel=self.panel()
         self.assertTrue(self.text('40 63',reply=False));self.click('scan:kind:resources');self.click('scan:any')
-        self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.jobs()[0]['creator'],1);self.assertEqual(self.panel(),panel)
+        self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.jobs()[0]['creator'],1);self.assertNotEqual(self.panel(),panel)
     def test_timed_scan_and_settings_accept_plain_text(self):
         self.click('scan:new');self.text('40 63',reply=False);self.click('scan:kind:buildings');self.click('scan:timed');self.text('20:00',reply=False)
         self.assertEqual(len(self.app.jobs()),1);self.assertIsNotNone(self.app.jobs()[0]['arrival'])
         self.click('scan:arena',COORDINATOR_ID);self.text('12',COORDINATOR_ID,reply=False);self.assertEqual(self.app.setting('coordinator')['arena'],12)
     def test_regular_chat_other_users_and_replies_to_others_are_ignored(self):
         self.click('scan:new',1)
-        self.assertFalse(self.text('Обычный разговор',1,reply=False));self.assertFalse(self.text('40 63',2,reply=False))
+        self.assertFalse(self.text('Обычный разговор',1,reply=False));self.assertTrue(self.text('40 63',2,reply=False));self.assertEqual(self.app.session(GROUP_ID,2)['stage'],'kind')
         message={'message_id':1000,'from':{'id':1},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'text':'40 63','reply_to_message':{'message_id':99999}}
-        self.assertFalse(self.app.handle({'update_id':99,'message':message}));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+        self.assertTrue(self.app.handle({'update_id':99,'message':message}));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind')
     def test_plain_input_expires_but_explicit_reply_can_continue(self):
-        self.click('scan:new');self.now+=901;self.assertFalse(self.text('40 63',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
-        self.assertTrue(self.text('40 63',reply=True));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind')
+        self.click('scan:new');self.text('40|63');self.click('scan:kind:resources');self.click('scan:timed');self.now+=901;self.assertFalse(self.text('20:00',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'arrival')
+        self.assertTrue(self.text('20:00',reply=True));self.assertEqual(len(self.app.jobs()),1)
     def test_existing_pending_menu_without_timestamp_recovers(self):
         self.click('scan:new');state=self.app.session(GROUP_ID,1);state.pop('input_requested_at');self.app.save_session(GROUP_ID,1,state);self.store.db.commit()
         self.assertTrue(self.text('40 63',reply=False));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind')
@@ -337,7 +337,7 @@ class ScoutMenuFocusTests(unittest.TestCase):
         self.pinned_click('scan:new');new=self.panel();self.assertNotEqual(new,old);self.assertNotEqual(new,centre)
         self.assertEqual(sum(m=='sendMessage' for m,d in self.api.calls),sent+1)
         retired=[d for m,d in self.api.calls if m=='editMessageReplyMarkup'];self.assertEqual(retired[-1]['message_id'],old);self.assertEqual(retired[-1]['reply_markup'],{'inline_keyboard':[]})
-        self.text('40 63',reply=False);self.click('scan:kind:resources');self.click('scan:any');self.assertEqual(self.panel(),new)
+        self.text('40|63',reply=False);self.click('scan:kind:resources');self.click('scan:any');self.assertEqual(self.panel(),new)
         self.assertEqual(sum(m=='sendMessage' for m,d in self.api.calls),sent+1);self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.setting('centre_id'),centre)
         self.assertFalse(any(m=='editMessageReplyMarkup' and d['message_id']==centre for m,d in self.api.calls))
     def test_scout_command_reopens_menu_at_bottom(self):
@@ -409,16 +409,16 @@ class ScoutTopicRootInputTests(unittest.TestCase):
         message={'message_id':1000+self.seq,'from':{'id':user,'first_name':'User'},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'is_topic_message':True,'text':text,'reply_to_message':{'message_id':THREAD_ID,'forum_topic_created':{'name':'Scouting','icon_color':1}}}
         update={'update_id':self.seq,'message':message};self.seq+=1;return self.app.handle(update)
     def test_real_forum_plain_coordinates_advance_to_kind(self):
-        self.click('scan:new');panel=self.panel();self.assertTrue(self.root_text('60 63'));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind');self.assertEqual(self.panel(),panel)
+        self.click('scan:new');panel=self.panel();self.assertTrue(self.root_text('60 63'));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind');self.assertNotEqual(self.panel(),panel)
         self.click('scan:kind:resources');self.click('scan:any');self.assertEqual(len(self.app.jobs()),1)
     def test_forum_time_input_and_arena_are_accepted(self):
         self.click('scan:new');self.root_text('60 63');self.click('scan:kind:resources');self.click('scan:timed');self.assertTrue(self.root_text('20:00'));self.assertEqual(len(self.app.jobs()),1)
         self.click('scan:arena',COORDINATOR_ID);self.assertTrue(self.root_text('12',COORDINATOR_ID));self.assertEqual(self.app.setting('coordinator')['arena'],12)
     def test_reply_to_real_other_message_is_still_ignored(self):
-        self.click('scan:new');message={'message_id':9999,'from':{'id':1},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'text':'60 63','reply_to_message':{'message_id':12345}}
-        self.assertFalse(self.app.handle({'update_id':99,'message':message}));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
-    def test_expired_form_does_not_consume_topic_root_coordinate_chat(self):
-        self.click('scan:new');self.now+=901;self.assertFalse(self.root_text('60 63'));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+        self.click('scan:new');self.text('40|63');self.click('scan:kind:resources');self.click('scan:timed');message={'message_id':9999,'from':{'id':1},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'text':'20:00','reply_to_message':{'message_id':12345}}
+        self.assertFalse(self.app.handle({'update_id':99,'message':message}));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'arrival')
+    def test_coordinates_restart_expired_form_as_new_draft(self):
+        self.click('scan:new');self.now+=901;self.assertTrue(self.root_text('60 63'));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind')
     def test_crop_calculator_handles_topic_root_metadata(self):
         from scout_bot import handle_calculator
         def process(text=None,action=None):
@@ -431,3 +431,44 @@ class ScoutTopicRootInputTests(unittest.TestCase):
         process(text='/crop');process(action='crop:oasis')
         for value in ('22:02:50','2749','22:03:11','2767'):self.assertTrue(process(text=value))
         self.assertEqual(self.store.load(GROUP_ID,1),{});self.assertIn('+30 857,14',self.api.calls[-1][1]['text'])
+
+class ScoutCoordinateStartTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    panel=ScoutMenuTests.panel
+    def coordinate_update(self,text='60 63',user=1,root=True,thread=THREAD_ID):
+        message={'message_id':1000+self.seq,'from':{'id':user,'first_name':'User'},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':thread,'is_topic_message':True,'text':text}
+        if root:message['reply_to_message']={'message_id':thread,'forum_topic_created':{'name':'Scouting'}}
+        update={'update_id':self.seq,'message':message};self.seq+=1;return update
+    def test_coordinates_without_any_prior_menu_start_kind_then_create_request(self):
+        self.assertTrue(self.app.handle(self.coordinate_update()));state=self.app.session(GROUP_ID,1);self.assertEqual(state['stage'],'kind');self.assertEqual((state['x'],state['y']),(60,63));self.assertEqual(self.app.jobs(),[])
+        panel=self.panel();self.click('scan:kind:resources');self.click('scan:any');self.assertEqual(self.panel(),panel);self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.jobs()[0]['creator'],1)
+    def test_each_new_coordinate_message_opens_new_window_and_replaces_only_draft(self):
+        self.app.handle(self.coordinate_update());old=self.panel();old_token=self.app.session(GROUP_ID,1)['token'];self.app.handle(self.coordinate_update('61 63',root=False));self.assertNotEqual(self.panel(),old);self.assertNotEqual(self.app.session(GROUP_ID,1)['token'],old_token);self.assertEqual(self.app.jobs(),[])
+        self.click('scan:kind:buildings');self.click('scan:any');self.assertEqual(len(self.app.jobs()),1);self.assertEqual(self.app.jobs()[0]['x'],61)
+    def test_duplicate_delivery_does_not_create_second_draft_or_job(self):
+        update=self.coordinate_update();self.app.handle(update);panel=self.panel();self.app.handle(update);self.assertEqual(self.panel(),panel)
+        self.click('scan:kind:resources');self.click('scan:any');self.app.handle(update);self.assertEqual(len(self.app.jobs()),1)
+    def test_coordinates_in_other_topics_or_ordinary_chat_are_ignored(self):
+        self.assertFalse(self.app.handle(self.coordinate_update(thread=123)));self.assertFalse(self.app.handle(self.coordinate_update('Добрый день')));self.assertEqual(self.app.jobs(),[])
+    def test_invalid_coordinates_are_not_published(self):
+        self.assertTrue(self.app.handle(self.coordinate_update('201 63')));self.assertEqual(self.app.jobs(),[]);self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+    def test_origin_settings_take_precedence_over_automatic_request(self):
+        self.click('scan:origin',COORDINATOR_ID);self.assertTrue(self.app.handle(self.coordinate_update('22 63',COORDINATOR_ID)));settings=self.app.setting('coordinator');self.assertEqual((settings['x'],settings['y']),(22,63));self.assertEqual(self.app.jobs(),[])
+    def test_crop_thousands_separator_does_not_start_scan_request(self):
+        from scout_bot import handle_calculator
+        user={'id':1,'first_name':'User'}
+        def process(text=None,action=None):
+            message={'message_id':1000+self.seq,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'is_topic_message':True}
+            if action:
+                message['message_id']=self.panel();update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'message':message,'from':user,'data':action}}
+            else:
+                message.update(text=text,**{'from':user});message['reply_to_message']={'message_id':THREAD_ID};update={'update_id':self.seq,'message':message}
+            self.seq+=1;return self.app.handle(update) or handle_calculator(update,self.app,self.store)
+        process(text='/crop');process(action='crop:village');process(text='22:02:50');self.assertTrue(process(text='2 63'));state=self.store.load(GROUP_ID,1);self.assertEqual(state['crop1'],263);self.assertEqual(state['stage'],'time2');self.assertEqual(self.app.session(GROUP_ID,1),{});self.assertEqual(self.app.jobs(),[])
+    def test_expired_settings_do_not_block_new_coordinate_request(self):
+        self.click('scan:origin',COORDINATOR_ID);self.now+=901;settings=dict(self.app.setting('coordinator'));self.assertTrue(self.app.handle(self.coordinate_update('60 63',COORDINATOR_ID)))
+        self.assertEqual(self.app.setting('coordinator'),settings);self.assertEqual(self.app.session(GROUP_ID,COORDINATOR_ID)['stage'],'kind')
+    def test_expired_calculator_does_not_block_new_coordinate_request(self):
+        self.store.save(GROUP_ID,1,{'stage':'crop1','prompt_message_id':77,'input_requested_at':self.now-901})
+        self.assertTrue(self.app.handle(self.coordinate_update()));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind');self.assertEqual(self.store.load(GROUP_ID,1),{})
