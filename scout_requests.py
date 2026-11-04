@@ -85,7 +85,10 @@ def accepts_panel_input(message,state,now,legacy_panel=None):
     prompt=state.get('prompt_message_id')
     if not prompt:return False
     reply=(message.get('reply_to_message') or {}).get('message_id')
-    if reply is not None:return reply==prompt
+    topic_root=message.get('message_thread_id')
+    # Telegram may link an ordinary forum message to its topic's root. This
+    # is not an explicit reply to another user's message.
+    if reply is not None and reply!=topic_root:return reply==prompt
     requested=state.get('input_requested_at')
     if requested is None:
         if legacy_panel!=prompt:return False
@@ -386,6 +389,11 @@ class ScoutRequests:
     def handle(self,update):
         q=update.get('callback_query') or {};message=update.get('message') or q.get('message') or {}
         chat=message.get('chat') or {};user=(q.get('from') if q else message.get('from')) or {}
+        if not q and chat.get('id')==GROUP_ID and user.get('id') and re.fullmatch(r'-?\d{1,3}\s+-?\d{1,3}',str(message.get('text') or '').strip()):
+            current=self.session(chat['id'],user['id']);row=self.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=?',(chat['id'],user['id'])).fetchone()
+            reply=(message.get('reply_to_message') or {}).get('message_id')
+            kind='none' if reply is None else 'menu' if reply==current.get('prompt_message_id') else 'topic_root' if reply==message.get('message_thread_id') else 'other'
+            print('Scout coordinate route '+json.dumps({'topic_match':message.get('message_thread_id')==THREAD_ID,'stage':current.get('stage'),'reply_kind':kind,'accepted_input':accepts_panel_input(message,current,self.now(),row[0] if row else None)}),flush=True)
         if not user.get('id') or not (chat.get('type')=='private' or (chat.get('id')==GROUP_ID and message.get('message_thread_id')==THREAD_ID)):return False
         if q:
             if self.foreign_panel(message,user,q.get("data", "")):

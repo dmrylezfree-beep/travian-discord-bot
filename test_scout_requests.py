@@ -399,3 +399,35 @@ class ScoutStartPinTests(unittest.TestCase):
         update={'update_id':99,'message':{'message_id':999,'text':'/start','from':{'id':1},'chat':{'id':1,'type':'private'}}}
         self.assertFalse(self.app.handle(update));self.assertTrue(handle_calculator(update,self.app,self.store));self.assertEqual(self.app.setting('centre_id'),centre)
         self.assertFalse(any(m in ('pinChatMessage','unpinChatMessage') for m,d in self.api.calls[before:]))
+
+class ScoutTopicRootInputTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    text=ScoutRequestTests.text
+    panel=ScoutMenuTests.panel
+    def root_text(self,text,user=1):
+        message={'message_id':1000+self.seq,'from':{'id':user,'first_name':'User'},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'is_topic_message':True,'text':text,'reply_to_message':{'message_id':THREAD_ID,'forum_topic_created':{'name':'Scouting','icon_color':1}}}
+        update={'update_id':self.seq,'message':message};self.seq+=1;return self.app.handle(update)
+    def test_real_forum_plain_coordinates_advance_to_kind(self):
+        self.click('scan:new');panel=self.panel();self.assertTrue(self.root_text('60 63'));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind');self.assertEqual(self.panel(),panel)
+        self.click('scan:kind:resources');self.click('scan:any');self.assertEqual(len(self.app.jobs()),1)
+    def test_forum_time_input_and_arena_are_accepted(self):
+        self.click('scan:new');self.root_text('60 63');self.click('scan:kind:resources');self.click('scan:timed');self.assertTrue(self.root_text('20:00'));self.assertEqual(len(self.app.jobs()),1)
+        self.click('scan:arena',COORDINATOR_ID);self.assertTrue(self.root_text('12',COORDINATOR_ID));self.assertEqual(self.app.setting('coordinator')['arena'],12)
+    def test_reply_to_real_other_message_is_still_ignored(self):
+        self.click('scan:new');message={'message_id':9999,'from':{'id':1},'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'text':'60 63','reply_to_message':{'message_id':12345}}
+        self.assertFalse(self.app.handle({'update_id':99,'message':message}));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+    def test_expired_form_does_not_consume_topic_root_coordinate_chat(self):
+        self.click('scan:new');self.now+=901;self.assertFalse(self.root_text('60 63'));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'coords')
+    def test_crop_calculator_handles_topic_root_metadata(self):
+        from scout_bot import handle_calculator
+        def process(text=None,action=None):
+            message={'message_id':999+self.seq,'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'is_topic_message':True};user={'id':1,'first_name':'User'}
+            if action:
+                message['message_id']=self.panel();update={'update_id':self.seq,'callback_query':{'id':str(self.seq),'message':message,'from':user,'data':action}}
+            else:
+                message.update(text=text,**{'from':user});message['reply_to_message']={'message_id':THREAD_ID,'forum_topic_created':{'name':'Scouting'}};update={'update_id':self.seq,'message':message}
+            self.seq+=1;return self.app.handle(update) or handle_calculator(update,self.app,self.store)
+        process(text='/crop');process(action='crop:oasis')
+        for value in ('22:02:50','2749','22:03:11','2767'):self.assertTrue(process(text=value))
+        self.assertEqual(self.store.load(GROUP_ID,1),{});self.assertIn('+30 857,14',self.api.calls[-1][1]['text'])
