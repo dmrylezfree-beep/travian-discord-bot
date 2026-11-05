@@ -472,3 +472,109 @@ class ScoutCoordinateStartTests(unittest.TestCase):
     def test_expired_calculator_does_not_block_new_coordinate_request(self):
         self.store.save(GROUP_ID,1,{'stage':'crop1','prompt_message_id':77,'input_requested_at':self.now-901})
         self.assertTrue(self.app.handle(self.coordinate_update()));self.assertEqual(self.app.session(GROUP_ID,1)['stage'],'kind');self.assertEqual(self.store.load(GROUP_ID,1),{})
+
+class ScoutLanguageTests(unittest.TestCase):
+    setUp=ScoutRequestTests.setUp
+    click=ScoutRequestTests.click
+    text=ScoutRequestTests.text
+    draft=ScoutRequestTests.draft
+    create=ScoutRequestTests.create
+
+    def personal_response(self):
+        return next(d for m,d in reversed(self.api.calls) if m in ('sendMessage','editMessageText') and not (m=='editMessageText' and d.get('message_id')==self.app.setting('centre_id')))
+
+    def test_language_is_personal_persistent_and_shared_between_private_and_group(self):
+        self.click('language:en',1)
+        self.assertIn('English',self.personal_response()['text'])
+        self.app=ScoutRequests(self.store,self.api,now=lambda:self.now)
+        self.click('scan:new',1,1)
+        self.assertIn('separated by a space',self.personal_response()['text'])
+        self.click('scan:new',2)
+        self.assertIn('через пробел',self.personal_response()['text'])
+        self.click('language:ru',1,1)
+        self.click('scan:new',1)
+        self.assertIn('через пробел',self.personal_response()['text'])
+
+    def test_english_request_creation_and_timed_card_keep_shared_queue_russian(self):
+        self.click('language:en')
+        ident,_=self.create(timed=True)
+        self.assertIn('shared queue',self.personal_response()['text'])
+        self.click('scan:view:'+str(ident))
+        card=self.personal_response()
+        for label in ('Scout request','Resources and troops','Requested by','Scout arrival','Send at:','Tournament Square'):
+            self.assertIn(label,card['text'])
+        self.assertNotRegex(card['text'],r'[А-Яа-яЁё]')
+        self.assertTrue(any('build.php?' in b.get('url','') for row in card['reply_markup']['inline_keyboard'] for b in row))
+        self.app.ensure_centre()
+        centre=self.app.setting('centre_id')
+        shared=[d for m,d in self.api.calls if m=='editMessageText' and d.get('message_id')==centre][-1]
+        self.assertIn('ЦЕНТР РАЗВЕДКИ',shared['text'])
+        self.assertIn('Ресурсы и войска',shared['text'])
+        self.assertEqual(self.app.job(ident)['kind'],'resources')
+
+    def test_english_crop_flow_help_and_errors(self):
+        from scout_bot import handle_calculator
+        self.click('language:en',1,1)
+        seq=100
+        def calc(text=None,action=None):
+            nonlocal seq
+            seq+=1
+            msg={'message_id':seq,'chat':{'id':1,'type':'private'},'from':{'id':1},'text':text}
+            update={'update_id':seq,'message':msg} if not action else {'update_id':seq,'callback_query':{'from':{'id':1},'data':action,'message':msg}}
+            self.app.handle(update)
+            return handle_calculator(update,self.app,self.store)
+        calc(action='help');self.assertIn('Formula:',self.personal_response()['text'])
+        calc(action='crop:start');self.assertIn('What did you scout?',self.personal_response()['text'])
+        self.assertIn('Village',json.dumps(self.personal_response()['reply_markup']))
+        calc(action='crop:oasis');calc('bad time')
+        self.assertIn('Enter a valid time',self.personal_response()['text'])
+        for value in ['22:02:50','2749','22:03:11','2767']:calc(value)
+        result=self.personal_response()['text']
+        self.assertIn('Crop balance: +30 857.14 per hour',result)
+        self.assertNotRegex(result,r'[А-Яа-яЁё]')
+
+    def test_language_change_does_not_change_jobs_or_other_users_drafts(self):
+        ident,_=self.create()
+        before=self.app.job(ident)
+        self.click('scan:new',2)
+        draft=self.app.session(GROUP_ID,2)
+        self.click('language:en',1)
+        self.assertEqual(self.app.job(ident),before)
+        self.assertEqual(self.app.session(GROUP_ID,2),draft)
+        self.click('language:unknown',1)
+        self.assertEqual(self.store.db.execute('SELECT language FROM scout_languages WHERE user=1').fetchone()[0],'en')
+
+    def test_shared_language_button_opens_own_menu_and_pagination_stays_in_panel(self):
+        self.click('language:en',1)
+        self.click('scan:new',2)
+        other=self.store.db.execute('SELECT message FROM scout_panels WHERE chat=? AND user=2',(GROUP_ID,)).fetchone()[0]
+        update={'update_id':99,'callback_query':{'from':{'id':1},'data':'language:menu','message':{'chat':{'id':GROUP_ID,'type':'supergroup'},'message_thread_id':THREAD_ID,'message_id':other}}}
+        self.assertTrue(self.app.handle(update))
+        self.assertIn('Choose your language',self.personal_response()['text'])
+        for user in range(3,13):self.create(user)
+        self.click('scan:list:0',1)
+        first=self.personal_response()['message_id']
+        self.click('scan:list:1',1)
+        self.assertEqual(self.personal_response()['message_id'],first)
+        self.assertIn('SCOUT CENTRE',self.personal_response()['text'])
+
+    def test_english_coordinator_settings_errors_and_public_captions(self):
+        self.click('language:en',COORDINATOR_ID)
+        self.click('scan:settings',COORDINATOR_ID)
+        self.assertIn('Coordinator settings',self.personal_response()['text'])
+        self.click('scan:arena',COORDINATOR_ID)
+        self.text('21',COORDINATOR_ID)
+        self.assertIn('whole number from 0 to 20',self.personal_response()['text'])
+        ident,_=self.create()
+        from scout_requests import _language
+        token=_language.set('en')
+        try:self.assertIn('Результат скана',self.app.public_caption(self.app.job(ident)))
+        finally:_language.reset(token)
+
+    def test_player_names_are_never_translated(self):
+        ident,_=self.create()
+        self.app.member_labels[1]=(self.now,{'tag':'Деревня Ресурсы и войска'})
+        self.click('language:en')
+        self.click('scan:view:'+str(ident))
+        self.assertIn('Деревня Ресурсы и войска',self.personal_response()['text'])
+        self.assertIn('Resources and troops',self.personal_response()['text'])

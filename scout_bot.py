@@ -30,18 +30,12 @@ def accepts_input(message, state, now=None, legacy_panel=None):
     return bool(state.get("stage") not in (None,"kind") and accepts_panel_input(message,state,time.time() if now is None else now,legacy_panel))
 
 
-from scout_requests import ScoutRequests, main_buttons, accepts_panel_input
+from scout_requests import ScoutRequests, main_buttons, accepts_panel_input, tr, personal_language, _language
 
 MENU = main_buttons()
-CANCEL = {"inline_keyboard": [[{"text": "❌ Отменить", "callback_data": "cancel"}]]}
-KINDS = {"inline_keyboard": [[{"text": "🏘 Деревня", "callback_data": "crop:village"}, {"text": "🌴 Оазис игрока (×10)", "callback_data": "crop:oasis"}], [{"text": "❌ Отменить", "callback_data": "cancel"}]]}
-HELP = ("🔎 Заявки на скан: просто напишите координаты через пробел в ветку разведки, например 60 63. Бот откроет новую форму: выберите тип разведки и время. Координатор открывает заявку, нажимает «Прикрепить результат» и отвечает скриншотом на отдельное сообщение с координатами; результаты видны в общей ветке. Заявка убирается из очереди кнопкой «Выполнена». Время прибытия и отправки — по Travian, настройки деревни и арены меняет только координатор.\n\n📖 Расчёт по двум сканам\n\nВыберите деревню или оазис игрока, затем введите время и кроп первого и второго скана. "
-        "Для оазиса бот умножает показанные ресурсы на 10. Для деревни множитель — 1.\n\n"
-        "Формула: (кроп₂ − кроп₁) × множитель × 3600 ÷ секунды между сканами.\n\n"
-        "Плюс означает накопление кропа, минус — уменьшение запаса. Это чистый баланс с учётом производства, а не отдельное содержание армии. "
-        "Поступления, вывоз ресурсов и переполнение склада могут повлиять на результат.\n\n"
-        "Время: ЧЧ:ММ:СС, например 22:02:50. При переходе через полночь второй скан считается сканом следующего дня. "
-        "Для интервала в сутки и больше укажите в обоих сканах дату: ДД.ММ.ГГГГ ЧЧ:ММ:СС. Все значения вводите в одном часовом поясе.")
+CANCEL = {"inline_keyboard": [[{"text": tr('❌ Отменить'), "callback_data": "cancel"}]]}
+KINDS = {"inline_keyboard": [[{"text": tr('🏘 Деревня'), "callback_data": "crop:village"}, {"text": tr('🌴 Оазис игрока (×10)'), "callback_data": "crop:oasis"}], [{"text": tr('❌ Отменить'), "callback_data": "cancel"}]]}
+HELP = (tr('🔎 Заявки на скан: просто напишите координаты через пробел в ветку разведки, например 60 63. Бот откроет новую форму: выберите тип разведки и время. Координатор открывает заявку, нажимает «Прикрепить результат» и отвечает скриншотом на отдельное сообщение с координатами; результаты видны в общей ветке. Заявка убирается из очереди кнопкой «Выполнена». Время прибытия и отправки — по Travian, настройки деревни и арены меняет только координатор.\n\n📖 Расчёт по двум сканам\n\nВыберите деревню или оазис игрока, затем введите время и кроп первого и второго скана. Для оазиса бот умножает показанные ресурсы на 10. Для деревни множитель — 1.\n\nФормула: (кроп₂ − кроп₁) × множитель × 3600 ÷ секунды между сканами.\n\nПлюс означает накопление кропа, минус — уменьшение запаса. Это чистый баланс с учётом производства, а не отдельное содержание армии. Поступления, вывоз ресурсов и переполнение склада могут повлиять на результат.\n\nВремя: ЧЧ:ММ:СС, например 22:02:50. При переходе через полночь второй скан считается сканом следующего дня. Для интервала в сутки и больше укажите в обоих сканах дату: ДД.ММ.ГГГГ ЧЧ:ММ:СС. Все значения вводите в одном часовом поясе.'))
 
 
 def parse_scan_time(value):
@@ -53,31 +47,31 @@ def parse_scan_time(value):
             return datetime.strptime(value, "%d.%m.%Y %H:%M:%S"), True
     except ValueError:
         pass
-    raise ValueError("Введите корректное время ЧЧ:ММ:СС, например 22:02:50, или дату и время: 21.10.2026 22:02:50.")
+    raise ValueError(tr('Введите корректное время ЧЧ:ММ:СС, например 22:02:50, или дату и время: 21.10.2026 22:02:50.'))
 
 
 def parse_crop(value):
     value = re.sub(r"[ \u00a0\u202f]", "", str(value).strip())
     if not re.fullmatch(r"[0-9]{1,13}", value):
-        raise ValueError("Введите целое количество кропа от 0 до 1 000 000 000 000, без знака и дробной части.")
+        raise ValueError(tr('Введите целое количество кропа от 0 до 1 000 000 000 000, без знака и дробной части.'))
     amount = int(value)
     if amount > 10**12:
-        raise ValueError("Слишком большое количество кропа. Максимум — 1 000 000 000 000.")
+        raise ValueError(tr('Слишком большое количество кропа. Максимум — 1 000 000 000 000.'))
     return amount
 
 
 def calculate(kind, first_time, first_crop, second_time, second_crop):
     if kind not in ("village", "oasis"):
-        raise ValueError("Выберите деревню или оазис.")
+        raise ValueError(tr('Выберите деревню или оазис.'))
     first, first_dated = parse_scan_time(first_time)
     second, second_dated = parse_scan_time(second_time)
     if first_dated != second_dated:
-        raise ValueError("Используйте одинаковый формат обоих сканов: оба с датой или оба без даты.")
+        raise ValueError(tr('Используйте одинаковый формат обоих сканов: оба с датой или оба без даты.'))
     if not first_dated and second < first:
         second += timedelta(days=1)
     seconds = int((second - first).total_seconds())
     if seconds <= 0:
-        raise ValueError("Второй скан должен быть позже первого. При одинаковом времени укажите даты или исправьте время.")
+        raise ValueError(tr('Второй скан должен быть позже первого. При одинаковом времени укажите даты или исправьте время.'))
     crop1, crop2 = parse_crop(first_crop), parse_crop(second_crop)
     multiplier = 10 if kind == "oasis" else 1
     change = (crop2 - crop1) * multiplier
@@ -89,39 +83,40 @@ def calculate(kind, first_time, first_crop, second_time, second_crop):
 def number(value, signed=False):
     n = Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     text = f"{abs(n):,.2f}".replace(",", " ").rstrip("0").rstrip(".").replace(".", ",")
+    text = text.replace(",", ".") if _language.get() == "en" else text
     return ("−" if n < 0 else "+" if signed and n > 0 else "") + text
 
 
 def result_text(state):
     r = calculate(state['kind'], state['time1'], state['crop1'], state['time2'], state['crop2'])
-    trend = "📈 Запас кропа растёт." if r['change'] > 0 else "📉 Запас кропа уменьшается." if r['change'] < 0 else "➖ Запас не изменился."
-    text = ("🌾 Результат расчёта\n\n" + ("🌴 Оазис игрока: показанные ресурсы ×10" if state['kind'] == 'oasis' else "🏘 Деревня: ресурсы ×1") +
-            f"\nПервый скан: {state['time1']} — {number(r['first_crop'])}" +
-            f"\nВторой скан: {state['time2']} — {number(r['second_crop'])}" +
-            f"\nИнтервал: {r['seconds']} сек." + (" (через полночь)" if r['midnight'] else "") +
-            f"\nИзменение реального запаса: {number(r['change'], signed=True)}" +
-            f"\n\nБаланс кропа: {number(r['rate'], signed=True)} в час\n{trend}" +
-            "\n\nЭто изменение запаса с учётом производства. Бот не определяет отдельно расход армии.")
+    trend = tr('📈 Запас кропа растёт.') if r['change'] > 0 else tr('📉 Запас кропа уменьшается.') if r['change'] < 0 else tr('➖ Запас не изменился.')
+    text = (tr('🌾 Результат расчёта\n\n') + (tr('🌴 Оазис игрока: показанные ресурсы ×10') if state['kind'] == 'oasis' else tr('🏘 Деревня: ресурсы ×1')) +
+            (tr('\nПервый скан: ') + f'{state['time1']}' + ' — ' + f'{number(r['first_crop'])}') +
+            (tr('\nВторой скан: ') + f'{state['time2']}' + ' — ' + f'{number(r['second_crop'])}') +
+            (tr('\nИнтервал: ') + f'{r['seconds']}' + tr(' сек.')) + (tr(' (через полночь)') if r['midnight'] else "") +
+            (tr('\nИзменение реального запаса: ') + f'{number(r['change'], signed=True)}') +
+            (tr('\n\nБаланс кропа: ') + f'{number(r['rate'], signed=True)}' + tr(' в час\n') + f'{trend}') +
+            tr('\n\nЭто изменение запаса с учётом производства. Бот не определяет отдельно расход армии.'))
     return text
 
 
 def respond(state, text=None, action=None):
     """Pure dialogue: returns new state, reply, keyboard; invalid input retains stage."""
     if text in ('/start', '/cancel') or action == 'cancel':
-        return {}, "🌾 Scout Travian\n\nДля заявки на скан просто напишите координаты через пробел в ветку разведки, например 60 63. Здесь также можно посмотреть результаты разведки или рассчитать изменение запаса кропа по двум сканам.", MENU
+        return {}, tr('🌾 Scout Travian\n\nДля заявки на скан просто напишите координаты через пробел в ветку разведки, например 60 63. Здесь также можно посмотреть результаты разведки или рассчитать изменение запаса кропа по двум сканам.'), MENU
     if text == '/help' or action == 'help':
-        return {}, HELP, MENU
+        return {}, tr(HELP), MENU
     if text == '/crop' or action == 'crop:start':
-        return {'stage': 'kind'}, "Что вы сканировали?", KINDS
+        return {'stage': 'kind'}, tr('Что вы сканировали?'), KINDS
     if action in ('crop:village', 'crop:oasis'):
         if state.get('stage') != 'kind':
-            return state, "Этот выбор устарел. Начните новый расчёт кнопкой в меню.", MENU
-        return {'stage': 'time1', 'kind': action.split(':')[1]}, "Введите время первого скана: ЧЧ:ММ:СС, например 22:02:50.\nМожно с датой: 21.10.2026 22:02:50.", CANCEL
+            return state, tr('Этот выбор устарел. Начните новый расчёт кнопкой в меню.'), MENU
+        return {'stage': 'time1', 'kind': action.split(':')[1]}, tr('Введите время первого скана: ЧЧ:ММ:СС, например 22:02:50.\nМожно с датой: 21.10.2026 22:02:50.'), CANCEL
     if action:
-        return state, "Начните новый расчёт в меню.", MENU
+        return state, tr('Начните новый расчёт в меню.'), MENU
     stage = state.get('stage')
     if not stage or stage == 'kind':
-        return state, "Выберите тип скана кнопкой ниже." if stage else "Нажмите «Рассчитать расход кропа».", KINDS if stage else MENU
+        return state, tr('Выберите тип скана кнопкой ниже.') if stage else tr('Нажмите «Рассчитать расход кропа».'), KINDS if stage else MENU
     value = str(text or '').strip()
     updated = dict(state)
     try:
@@ -135,11 +130,11 @@ def respond(state, text=None, action=None):
         if stage == 'crop2':
             return {}, result_text(updated), MENU
     except ValueError as error:
-        message = str(error) if not str(error).startswith(('time data', 'unconverted data')) else "Некорректное время. Используйте ЧЧ:ММ:СС или ДД.ММ.ГГГГ ЧЧ:ММ:СС."
+        message = str(error) if not str(error).startswith(('time data', 'unconverted data')) else tr('Некорректное время. Используйте ЧЧ:ММ:СС или ДД.ММ.ГГГГ ЧЧ:ММ:СС.')
         return state, "❌ " + message, CANCEL
-    stages = {'time1': ('crop1', 'Сколько кропа показано в первом скане? Введите число, например 2749.'),
-              'crop1': ('time2', 'Введите время второго скана в том же формате, что и первого.'),
-              'time2': ('crop2', 'Сколько кропа показано во втором скане? Введите число, например 2767.')}
+    stages = {'time1': ('crop1', tr('Сколько кропа показано в первом скане? Введите число, например 2749.')),
+              'crop1': ('time2', tr('Введите время второго скана в том же формате, что и первого.')),
+              'time2': ('crop2', tr('Сколько кропа показано во втором скане? Введите число, например 2767.'))}
     updated['stage'], prompt = stages[stage]
     return updated, prompt, CANCEL
 
@@ -165,6 +160,7 @@ class Store:
         self.db.execute('INSERT OR REPLACE INTO progress VALUES(1,?)', (value,));self.db.commit()
 
 
+@personal_language
 def handle_calculator(update,scout,store):
     q=update.get('callback_query') or {};message=update.get('message') or q.get('message') or {}
     chat=message.get('chat') or {};user=(q.get('from') if q else message.get('from')) or {}
@@ -223,7 +219,7 @@ def main():
                 user = (q.get('from') if q else message.get('from')) or {}
                 if q:
                     if accepted(message) and user.get('id') and scout.foreign_panel(message,user,q.get("data", "")):
-                        call('answerCallbackQuery',callback_query_id=q['id'],text='Это меню другого участника. Откройте своё через /scout.')
+                        call('answerCallbackQuery',callback_query_id=q['id'],text=scout.user_text(user,'Это меню другого участника. Откройте своё через /scout.'))
                         store.acknowledge(update['update_id']+1)
                         continue
                     try:call('answerCallbackQuery',callback_query_id=q['id'])
