@@ -60,7 +60,7 @@ def pledge_account_text(contribution):
         return ""
     owner = html.escape(str(contribution.get("first_name") or contribution["telegram_id"]))
     actor = html.escape(str(contribution.get("recorded_by_name") or contribution["recorded_by_telegram_id"]))
-    return f'\n👤 Войска: <a href="tg://user?id={int(contribution["telegram_id"])}">{owner}</a> · записал <a href="tg://user?id={int(contribution["recorded_by_telegram_id"])}">{actor}</a>\n'
+    return (bot.tr('\n👤 Войска: <a href="tg://user?id=') + f'{int(contribution['telegram_id'])}' + '">' + f'{owner}' + bot.tr('</a> · записал <a href="tg://user?id=') + f'{int(contribution['recorded_by_telegram_id'])}' + '">' + f'{actor}' + '</a>\n')
 
 
 def schedule_defence_reminders(req, contribution):
@@ -84,6 +84,7 @@ def schedule_defence_reminders(req, contribution):
             continue
         reminders.append({
             "request_id": req.get("id"),
+            "language": "en" if player.get("telegram_language")=="en" else "ru",
             "telegram_id": contribution.get("reminder_telegram_id") or contribution.get("telegram_id"),
             "private_chat_id": int(private_chat_id),
             "village": item.get("village"),
@@ -135,11 +136,12 @@ def save_state(state):
 
 def request_menu():
     return bot.kb([
-        [{"text": "➕ Запросить деф", "callback_data": "request_def"}],
-        [{"text": "🛡 Отправить деф", "callback_data": "send_def"}],
-        [{"text": "🗑 Удалить заявку", "callback_data": "delete_request_menu"}],
-        [{"text": "⚙️ Мои настройки", "callback_data": "settings"}],
-        [{"text": "📖 Инструкция", "callback_data": "def_guide"}],
+        [{"text": bot.tr('➕ Запросить деф'), "callback_data": "request_def"}],
+        [{"text": bot.tr('🛡 Отправить деф'), "callback_data": "send_def"}],
+        [{"text": bot.tr('🗑 Удалить заявку'), "callback_data": "delete_request_menu"}],
+        [{"text": bot.tr('⚙️ Мои настройки'), "callback_data": "settings"}],
+        [{"text": bot.tr('📖 Инструкция'), "callback_data": "def_guide"}],
+        [{"text": "🌐 Язык / Language", "callback_data": "def_language:menu"}],
     ])
 
 
@@ -224,7 +226,7 @@ def localize_game_datetime(value):
         if back.replace(tzinfo=None) == value:
             candidates[aware.timestamp()] = aware
     if len(candidates) != 1:
-        raise ValueError("Время атаки попадает на перевод часов Travian: укажите однозначное время.")
+        raise ValueError(bot.tr('Время атаки попадает на перевод часов Travian: укажите однозначное время.'))
     return next(iter(candidates.values()))
 
 
@@ -267,10 +269,10 @@ def format_duration(seconds):
     hours, rem = divmod(total, 3600)
     minutes, secs = divmod(rem, 60)
     if hours:
-        return f"{hours}ч {minutes:02d}м"
+        return (f'{hours}' + bot.tr('ч ') + f'{minutes:02d}' + bot.tr('м'))
     if minutes:
-        return f"{minutes}м {secs:02d}с"
-    return f"{secs}с"
+        return (f'{minutes}' + bot.tr('м ') + f'{secs:02d}' + bot.tr('с'))
+    return (f'{secs}' + bot.tr('с'))
 
 
 def travel_seconds(distance, unit_speed, village, with_hero=False, standard_bonus=None, boots_bonus=None):
@@ -317,7 +319,7 @@ def hero_gear_options(player, village, distance, unit_speed):
             # Equal travel times do not need duplicate buttons. Prefer the
             # strongest boots and, without a standard, the best return map.
             rounded = int(round(seconds))
-            label_parts = ["🦸 Герой"]
+            label_parts = [bot.tr('🦸 Герой')]
             if std:
                 label_parts.append(f"🚩 +{std}%")
             elif best_map:
@@ -419,10 +421,10 @@ def source_village_units(player, village, req):
 def source_village_status(player, village, req):
     attack = request_datetime(req)
     if attack is None:
-        return "⚪", "нет времени"
+        return "⚪", bot.tr('нет времени')
     units = source_village_units(player, village, req)
     if not units:
-        return "⚪", "нет указанных войск"
+        return "⚪", bot.tr('нет указанных войск')
 
     now = datetime.now(SERVER_TZ)
     remaining = game_seconds_between(attack, now)
@@ -441,12 +443,12 @@ def source_village_status(player, village, req):
                 }
 
     if best is None:
-        return "⚪", "нет доступных войск"
+        return "⚪", bot.tr('нет доступных войск')
 
     if best["seconds"] <= remaining:
-        hero_text = " +герой" if best["with_hero"] else ""
+        hero_text = bot.tr(' +герой') if best["with_hero"] else ""
         return "🟢", f"{best['name']}{hero_text} • {best['arrival'].strftime('%H:%M:%S')}"
-    return "🔴", f"ближайшее: {best['name']} • {format_duration(best['seconds'])}"
+    return "🔴", (bot.tr('ближайшее: ') + f'{best['name']}' + ' • ' + f'{format_duration(best['seconds'])}')
 
 
 def request_remaining(req):
@@ -515,7 +517,7 @@ def village_send_options(player, req):
         if normal_units:
             seconds = max(x["no_hero_seconds"] for x in normal_units)
             variants.append({
-                "key": "normal", "label": "⚡ Без героя", "seconds": seconds,
+                "key": "normal", "label": bot.tr('⚡ Без героя'), "seconds": seconds,
                 "deadline": shift_game_seconds(attack, -seconds), "arrival": attack,
                 "max_def": sum(int(x["amount"]) * int(x["value"]) for x in normal_units),
                 "with_hero": False,
@@ -542,7 +544,7 @@ def village_send_options(player, req):
                     if not eligible:
                         continue
                     seconds = max(x[1] for x in eligible)
-                    label = "🦸 Герой"
+                    label = bot.tr('🦸 Герой')
                     if std:
                         label += f" · 🚩 +{std}%"
                     elif best_map:
@@ -574,8 +576,8 @@ def village_send_options(player, req):
 
         # Slowing tools remain separate no-hero timing variants.
         for key, label, speed in (
-            ("ram", "🐏 + 1 таран", 4.0),
-            ("catapult", "🪨 + 1 катапульта", 3.0),
+            ("ram", bot.tr('🐏 + 1 таран'), 4.0),
+            ("catapult", bot.tr('🪨 + 1 катапульта'), 3.0),
         ):
             eligible = []
             for item in units:
@@ -606,11 +608,11 @@ def send_village_keyboard(player, req, exclude=None):
         if item["idx"] in exclude:
             continue
         rows.append([{
-            "text": f"🏘 {item['village'].get('coordinates', '?')} — до {item['max_def']}",
+            "text": ('🏘 ' + f'{item['village'].get('coordinates', '?')}' + bot.tr(' — до ') + f'{item['max_def']}'),
             "callback_data": f"send_village:{req['id']}:{item['idx']}",
         }])
-    rows.insert(0, [{"text": "⚡ Быстрая отправка", "callback_data": f"send_untimed:{req['id']}"}])
-    rows.append([{"text": "⬅️ К заявке", "callback_data": f"send_req:{req['id']}"}])
+    rows.insert(0, [{"text": bot.tr('⚡ Быстрая отправка'), "callback_data": f"send_untimed:{req['id']}"}])
+    rows.append([{"text": bot.tr('⬅️ К заявке'), "callback_data": f"send_req:{req['id']}"}])
     return bot.kb(rows)
 
 
@@ -621,47 +623,44 @@ def speed_variant_keyboard(req_id, village_idx, variants):
             "text": f"{item['label']} — {item['deadline'].strftime('%H:%M:%S')}",
             "callback_data": f"send_speed:{req_id}:{village_idx}:{item['key']}",
         }])
-    rows.append([{"text": "❌ Отмена", "callback_data": f"send_req:{req_id}"}])
+    rows.append([{"text": bot.tr('❌ Отмена'), "callback_data": f"send_req:{req_id}"}])
     return bot.kb(rows)
 
 
 def draft_summary(state, req=None):
-    lines = ["<b>🛡 ПЛАН ОТПРАВКИ</b>", ""]
+    lines = [bot.tr('<b>🛡 ПЛАН ОТПРАВКИ</b>'), ""]
     if req is not None:
         lines.extend([
-            f"🎯 Цель: {village_link(req['target_x'], req['target_y'])}",
-            f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
+            (bot.tr('🎯 Цель: ') + f'{village_link(req['target_x'], req['target_y'])}'),
+            (bot.tr('⚔️ Атака: <b>') + f'{req['attack_time_display']}' + '</b>'),
             "",
         ])
     total = 0
     for item in state.get("draft", []):
         mode = ""
         if item.get("gear_label"):
-            mode = " · " + item["gear_label"]
+            mode = " · " + bot.gear_label(item["gear_label"])
         elif str(item.get("speed_mode", "")).startswith("h"):
-            mode = " · 🦸 с героем"
+            mode = bot.tr(' · 🦸 с героем')
         elif item["speed_mode"] == "ram":
-            mode = " · 🐏 + 1 таран"
+            mode = bot.tr(' · 🐏 + 1 таран')
         elif item["speed_mode"] == "catapult":
-            mode = " · 🪨 + 1 катапульта"
+            mode = bot.tr(' · 🪨 + 1 катапульта')
         total += int(item.get("def_points", 0) or 0)
         lines.append(
-            f"🏘 <b>{html.escape(item['village'])}</b>\n"
-            f"🛡 <b>{item['def_points']}</b> очков{mode}\n"
-            f"🚨 Отправить: <b>{item['deadline']}</b>\n"
-            f"🔔 Напомню: <b>{item['reminder_time']}</b>"
+            ('🏘 <b>' + f'{html.escape(item['village'])}' + '</b>\n🛡 <b>' + f'{item['def_points']}' + bot.tr('</b> очков') + f'{mode}' + bot.tr('\n🚨 Отправить: <b>') + f'{item['deadline']}' + bot.tr('</b>\n🔔 Напомню: <b>') + f'{item['reminder_time']}' + '</b>')
         )
         lines.append("")
-    lines.append(f"<b>Итого: {total} очков</b>")
+    lines.append((bot.tr('<b>Итого: ') + f'{total}' + bot.tr(' очков</b>')))
     return "\n".join(lines)
 
 
 def draft_actions_keyboard(req_id, can_add=True):
     rows = []
     if can_add:
-        rows.append([{"text": "➕ Добавить ещё деревню", "callback_data": f"send_add:{req_id}"}])
-    rows.append([{"text": "✅ Готово", "callback_data": f"send_finish:{req_id}"}])
-    rows.append([{"text": "❌ Отмена", "callback_data": f"send_req:{req_id}"}])
+        rows.append([{"text": bot.tr('➕ Добавить ещё деревню'), "callback_data": f"send_add:{req_id}"}])
+    rows.append([{"text": bot.tr('✅ Готово'), "callback_data": f"send_finish:{req_id}"}])
+    rows.append([{"text": bot.tr('❌ Отмена'), "callback_data": f"send_req:{req_id}"}])
     return bot.kb(rows)
 
 
@@ -670,10 +669,10 @@ def send_def_requests_keyboard(requests):
     for req in requests:
         if req.get("status") == "active" and not request_closed(req):
             rows.append([{
-                "text": f"🛡 Отправить деф #{req['id']} — {req['target_x']}|{req['target_y']}",
+                "text": (bot.tr('🛡 Отправить деф #') + f'{req['id']}' + ' — ' + f'{req['target_x']}' + '|' + f'{req['target_y']}'),
                 "callback_data": f"send_req:{req['id']}",
             }])
-    rows.append([{"text": "⬅️ Назад", "callback_data": "menu"}])
+    rows.append([{"text": bot.tr('⬅️ Назад'), "callback_data": "menu"}])
     return bot.kb(rows)
 
 
@@ -681,32 +680,30 @@ def send_def_plan_text(player, req):
     remaining = request_remaining(req)
     options = best_source_options(player, req)
     lines = [
-        f"<b>🛡 ОТПРАВИТЬ ДЕФ #{req['id']}</b>",
+        (bot.tr('<b>🛡 ОТПРАВИТЬ ДЕФ #') + f'{req['id']}' + '</b>'),
         "",
-        f"📍 Цель: {village_link(req['target_x'], req['target_y'])}",
-        f"⚔️ Прибыть до: <b>{req['attack_time_display']}</b>",
-        f"🛡 Осталось закрыть: <b>{remaining}</b> очков",
+        (bot.tr('📍 Цель: ') + f'{village_link(req['target_x'], req['target_y'])}'),
+        (bot.tr('⚔️ Прибыть до: <b>') + f'{req['attack_time_display']}' + '</b>'),
+        (bot.tr('🛡 Осталось закрыть: <b>') + f'{remaining}' + bot.tr('</b> очков')),
         "",
     ]
     if not options:
         lines.extend([
-            "⚪ В настройках нет подходящих данных для расчёта времени отправки.",
+            bot.tr('⚪ В настройках нет подходящих данных для расчёта времени отправки.'),
             "",
-            "Фактический деф всё равно можно указать кнопкой ниже.",
+            bot.tr('Фактический деф всё равно можно указать кнопкой ниже.'),
         ])
     else:
-        lines.append("<b>По данным настроек можно отправить из:</b>")
+        lines.append(bot.tr('<b>По данным настроек можно отправить из:</b>'))
         for item in options:
-            hero = " + герой" if item["with_hero"] else ""
+            hero = bot.tr(' + герой') if item["with_hero"] else ""
             lines.append(
-                f"🟢 <b>{item['village'].get('coordinates', '?')}</b> — "
-                f"{item['name']}{hero}, до <b>{item['max_def']}</b> очков, "
-                f"прибытие <b>{item['arrival'].strftime('%H:%M:%S')}</b>"
+                ('🟢 <b>' + f'{item['village'].get('coordinates', '?')}' + '</b> — ' + f'{item['name']}' + f'{hero}' + bot.tr(', до <b>') + f'{item['max_def']}' + bot.tr('</b> очков, прибытие <b>') + f'{item['arrival'].strftime('%H:%M:%S')}' + '</b>')
             )
         lines.extend([
             "",
-            "Нажми «Отправить деф» и сначала укажи фактическое количество.",
-            "💡 Пехота = 1 очко · Конница = 2 очка.",
+            bot.tr('Нажми «Отправить деф» и сначала укажи фактическое количество.'),
+            bot.tr('💡 Пехота = 1 очко · Конница = 2 очка.'),
         ])
     return "\n".join(lines)
 
@@ -716,41 +713,31 @@ def send_def_plan_keyboard(player, req, players_data=None):
     # Settings are advisory: they are used for travel-time calculations and
     # notifications, never as a prerequisite for declaring an actual send.
     rows = [[{
-        "text": "🛡 Отправить деф от себя",
+        "text": bot.tr('🛡 Отправить деф от себя'),
         "callback_data": f"send_amount:{req['id']}",
     }]]
     if delegated_accounts(players_data if players_data is not None else bot.players(), player.get("telegram_id")):
-        rows.append([{"text": "👥 Отправить деф с другого аккаунта", "callback_data": f"send_other:{req['id']}"}])
-    rows.insert(0, [{"text": "⚡ Быстрая отправка", "callback_data": f"send_quick:{req['id']}"}])
-    rows.append([{"text": "⬅️ К заявкам", "callback_data": "send_def"}])
+        rows.append([{"text": bot.tr('👥 Отправить деф с другого аккаунта'), "callback_data": f"send_other:{req['id']}"}])
+    rows.insert(0, [{"text": bot.tr('⚡ Быстрая отправка'), "callback_data": f"send_quick:{req['id']}"}])
+    rows.append([{"text": bot.tr('⬅️ К заявкам'), "callback_data": "send_def"}])
     return bot.kb(rows)
 
 
 def send_def_amount_text(req, village, unit_name, max_def, arrival):
     return (
-        f"<b>🛡 Отправка дефа</b>\n\n"
-        f"🏘 Деревня: <b>{village.get('coordinates', '?')}</b>\n"
-        f"⚔️ Войска: <b>{unit_name}</b>\n"
-        f"⏱ Прибытие: <b>{arrival.strftime('%H:%M:%S')}</b>\n"
-        f"📦 Максимум: <b>{max_def}</b> очков\n\n"
-        f"Введите количество дефа. Например: <code>10000</code>"
+        (bot.tr('<b>🛡 Отправка дефа</b>\n\n🏘 Деревня: <b>') + f'{village.get('coordinates', '?')}' + bot.tr('</b>\n⚔️ Войска: <b>') + f'{unit_name}' + bot.tr('</b>\n⏱ Прибытие: <b>') + f'{arrival.strftime('%H:%M:%S')}' + bot.tr('</b>\n📦 Максимум: <b>') + f'{max_def}' + bot.tr('</b> очков\n\nВведите количество дефа. Например: <code>10000</code>'))
     )
 
 def request_text(req):
     return (
-        f"<b>🛡 ЗАПРОС НА ДЕФ #{req['id']}</b>\n\n"
-        f"📍 Деревня: {village_link(req['target_x'], req['target_y'])}\n"
-        f"👤 Игрок: <b>{html.escape(req['target_player'])}</b>\n"
-        f"⚔️ Атака: <b>{req['attack_time_display']}</b>\n"
-        f"🛡 Требуется: <b>{req['required_def']}</b> очков дефа\n\n"
-        "Деф должен прибыть <b>ДО</b> указанного времени."
+        (bot.tr('<b>🛡 ЗАПРОС НА ДЕФ #') + f'{req['id']}' + bot.tr('</b>\n\n📍 Деревня: ') + f'{village_link(req['target_x'], req['target_y'])}' + bot.tr('\n👤 Игрок: <b>') + f'{html.escape(req['target_player'])}' + bot.tr('</b>\n⚔️ Атака: <b>') + f'{req['attack_time_display']}' + bot.tr('</b>\n🛡 Требуется: <b>') + f'{req['required_def']}' + bot.tr('</b> очков дефа\n\nДеф должен прибыть <b>ДО</b> указанного времени.'))
     )
 
 
 def confirm_keyboard():
     return bot.kb([
-        [{"text": "✅ Создать заявку", "callback_data": "request_confirm"}],
-        [{"text": "❌ Отмена", "callback_data": "request_cancel"}],
+        [{"text": bot.tr('✅ Создать заявку'), "callback_data": "request_confirm"}],
+        [{"text": bot.tr('❌ Отмена'), "callback_data": "request_cancel"}],
     ])
 
 
@@ -759,24 +746,16 @@ def date_keyboard():
     today = now.strftime("%d.%m")
     tomorrow = (now + timedelta(days=1)).strftime("%d.%m")
     return bot.kb([
-        [{"text": f"📅 Сегодня — {today}", "callback_data": "request_date_today"}],
-        [{"text": f"📅 Завтра — {tomorrow}", "callback_data": "request_date_tomorrow"}],
-        [{"text": "❌ Отмена", "callback_data": "request_cancel"}],
+        [{"text": (bot.tr('📅 Сегодня — ') + f'{today}'), "callback_data": "request_date_today"}],
+        [{"text": (bot.tr('📅 Завтра — ') + f'{tomorrow}'), "callback_data": "request_date_tomorrow"}],
+        [{"text": bot.tr('❌ Отмена'), "callback_data": "request_cancel"}],
     ])
 
 
 def request_summary(player):
     state = player.get("state", {})
     return (
-        "<b>🛡 ЗАПРОС НА ДЕФ</b>\n\n"
-        f"📍 Деревня: {village_link(state['target_x'], state['target_y'])}\n"
-        f"👤 Игрок: <b>{html.escape(state['target_player'])}</b>\n"
-        f"⚔️ Атака: <b>{state['attack_time_display']}</b>\n"
-        f"🛡 Требуется: <b>{state['required_def']}</b> очков дефа\n\n"
-        "Пехота = 1\n"
-        "Конница = 2\n\n"
-        "Деф должен прибыть <b>ДО</b> указанного времени.\n\n"
-        "Всё верно?"
+        (bot.tr('<b>🛡 ЗАПРОС НА ДЕФ</b>\n\n📍 Деревня: ') + f'{village_link(state['target_x'], state['target_y'])}' + bot.tr('\n👤 Игрок: <b>') + f'{html.escape(state['target_player'])}' + bot.tr('</b>\n⚔️ Атака: <b>') + f'{state['attack_time_display']}' + bot.tr('</b>\n🛡 Требуется: <b>') + f'{state['required_def']}' + bot.tr('</b> очков дефа\n\nПехота = 1\nКонница = 2\n\nДеф должен прибыть <b>ДО</b> указанного времени.\n\nВсё верно?'))
     )
 
 
@@ -934,45 +913,45 @@ def build_optimal_plan(req):
 def optimal_plan_text(req, plan):
     previous = _previously_declared_by_village(req)
     lines = [
-        f"<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #{req['id']}</b>",
+        (bot.tr('<b>🤖 ОПТИМАЛЬНЫЙ ПЛАН ЗАЩИТЫ #') + f'{req['id']}' + '</b>'),
         "",
-        f"🎯 Цель: {village_link(req['target_x'], req['target_y'])} — <b>{html.escape(req['target_player'])}</b>",
-        f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
-        f"🛡 Осталось закрыть: <b>{plan['remaining']}</b> очков",
+        (bot.tr('🎯 Цель: ') + f'{village_link(req['target_x'], req['target_y'])}' + ' — <b>' + f'{html.escape(req['target_player'])}' + '</b>'),
+        (bot.tr('⚔️ Атака: <b>') + f'{req['attack_time_display']}' + '</b>'),
+        (bot.tr('🛡 Осталось закрыть: <b>') + f'{plan['remaining']}' + bot.tr('</b> очков')),
         "",
     ]
 
     if plan["items"]:
-        lines.append("<b>Рекомендуется:</b>")
+        lines.append(bot.tr('<b>Рекомендуется:</b>'))
         lines.append("")
         for item in plan["items"]:
             troop_icon = "🐎" if item["cavalry"] else "🚶"
-            hero = " + герой" if item["with_hero"] else ""
+            hero = bot.tr(' + герой') if item["with_hero"] else ""
             lines.extend([
                 f"🏘 <b>{html.escape(item['village'])}</b> — {html.escape(item['player'])}",
                 f"{troop_icon} <b>{item['units']}</b> {html.escape(item['unit_name'])}{hero}"
-                + (f" = <b>{item['def_points']}</b> очков" if item["value"] != 1 else ""),
-                f"📏 {item['distance']:.1f} поля · отправить до <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
+                + ((' = <b>' + f'{item['def_points']}' + bot.tr('</b> очков')) if item["value"] != 1 else ""),
+                ('📏 ' + f'{item['distance']:.1f}' + bot.tr(' поля · отправить до <b>') + f'{item['deadline'].strftime('%H:%M:%S')}' + '</b>'),
             ])
             already = previous.get(item["village"], 0)
             if already:
-                lines.append(f"📩 По этой заявке ранее заявлено из деревни: <b>{already}</b> очков")
+                lines.append((bot.tr('📩 По этой заявке ранее заявлено из деревни: <b>') + f'{already}' + bot.tr('</b> очков')))
             lines.append("")
 
     infantry_points = sum(x["def_points"] for x in plan["items"] if not x["cavalry"])
     cavalry_points = sum(x["def_points"] for x in plan["items"] if x["cavalry"])
-    lines.append(f"📊 План: <b>{plan['covered']} / {plan['remaining']}</b>")
-    lines.append(f"🚶 Пехота: <b>{infantry_points}</b> · 🐎 Конница: <b>{cavalry_points}</b>")
+    lines.append((bot.tr('📊 План: <b>') + f'{plan['covered']}' + ' / ' + f'{plan['remaining']}' + '</b>'))
+    lines.append((bot.tr('🚶 Пехота: <b>') + f'{infantry_points}' + bot.tr('</b> · 🐎 Конница: <b>') + f'{cavalry_points}' + '</b>'))
     if plan["deficit"] > 0:
-        lines.append(f"⚠️ По указанным в настройках войскам не хватает: <b>{plan['deficit']}</b> очков")
+        lines.append((bot.tr('⚠️ По указанным в настройках войскам не хватает: <b>') + f'{plan['deficit']}' + bot.tr('</b> очков')))
     elif cavalry_points == 0:
-        lines.append("✅ Заявка теоретически закрывается только пехотой.")
+        lines.append(bot.tr('✅ Заявка теоретически закрывается только пехотой.'))
     else:
-        lines.append("⚠️ Для полного закрытия по текущему расчёту требуется конница.")
+        lines.append(bot.tr('⚠️ Для полного закрытия по текущему расчёту требуется конница.'))
 
     lines.extend([
         "",
-        "ℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна.",
+        bot.tr('ℹ️ План рекомендательный. Он рассчитан по войскам, указанным игроками в настройках; их фактическая доступность боту неизвестна.'),
     ])
     return "\n".join(lines)
 
@@ -990,6 +969,7 @@ def _delete_plan_message(req, chat_id=None):
     req.pop("optimal_plan_signature", None)
 
 
+@bot.shared_language
 def refresh_optimal_plans(chat_id=None, force=False):
     """Recalculate active recommendations and repost only when the plan changed."""
     state = load_state()
@@ -1115,52 +1095,53 @@ def notify_eligible_defenders(req):
         if not private_chat_id or not player.get("private_notifications", True):
             continue
 
-        options = notification_source_options(player, req)
-        if not options:
-            continue
+        with bot.language_scope(player):
+            options = notification_source_options(player, req)
+            if not options:
+                continue
 
-        lines = [
-            "<b>🛡 НОВАЯ ЗАЯВКА НА ДЕФ</b>",
-            "",
-            f"🎯 Цель: <b>{req['target_x']}|{req['target_y']}</b>",
-            f"👤 Игрок: <b>{html.escape(req['target_player'])}</b>",
-            f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
-            f"🛡 Требуется: <b>{req['required_def']}</b> очков",
-            "",
-            "<b>Ты можешь успеть из:</b>",
-            "",
-        ]
+            lines = [
+                bot.tr('<b>🛡 НОВАЯ ЗАЯВКА НА ДЕФ</b>'),
+                "",
+                (bot.tr('🎯 Цель: <b>') + f'{req['target_x']}' + '|' + f'{req['target_y']}' + '</b>'),
+                (bot.tr('👤 Игрок: <b>') + f'{html.escape(req['target_player'])}' + '</b>'),
+                (bot.tr('⚔️ Атака: <b>') + f'{req['attack_time_display']}' + '</b>'),
+                (bot.tr('🛡 Требуется: <b>') + f'{req['required_def']}' + bot.tr('</b> очков')),
+                "",
+                bot.tr('<b>Ты можешь успеть из:</b>'),
+                "",
+            ]
 
-        current_village = None
-        for item in options:
-            coords = item["village"].get("coordinates", "?")
-            if coords != current_village:
-                if current_village is not None:
-                    lines.append("")
-                lines.append(f"🏘 <b>{html.escape(coords)}</b>")
-                current_village = coords
+            current_village = None
+            for item in options:
+                coords = item["village"].get("coordinates", "?")
+                if coords != current_village:
+                    if current_village is not None:
+                        lines.append("")
+                    lines.append(f"🏘 <b>{html.escape(coords)}</b>")
+                    current_village = coords
 
-            hero = " + герой" if item["with_hero"] else ""
-            points = int(item["amount"]) * int(item.get("value", 1))
-            lines.extend([
-                f"🛡 {item['amount']} {item['name']}{hero} — <b>{points}</b> очков",
-                f"🚨 Отправить до: <b>{item['deadline'].strftime('%H:%M:%S')}</b>",
-            ])
+                hero = bot.tr(' + герой') if item["with_hero"] else ""
+                points = int(item["amount"]) * int(item.get("value", 1))
+                lines.extend([
+                    ('🛡 ' + f'{item['amount']}' + ' ' + f'{item['name']}' + f'{hero}' + ' — <b>' + f'{points}' + bot.tr('</b> очков')),
+                    (bot.tr('🚨 Отправить до: <b>') + f'{item['deadline'].strftime('%H:%M:%S')}' + '</b>'),
+                ])
 
-        lines.append("Если можешь помочь, открой «Отправить деф» в Центре дефа.")
+            lines.append(bot.tr('Если можешь помочь, открой «Отправить деф» в Центре дефа.'))
 
-        try:
-            bot.tg("sendMessage", chat_id=int(private_chat_id), text="\n".join(lines), parse_mode="HTML")
-            sent += 1
-            print(
-                f"Defence notification sent: request=#{req.get('id')} player={player.get('telegram_id')} options={len(options)}",
-                flush=True,
-            )
-        except Exception as exc:
-            print(
-                f"Defence notification failed: request=#{req.get('id')} player={player.get('telegram_id')}: {exc}",
-                flush=True,
-            )
+            try:
+                bot.tg("sendMessage", chat_id=int(private_chat_id), text="\n".join(lines), parse_mode="HTML")
+                sent += 1
+                print(
+                    f"Defence notification sent: request=#{req.get('id')} player={player.get('telegram_id')} options={len(options)}",
+                    flush=True,
+                )
+            except Exception as exc:
+                print(
+                    f"Defence notification failed: request=#{req.get('id')} player={player.get('telegram_id')}: {exc}",
+                    flush=True,
+                )
 
     print(f"Defence notifications complete: request=#{req.get('id')} sent={sent}", flush=True)
 
@@ -1177,7 +1158,7 @@ def start_request(chat_id, player, data):
     save_request_wizard_state(data)
     bot.send(
         chat_id,
-        "<b>🛡 Запросить деф</b>\n\nВведите координаты деревни назначения.\nНапример: <code>45 -62</code>",
+        bot.tr('<b>🛡 Запросить деф</b>\n\nВведите координаты деревни назначения.\nНапример: <code>45 -62</code>'),
         force_reply=True,
     )
 
@@ -1203,9 +1184,9 @@ def active_requests_text(requests):
 
     active.sort(key=lambda r: r.get("attack_time", ""))
 
-    lines = ["<b>🛡 ЦЕНТР ДЕФА</b>", "", "<b>📋 АКТИВНЫЕ ЗАЯВКИ</b>", ""]
+    lines = [bot.tr('<b>🛡 ЦЕНТР ДЕФА</b>'), "", bot.tr('<b>📋 АКТИВНЫЕ ЗАЯВКИ</b>'), ""]
     if not active:
-        lines.append("Активных заявок нет.")
+        lines.append(bot.tr('Активных заявок нет.'))
     else:
         for req in active:
             try:
@@ -1217,13 +1198,13 @@ def active_requests_text(requests):
             lines.extend([
                 f"{icon} <b>#{req['id']}</b>",
                 f"📍 {village_link(req['target_x'], req['target_y'])} — <b>{html.escape(req['target_player'])}</b>",
-                f"⚔️ Атака: <b>{req['attack_time_display']}</b>",
-                f"🛡 Собрано: <b>{req.get('collected_def', 0)}</b> / <b>{req['required_def']}</b> очков",
-                f"⏳ Осталось собрать: <b>{request_remaining(req)}</b> очков",
+                (bot.tr('⚔️ Атака: <b>') + f'{req['attack_time_display']}' + '</b>'),
+                (bot.tr('🛡 Собрано: <b>') + f'{req.get('collected_def', 0)}' + '</b> / <b>' + f'{req['required_def']}' + bot.tr('</b> очков')),
+                (bot.tr('⏳ Осталось собрать: <b>') + f'{request_remaining(req)}' + bot.tr('</b> очков')),
                 "",
             ])
 
-    lines.append("🛡 Чтобы помочь, нажмите «Отправить деф».")
+    lines.append(bot.tr('🛡 Чтобы помочь, нажмите «Отправить деф».'))
     return "\n".join(lines), changed
 
 
@@ -1241,6 +1222,7 @@ def unpin_center(chat_id, message_id):
         print(f"Previous centre unpin failed for {message_id}: {exc}", flush=True)
 
 
+@bot.shared_language
 def refresh_center(chat_id=None, create_if_missing=False):
     state = load_state()
     center_chat_id = state.get("center_chat_id") or (chat_id if chat_id is not None and int(chat_id) < 0 else None)
@@ -1331,7 +1313,7 @@ def adopt_pinned_centre(message):
     topic=pinned.get('message_thread_id') or message.get('message_thread_id')
     bot_id=str(bot.TELEGRAM_TOKEN or '').split(':',1)[0]
     if chat.get('type')=='private' or topic!=bot.THREAD_ID or not bot_id.isdigit():return False
-    if str(pinned.get('from',{}).get('id'))!=bot_id or not str(pinned.get('text','')).startswith('🛡 ЦЕНТР ДЕФА'):return False
+    if str(pinned.get('from',{}).get('id'))!=bot_id or not str(pinned.get('text','')).startswith(bot.tr('🛡 ЦЕНТР ДЕФА')):return False
     state=load_state()
     if str(state.get('center_chat_id'))!=str(chat.get('id')) or not pinned.get('message_id'):return False
     if state.get('center_message_id')!=pinned['message_id']:
@@ -1374,7 +1356,7 @@ def process_text(message):
         menu_text, changed = active_requests_text(requests)
         if changed:
             bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.send(chat_id, menu_text + "\n\nВыберите действие:", request_menu())
+        bot.send(chat_id, menu_text + bot.tr('\n\nВыберите действие:'), request_menu())
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
@@ -1389,20 +1371,20 @@ def process_text(message):
             player["state"] = None
             player.pop("defence_send_account", None)
             bot.save_players(data)
-            bot.send(chat_id, "❌ Доступ к аккаунту больше недоступен. Выберите отправку заново.", request_menu())
+            bot.send(chat_id, bot.tr('❌ Доступ к аккаунту больше недоступен. Выберите отправку заново.'), request_menu())
             return
     if typ == "send_total_amount":
         amount = bot.to_int(text)
         req_id = int(state.get("request_id", 0) or 0)
         if amount is None or amount <= 0:
-            bot.send(chat_id, "Введите положительное количество очков дефа.", force_reply=True)
+            bot.send(chat_id, bot.tr('Введите положительное количество очков дефа.'), force_reply=True)
             return
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or request_closed(req):
             player["state"] = None
             bot.save_players(data)
-            bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
+            bot.send(chat_id, bot.tr('❌ Эта заявка уже закрыта или недоступна.'), request_menu())
             return
 
         options = [] if state.get("without_timing") else village_send_options(source_player, req)
@@ -1416,9 +1398,7 @@ def process_text(message):
             bot.save_players(data)
             bot.send(
                 chat_id,
-                f"<b>🛡 Указано: {amount} очков дефа</b>\n\n"
-                "Теперь выберите деревню отправки. Настройки используются только "
-                "для расчёта времени отправки:",
+                (bot.tr('<b>🛡 Указано: ') + f'{amount}' + bot.tr(' очков дефа</b>\n\nТеперь выберите деревню отправки. Настройки используются только для расчёта времени отправки:')),
                 send_village_keyboard(source_player, req),
             )
             return
@@ -1443,9 +1423,8 @@ def process_text(message):
         refresh_center(chat_id=chat_id, create_if_missing=True)
         bot.send(
             chat_id,
-            f"✅ Принято: <b>{amount}</b> очков дефа в заявку #{req_id}.\n"
-            + pledge_account_text(contribution) + "\n"
-            "⏱ Записаны только очки дефа. Время отправки и напоминание не назначены.",
+            (bot.tr('✅ Принято: <b>') + f'{amount}' + bot.tr('</b> очков дефа в заявку #') + f'{req_id}' + '.\n')
+            + pledge_account_text(contribution) + bot.tr('\n⏱ Записаны только очки дефа. Время отправки и напоминание не назначены.'),
             request_menu(),
         )
         return
@@ -1455,18 +1434,18 @@ def process_text(message):
         req_id = int(state.get("request_id", 0) or 0)
         village_idx = int(state.get("village_idx", -1))
         if amount is None or amount <= 0:
-            bot.send(chat_id, "Введите положительное количество очков дефа.", force_reply=True)
+            bot.send(chat_id, bot.tr('Введите положительное количество очков дефа.'), force_reply=True)
             return
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or request_closed(req):
             player["state"] = None
             bot.save_players(data)
-            bot.send(chat_id, "❌ Эта заявка уже закрыта или недоступна.", request_menu())
+            bot.send(chat_id, bot.tr('❌ Эта заявка уже закрыта или недоступна.'), request_menu())
             return
         option = next((x for x in village_send_options(source_player, req) if x["idx"] == village_idx), None)
         if option is None:
-            bot.send(chat_id, "❌ Эта деревня уже не успевает.", request_menu())
+            bot.send(chat_id, bot.tr('❌ Эта деревня уже не успевает.'), request_menu())
             return
         # Registered troop counts are advisory and may be stale. They are used
         # to determine which village/timing variants can theoretically arrive,
@@ -1477,9 +1456,7 @@ def process_text(message):
         bot.save_players(data)
         bot.send(
             chat_id,
-            f"<b>🚨 Когда отправлять</b>\n\n"
-            f"🏘 <b>{option['village'].get('coordinates', '?')}</b> → 🎯 <b>{req['target_x']} {req['target_y']}</b>\n"
-            f"🛡 <b>{amount}</b> очков\n\nВыбери вариант:",
+            (bot.tr('<b>🚨 Когда отправлять</b>\n\n🏘 <b>') + f'{option['village'].get('coordinates', '?')}' + '</b> → 🎯 <b>' + f'{req['target_x']}' + ' ' + f'{req['target_y']}' + '</b>\n🛡 <b>' + f'{amount}' + bot.tr('</b> очков\n\nВыбери вариант:')),
             speed_variant_keyboard(req_id, village_idx, eligible_variants),
         )
         return
@@ -1491,16 +1468,16 @@ def process_text(message):
     if typ == "request_target_coords":
         coords = bot.parse_coords(text)
         if coords is None:
-            bot.send(chat_id, "Неверный формат. Введите координаты через пробел, например: <code>45 -62</code>", force_reply=True)
+            bot.send(chat_id, bot.tr('Неверный формат. Введите координаты через пробел, например: <code>45 -62</code>'), force_reply=True)
             return
         village, path = find_target(coords)
         if village is None:
             if path is None:
-                bot.send(chat_id, "❌ В репозитории не найден ни одного сохранённого слепка карты.", force_reply=True)
+                bot.send(chat_id, bot.tr('❌ В репозитории не найден ни одного сохранённого слепка карты.'), force_reply=True)
             else:
-                bot.send(chat_id, f"❌ Деревня с координатами <code>{coords}</code> не найдена в последнем слепке карты (<code>{path.name}</code>).\n\nПроверьте координаты и попробуйте ещё раз.", force_reply=True)
+                bot.send(chat_id, (bot.tr('❌ Деревня с координатами <code>') + f'{coords}' + bot.tr('</code> не найдена в последнем слепке карты (<code>') + f'{path.name}' + bot.tr('</code>).\n\nПроверьте координаты и попробуйте ещё раз.')), force_reply=True)
             return
-        player_name = str(village.get("player") or "Неизвестно")
+        player_name = str(village.get("player") or bot.tr('Неизвестно'))
         player["state"] = {
             "type": "request_attack_date",
             "target_coords": coords,
@@ -1511,7 +1488,7 @@ def process_text(message):
         save_request_wizard_state(data)
         bot.send(
             chat_id,
-            f"📍 Деревня: {village_link(village['x'], village['y'])}\n👤 Игрок: <b>{html.escape(player_name)}</b>\n\n📅 Выберите дату атаки:",
+            (bot.tr('📍 Деревня: ') + f'{village_link(village['x'], village['y'])}' + bot.tr('\n👤 Игрок: <b>') + f'{html.escape(player_name)}' + bot.tr('</b>\n\n📅 Выберите дату атаки:')),
             date_keyboard(),
         )
         return
@@ -1520,7 +1497,7 @@ def process_text(message):
         # Backward compatibility for an unfinished old request.
         attack_time = parse_attack_time(text)
         if attack_time is None:
-            bot.send(chat_id, "Некорректное или неоднозначное время. Используйте время Travian: <code>17.09.2026 21:30:45</code>. В час перевода часов выберите однозначное время.", force_reply=True)
+            bot.send(chat_id, bot.tr('Некорректное или неоднозначное время. Используйте время Travian: <code>17.09.2026 21:30:45</code>. В час перевода часов выберите однозначное время.'), force_reply=True)
             return
         player["state"]["attack_time"] = attack_time.strftime("%Y-%m-%d %H:%M:%S")
         player["state"]["attack_time_display"] = attack_time.strftime("%d.%m.%Y %H:%M:%S")
@@ -1528,7 +1505,7 @@ def process_text(message):
         save_request_wizard_state(data)
         bot.send(
             chat_id,
-            "Введите требуемое количество дефа.\n\n<b>Пехота = 1\nКонница = 2</b>\n\nНапример:\n5000 пехоты = 5000\n2500 конницы = 5000\n1000 пехоты + 2000 конницы = 5000",
+            bot.tr('Введите требуемое количество дефа.\n\n<b>Пехота = 1\nКонница = 2</b>\n\nНапример:\n5000 пехоты = 5000\n2500 конницы = 5000\n1000 пехоты + 2000 конницы = 5000'),
             force_reply=True,
         )
         return
@@ -1536,19 +1513,19 @@ def process_text(message):
     if typ == "request_def_amount":
         required = bot.to_int(text)
         if required is None or required <= 0:
-            bot.send(chat_id, "Введите целое положительное число, например <code>5000</code>.", force_reply=True)
+            bot.send(chat_id, bot.tr('Введите целое положительное число, например <code>5000</code>.'), force_reply=True)
             return
         player["state"]["required_def"] = required
         player["state"]["type"] = "request_confirm"
         save_request_wizard_state(data)
-        progress = bot.send(chat_id, "⏳ Сохраняю заявку…")
+        progress = bot.send(chat_id, bot.tr('⏳ Сохраняю заявку…'))
         if isinstance(progress, dict) and progress.get('message_id'):
             player['state']['confirmation_message_id'] = progress['message_id']
             player['state']['confirmation_chat_id'] = chat_id
             save_request_wizard_state(data)
             callback_query({'from': user, 'data': 'request_confirm', 'message': dict(message, message_id=progress['message_id'])})
         else:
-            bot.send(chat_id, "Не удалось начать сохранение. Попробуйте ещё раз.", confirm_keyboard())
+            bot.send(chat_id, bot.tr('Не удалось начать сохранение. Попробуйте ещё раз.'), confirm_keyboard())
         return
 
     return _original_process_text(message)
@@ -1585,19 +1562,19 @@ def callback_query(q):
         req_id = int(action.split(":")[1])
         accounts = delegated_accounts(data, user["id"])
         if not accounts:
-            bot.edit(chat_id, msg_id, "Вам пока не доверили другие аккаунты. Владелец должен добавить ваш Telegram ID в «Мои настройки → Заместители».", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('Вам пока не доверили другие аккаунты. Владелец должен добавить ваш Telegram ID в «Мои настройки → Заместители».'), request_menu())
             return
         if len(accounts) > 1:
             rows = [[{"text": str(bot.player_name(owner))[:60], "callback_data": f"send_account:{req_id}:{key}"}] for key, owner in accounts]
-            rows.append([{"text": "⬅️ К заявке", "callback_data": f"send_req:{req_id}"}])
-            bot.edit(chat_id, msg_id, "👥 С какого аккаунта отправить деф?", bot.kb(rows))
+            rows.append([{"text": bot.tr('⬅️ К заявке'), "callback_data": f"send_req:{req_id}"}])
+            bot.edit(chat_id, msg_id, bot.tr('👥 С какого аккаунта отправить деф?'), bot.kb(rows))
             return
         action = f"send_account:{req_id}:{accounts[0][0]}"
     if action.startswith("send_account:"):
         _, req_s, owner_id = action.split(":")
         source_player = next((owner for key, owner in delegated_accounts(data, user["id"]) if key == owner_id), None)
         if source_player is None:
-            bot.edit(chat_id, msg_id, "❌ У вас нет доступа к этому аккаунту.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ У вас нет доступа к этому аккаунту.'), request_menu())
             return
         player["defence_send_account"] = {"request_id": int(req_s), "owner_id": int(owner_id)}
         selected_account = True
@@ -1610,7 +1587,7 @@ def callback_query(q):
             player["state"] = None
             player.pop("defence_send_account", None)
             bot.save_players(data)
-            bot.edit(chat_id, msg_id, "❌ Доступ к аккаунту отозван. Выберите отправку заново.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Доступ к аккаунту отозван. Выберите отправку заново.'), request_menu())
             return
 
     if action.startswith("send_untimed:"):
@@ -1618,7 +1595,7 @@ def callback_query(q):
         state = player.get("state") or {}
         amount = state.get("pending_amount", 0)
         if state.get("type") != "send_draft" or int(state.get("request_id", 0)) != req_id or not amount:
-            bot.edit(chat_id, msg_id, "Эта форма уже завершена. Выберите отправку заново.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('Эта форма уже завершена. Выберите отправку заново.'), request_menu())
             return
         player["state"] = {"type": "send_total_amount", "request_id": req_id, "without_timing": True}
         bot.save_players(data)
@@ -1634,7 +1611,7 @@ def callback_query(q):
         menu_text, changed = active_requests_text(requests)
         if changed:
             bot.save_json(bot.REQUESTS_FILE, requests)
-        bot.edit(chat_id, msg_id, menu_text + "\n\nВыберите действие:", request_menu())
+        bot.edit(chat_id, msg_id, menu_text + bot.tr('\n\nВыберите действие:'), request_menu())
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
 
@@ -1646,26 +1623,22 @@ def callback_query(q):
                 bot.settings_text(player),
                 bot.settings_kb(bot.is_owner(user)),
             )
-            bot.answer_callback(q.get("id"), "Настройки отправлены вам в личные сообщения")
+            bot.answer_callback(q.get("id"), bot.tr('Настройки отправлены вам в личные сообщения'))
         else:
-            bot.answer_callback(q.get("id"), "Сначала откройте личный чат с ботом и нажмите /start")
+            bot.answer_callback(q.get("id"), bot.tr('Сначала откройте личный чат с ботом и нажмите /start'))
         return
 
     if action == "private_notify":
         if player.get("private_chat_id") and player.get("private_notifications", True):
             bot.send(
                 chat_id,
-                "<b>🔔 Личные уведомления подключены.</b>\n\n"
-                "Когда появляется новая заявка на деф, бот будет писать вам в личку, "
-                "если хотя бы одна из настроенных деревень теоретически успевает прибыть до атаки.",
+                bot.tr('<b>🔔 Личные уведомления подключены.</b>\n\nКогда появляется новая заявка на деф, бот будет писать вам в личку, если хотя бы одна из настроенных деревень теоретически успевает прибыть до атаки.'),
                 bot.settings_kb(),
             )
         else:
             bot.send(
                 chat_id,
-                "<b>🔔 Личные уведомления</b>\n\n"
-                "Чтобы подключить уведомления, откройте личный чат с этим ботом и отправьте команду <code>/start</code>.\n\n"
-                "После этого бот сможет писать вам в личку о новых заявках, если ваш деф теоретически успевает прибыть вовремя.",
+                bot.tr('<b>🔔 Личные уведомления</b>\n\nЧтобы подключить уведомления, откройте личный чат с этим ботом и отправьте команду <code>/start</code>.\n\nПосле этого бот сможет писать вам в личку о новых заявках, если ваш деф теоретически успевает прибыть вовремя.'),
                 bot.settings_kb(),
             )
         return
@@ -1697,9 +1670,9 @@ def callback_query(q):
         # Never edit the pinned defence-centre message into a wizard/menu.
         # Send the interactive flow as a separate topic message instead.
         if not active:
-            bot.send(chat_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nАктивных заявок нет.", request_menu())
+            bot.send(chat_id, bot.tr('<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nАктивных заявок нет.'), request_menu())
             return
-        bot.send(chat_id, "<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nВыберите заявку:", send_def_requests_keyboard(active))
+        bot.send(chat_id, bot.tr('<b>🛡 ОТПРАВИТЬ ДЕФ</b>\n\nВыберите заявку:'), send_def_requests_keyboard(active))
         return
 
     if action == "delete_request_menu":
@@ -1725,7 +1698,7 @@ def callback_query(q):
         if not active:
             bot.send(
                 chat_id,
-                "<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nАктивных заявок нет.",
+                bot.tr('<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nАктивных заявок нет.'),
                 request_menu(),
             )
             return
@@ -1733,15 +1706,15 @@ def callback_query(q):
         rows = []
         for req in active:
             rows.append([{
-                "text": f"🗑 Заявка #{req['id']} — {req['target_x']}|{req['target_y']}",
+                "text": (bot.tr('🗑 Заявка #') + f'{req['id']}' + ' — ' + f'{req['target_x']}' + '|' + f'{req['target_y']}'),
                 "callback_data": f"delete_req:{req['id']}",
             }])
-        rows.append([{"text": "⬅️ Назад", "callback_data": "menu"}])
+        rows.append([{"text": bot.tr('⬅️ Назад'), "callback_data": "menu"}])
         # Never turn the pinned defence centre into a delete wizard.  All
         # interactive delete navigation lives in a separate transient message.
         bot.send(
             chat_id,
-            "<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nВыберите заявку:",
+            bot.tr('<b>🗑 УДАЛИТЬ ЗАЯВКУ</b>\n\nВыберите заявку:'),
             bot.kb(rows),
         )
         return
@@ -1754,14 +1727,14 @@ def callback_query(q):
             None,
         )
         if req is None:
-            bot.edit(chat_id, msg_id, "❌ Эта заявка уже не активна.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Эта заявка уже не активна.'), request_menu())
             return
 
         if int(req.get("requester_id", -1)) != int(user.get("id", -2)):
             bot.edit(
                 chat_id,
                 msg_id,
-                "❌ Удалить заявку может только её создатель.",
+                bot.tr('❌ Удалить заявку может только её создатель.'),
                 request_menu(),
             )
             return
@@ -1770,16 +1743,11 @@ def callback_query(q):
             chat_id,
             msg_id,
             (
-                f"<b>🗑 УДАЛЕНИЕ ЗАЯВКИ #{req_id}</b>\n\n"
-                f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
-                f"👤 Игрок: <b>{html.escape(req['target_player'])}</b>\n"
-                f"⚔️ Атака: <b>{req['attack_time_display']}</b>\n"
-                f"🛡 Деф: <b>{req.get('collected_def', 0)}</b> / <b>{req['required_def']}</b> очков\n\n"
-                "Заявка больше не нужна? Она будет снята с активных заявок."
+                (bot.tr('<b>🗑 УДАЛЕНИЕ ЗАЯВКИ #') + f'{req_id}' + bot.tr('</b>\n\n📍 Цель: ') + f'{village_link(req['target_x'], req['target_y'])}' + bot.tr('\n👤 Игрок: <b>') + f'{html.escape(req['target_player'])}' + bot.tr('</b>\n⚔️ Атака: <b>') + f'{req['attack_time_display']}' + bot.tr('</b>\n🛡 Деф: <b>') + f'{req.get('collected_def', 0)}' + '</b> / <b>' + f'{req['required_def']}' + bot.tr('</b> очков\n\nЗаявка больше не нужна? Она будет снята с активных заявок.'))
             ),
             bot.kb([
-                [{"text": "✅ Да, удалить заявку", "callback_data": f"delete_confirm:{req_id}"}],
-                [{"text": "❌ Отмена", "callback_data": f"delete_cancel:{req_id}"}],
+                [{"text": bot.tr('✅ Да, удалить заявку'), "callback_data": f"delete_confirm:{req_id}"}],
+                [{"text": bot.tr('❌ Отмена'), "callback_data": f"delete_cancel:{req_id}"}],
             ]),
         )
         return
@@ -1790,7 +1758,7 @@ def callback_query(q):
         bot.edit(
             chat_id,
             msg_id,
-            "<b>🛡 ЦЕНТР ДЕФА</b>\n\nУдаление заявки отменено.",
+            bot.tr('<b>🛡 ЦЕНТР ДЕФА</b>\n\nУдаление заявки отменено.'),
             request_menu(),
         )
         return
@@ -1805,14 +1773,14 @@ def callback_query(q):
             None,
         )
         if req is None:
-            bot.edit(chat_id, msg_id, "❌ Эта заявка уже не активна.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Эта заявка уже не активна.'), request_menu())
             return
 
         if int(req.get("requester_id", -1)) != int(user.get("id", -2)):
             bot.edit(
                 chat_id,
                 msg_id,
-                "❌ Удалить заявку может только её создатель.",
+                bot.tr('❌ Удалить заявку может только её создатель.'),
                 request_menu(),
             )
             return
@@ -1832,7 +1800,7 @@ def callback_query(q):
         bot.edit(
             chat_id,
             msg_id,
-            f"<b>✅ Заявка #{req_id} удалена.</b>\n\nОна больше не отображается среди активных заявок.",
+            (bot.tr('<b>✅ Заявка #') + f'{req_id}' + bot.tr(' удалена.</b>\n\nОна больше не отображается среди активных заявок.')),
             request_menu(),
         )
         # Refresh the existing Telegram centre after the action is complete.
@@ -1845,7 +1813,7 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or request_closed(req):
-            bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Эта заявка уже закрыта.'), request_menu())
             return
         player["state"] = None
         # This is transient wizard state. Do not block a Telegram button on
@@ -1859,20 +1827,16 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or request_closed(req):
-            bot.edit(chat_id, msg_id, "❌ Эта заявка уже закрыта.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Эта заявка уже закрыта.'), request_menu())
             return
         player["state"] = {"type": "send_total_amount", "request_id": req_id, "without_timing": without_timing}
         # Wizard state is local runtime state; saving it must be immediate.
         bot.save_json(bot.PLAYERS_FILE, data)
         bot.send(
             chat_id,
-            f"<b>🛡 ОТПРАВИТЬ ДЕФ #{req_id}</b>\n"
-            f"👤 Аккаунт: <b>{html.escape(str(bot.player_name(source_player)))}</b>\n\n"
-            f"📍 Цель: {village_link(req['target_x'], req['target_y'])}\n"
-            f"🛡 Осталось закрыть: <b>{request_remaining(req)}</b> очков\n\n"
-            + ("⚡ Только учёт очков: без расчёта времени и напоминания.\n" if without_timing else "")
-            + "Сколько дефа вы фактически отправите?\n"
-            "Введите количество очков дефа, например: <code>10000</code>",
+            (bot.tr('<b>🛡 ОТПРАВИТЬ ДЕФ #') + f'{req_id}' + bot.tr('</b>\n👤 Аккаунт: <b>') + f'{html.escape(str(bot.player_name(source_player)))}' + bot.tr('</b>\n\n📍 Цель: ') + f'{village_link(req['target_x'], req['target_y'])}' + bot.tr('\n🛡 Осталось закрыть: <b>') + f'{request_remaining(req)}' + bot.tr('</b> очков\n\n'))
+            + (bot.tr('⚡ Только учёт очков: без расчёта времени и напоминания.\n') if without_timing else "")
+            + bot.tr('Сколько дефа вы фактически отправите?\nВведите количество очков дефа, например: <code>10000</code>'),
             force_reply=True,
         )
         return
@@ -1884,7 +1848,7 @@ def callback_query(q):
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         option = next((x for x in village_send_options(source_player, req) if x["idx"] == village_idx), None) if req else None
         if option is None:
-            bot.edit(chat_id, msg_id, "❌ Эта деревня уже не успевает.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Эта деревня уже не успевает.'), request_menu())
             return
         old = player.get("state") if isinstance(player.get("state"), dict) else {}
         draft = old.get("draft", []) if int(old.get("request_id", 0) or 0) == req_id else []
@@ -1901,9 +1865,7 @@ def callback_query(q):
             bot.edit(
                 chat_id,
                 msg_id,
-                f"<b>🚨 Когда отправлять</b>\n\n"
-                f"🏘 <b>{option['village'].get('coordinates', '?')}</b> → 🎯 <b>{req['target_x']} {req['target_y']}</b>\n"
-                f"🛡 <b>{pending_amount}</b> очков\n\nВыбери вариант:",
+                (bot.tr('<b>🚨 Когда отправлять</b>\n\n🏘 <b>') + f'{option['village'].get('coordinates', '?')}' + '</b> → 🎯 <b>' + f'{req['target_x']}' + ' ' + f'{req['target_y']}' + '</b>\n🛡 <b>' + f'{pending_amount}' + bot.tr('</b> очков\n\nВыбери вариант:')),
                 speed_variant_keyboard(req_id, village_idx, list(option["variants"])),
             )
             return
@@ -1911,10 +1873,7 @@ def callback_query(q):
         bot.save_players(data)
         bot.send(
             chat_id,
-            f"<b>🏘 {option['village'].get('coordinates', '?')}</b>\n"
-            f"🛡 В настройках указано: <b>{option['max_def']}</b> очков дефа\n\n"
-            "Сколько отправите фактически?\n\n"
-            "💡 Пехота = 1 очко · Конница = 2 очка",
+            ('<b>🏘 ' + f'{option['village'].get('coordinates', '?')}' + bot.tr('</b>\n🛡 В настройках указано: <b>') + f'{option['max_def']}' + bot.tr('</b> очков дефа\n\nСколько отправите фактически?\n\n💡 Пехота = 1 очко · Конница = 2 очка')),
             force_reply=True,
         )
         return
@@ -1924,7 +1883,7 @@ def callback_query(q):
         req_id, village_idx = int(req_s), int(idx_s)
         state = player.get("state") or {}
         if state.get("type") != "send_village_amount" or int(state.get("request_id", 0)) != req_id or int(state.get("village_idx", -1)) != village_idx:
-            bot.edit(chat_id, msg_id, "❌ План отправки устарел. Начните выбор заново.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ План отправки устарел. Начните выбор заново.'), request_menu())
             return
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
@@ -1932,7 +1891,7 @@ def callback_query(q):
         variant = next((v for v in option["variants"] if v["key"] == mode), None) if option else None
         pending_amount = int(state.get("pending_amount", 0) or 0)
         if variant is None:
-            bot.edit(chat_id, msg_id, "❌ Этот вариант уже не успевает.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Этот вариант уже не успевает.'), request_menu())
             return
         deadline = variant["deadline"]
         reminder = shift_game_seconds(deadline, -300)
@@ -1964,10 +1923,10 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or int(state.get("request_id", 0) or 0) != req_id:
-            bot.edit(chat_id, msg_id, "❌ План отправки устарел.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ План отправки устарел.'), request_menu())
             return
         used = [x["village_idx"] for x in state.get("draft", [])]
-        bot.edit(chat_id, msg_id, "<b>🏘 Выберите ещё одну деревню:</b>", send_village_keyboard(source_player, req, used))
+        bot.edit(chat_id, msg_id, bot.tr('<b>🏘 Выберите ещё одну деревню:</b>'), send_village_keyboard(source_player, req, used))
         return
 
     if action.startswith("send_finish:"):
@@ -1977,7 +1936,7 @@ def callback_query(q):
         requests = bot.load_json(bot.REQUESTS_FILE, [])
         req = next((r for r in requests if int(r.get("id", -1)) == req_id and r.get("status") == "active"), None)
         if req is None or not draft or int(state.get("request_id", 0) or 0) != req_id:
-            bot.edit(chat_id, msg_id, "❌ План отправки пуст или заявка уже закрыта.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ План отправки пуст или заявка уже закрыта.'), request_menu())
             return
         total = sum(int(x["def_points"]) for x in draft)
         req.setdefault("contributions", []).append({
@@ -1989,7 +1948,7 @@ def callback_query(q):
             req["status"] = "closed"
         bot.save_json(bot.REQUESTS_FILE, requests)
         if sync_request_to_worker(req) is None:
-            bot.edit(chat_id, msg_id, "❌ Не удалось сохранить отправку дефа. Попробуйте ещё раз.", request_menu())
+            bot.edit(chat_id, msg_id, bot.tr('❌ Не удалось сохранить отправку дефа. Попробуйте ещё раз.'), request_menu())
             return
         bot.save_json(bot.REQUESTS_FILE, requests)
         accepted_contribution = req.get("contributions", [])[-1] if req.get("contributions") else None
@@ -2000,12 +1959,12 @@ def callback_query(q):
         bot.save_players(data)
         accepted_total = int(accepted_contribution.get("def_points", 0) or 0) if accepted_contribution else 0
         accepted_draft = accepted_contribution.get("plan", []) if accepted_contribution else []
-        result = draft_summary({"draft": accepted_draft or draft}, req) + pledge_account_text(accepted_contribution or {}) + f"\n\n✅ Записано: <b>{accepted_total}</b> очков."
+        result = draft_summary({"draft": accepted_draft or draft}, req) + pledge_account_text(accepted_contribution or {}) + (bot.tr('\n\n✅ Записано: <b>') + f'{accepted_total}' + bot.tr('</b> очков.'))
         if req.get("status") != "closed":
-            result += f"\nОсталось: <b>{request_remaining(req)}</b> очков."
+            result += (bot.tr('\nОсталось: <b>') + f'{request_remaining(req)}' + bot.tr('</b> очков.'))
         menu = request_menu()
         if req.get("status") == "active":
-            menu = bot.kb([[{"text": "➕ Отправить ещё деф", "callback_data": f"send_req:{req_id}"}]])
+            menu = bot.kb([[{"text": bot.tr('➕ Отправить ещё деф'), "callback_data": f"send_req:{req_id}"}]])
         bot.edit(chat_id, msg_id, result, menu)
         refresh_center(chat_id=chat_id, create_if_missing=True)
         return
@@ -2013,7 +1972,7 @@ def callback_query(q):
     if action == "request_cancel":
         player["state"] = None
         save_request_wizard_state(data)
-        bot.edit(chat_id, msg_id, "<b>🛡 ЗАПРОС НА ДЕФ</b>\n\nЗаявка отменена.", request_menu())
+        bot.edit(chat_id, msg_id, bot.tr('<b>🛡 ЗАПРОС НА ДЕФ</b>\n\nЗаявка отменена.'), request_menu())
         return
 
     if action in ("request_date_today", "request_date_tomorrow"):
@@ -2028,13 +1987,13 @@ def callback_query(q):
             bot.edit(
                 chat_id,
                 msg_id,
-                f"📅 Дата атаки: <b>{selected_date.strftime('%d.%m.%Y')}</b>",
+                (bot.tr('📅 Дата атаки: <b>') + f'{selected_date.strftime('%d.%m.%Y')}' + '</b>'),
             )
         except Exception:
             pass
         bot.send(
             chat_id,
-            f"📅 Дата атаки: <b>{selected_date.strftime('%d.%m.%Y')}</b>\n\n⏰ Введите время атаки по времени сервера Travian.\nФормат: <code>22:30:45</code>",
+            (bot.tr('📅 Дата атаки: <b>') + f'{selected_date.strftime('%d.%m.%Y')}' + bot.tr('</b>\n\n⏰ Введите время атаки по времени сервера Travian.\nФормат: <code>22:30:45</code>')),
             force_reply=True,
         )
         return
@@ -2053,7 +2012,7 @@ def callback_query(q):
                 player['state']=None
             player['last_request_confirmation']={'submission_key':submission_key,'request_id':saved['id']}
             save_request_wizard_state(data)
-            try:bot.edit(chat_id,msg_id,f"<b>✅ Заявка #{saved['id']} уже создана.</b>\n\nПовторно создавать её не нужно.",request_menu())
+            try:bot.edit(chat_id,msg_id,(bot.tr('<b>✅ Заявка #') + f'{saved['id']}' + bot.tr(' уже создана.</b>\n\nПовторно создавать её не нужно.')),request_menu())
             except Exception:print('Request already committed; repeated confirmation edit skipped',flush=True)
             try:refresh_center(chat_id=chat_id,create_if_missing=True)
             except Exception:print('Request committed; centre refresh deferred',flush=True)
@@ -2064,7 +2023,7 @@ def callback_query(q):
         if state.get('type')!='request_confirm' or (bound_message is not None and (bound_message!=msg_id or bound_chat!=chat_id)):
             # Old/shared confirmation buttons must never overwrite a successful
             # confirmation or submit the user's newer unrelated wizard.
-            bot.answer_callback(q.get('id'),'Это старое подтверждение. Откройте актуальную форму заявки.')
+            bot.answer_callback(q.get('id'),bot.tr('Это старое подтверждение. Откройте актуальную форму заявки.'))
             return
         fields=('target_x','target_y','attack_time','required_def')
         saved=next((r for r in requests if r.get('status')=='active' and str(r.get('requester_id'))==str(user['id']) and all(r.get(k)==state.get(k) for k in fields)),None)
@@ -2084,14 +2043,14 @@ def callback_query(q):
                 current=bot.load_json(bot.REQUESTS_FILE,[])
                 req=next((r for r in current if r.get('submission_key')==submission_key),None)
                 if req is None:
-                    bot.edit(chat_id,msg_id,'❌ Не удалось сохранить заявку. Повторите попытку — дубликат не создастся.',bot.kb([[{'text':'🔄 Повторить сохранение','callback_data':'request_confirm'}]]))
+                    bot.edit(chat_id,msg_id,bot.tr('❌ Не удалось сохранить заявку. Повторите попытку — дубликат не создастся.'),bot.kb([[{'text':bot.tr('🔄 Повторить сохранение'),'callback_data':'request_confirm'}]]))
                     return
             saved=req
         player['last_request_confirmation']={'submission_key':submission_key,'request_id':saved['id']}
         player['state']=None
         save_request_wizard_state(data)
         # Acknowledge the committed request before slow notification/planning work.
-        try:bot.edit(chat_id,msg_id,f"<b>✅ Заявка #{saved['id']} создана.</b>\n\nОна добавлена в Центр дефа.",request_menu())
+        try:bot.edit(chat_id,msg_id,(bot.tr('<b>✅ Заявка #') + f'{saved['id']}' + bot.tr(' создана.</b>\n\nОна добавлена в Центр дефа.')),request_menu())
         except Exception:print('Request committed; confirmation edit will recover on retry',flush=True)
         try:refresh_center(chat_id=chat_id,create_if_missing=True)
         except Exception:print('Request committed; centre refresh deferred',flush=True)
@@ -2106,6 +2065,15 @@ def callback_query(q):
 
 
 def handle_update(message=None, callback=None):
+    current=message or (callback or {}).get('message') or {}
+    user=(callback or {}).get('from') or current.get('from') or {}
+    profile=bot.players().get(str(user.get('id'))) or {}
+    with bot.language_scope(profile):
+        if bot.handle_language(message,callback):return
+        return _handle_localized_update(message,callback)
+
+
+def _handle_localized_update(message=None, callback=None):
     if callback is not None:
         callback_query(callback)
     elif message is not None:

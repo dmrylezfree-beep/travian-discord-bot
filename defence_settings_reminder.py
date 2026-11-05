@@ -5,42 +5,47 @@ import defence_bot as bot
 
 
 def reminder_text(player):
+    with bot.language_scope(player):
+        return _reminder_text(player)
+
+
+def _reminder_text(player):
     units = bot.settings().get("units", {})
-    name = player.get("first_name") or player.get("username") or "игрок"
+    name = player.get("first_name") or player.get("username") or bot.tr('игрок')
     lines = [
-        "<b>🔄 Пора обновить данные о дефе</b>",
+        bot.tr('<b>🔄 Пора обновить данные о дефе</b>'),
         "",
-        f"{html.escape(str(name))}, проверь количество войск в своих деревнях.",
-        "Актуальные данные помогают точнее рассчитывать уведомления и оптимальный план защиты.",
+        (f'{html.escape(str(name))}' + bot.tr(', проверь количество войск в своих деревнях.')),
+        bot.tr('Актуальные данные помогают точнее рассчитывать уведомления и оптимальный план защиты.'),
         "",
-        "<b>Сейчас у тебя указано:</b>",
+        bot.tr('<b>Сейчас у тебя указано:</b>'),
     ]
 
     villages = player.get("villages", [])
     if not villages:
-        lines += ["", "Деревни и войска пока не указаны."]
+        lines += ["", bot.tr('Деревни и войска пока не указаны.')]
     for village in villages:
-        lines += ["", f"🏘 <b>{html.escape(str(village.get('coordinates', '?')))}</b> · Арена {int(village.get('arena', 0) or 0)}"]
+        lines += ["", ('🏘 <b>' + f'{html.escape(str(village.get('coordinates', '?')))}' + bot.tr('</b> · Арена ') + f'{int(village.get('arena', 0) or 0)}')]
         troops = []
         for key in bot.allowed_units(player):
             amount = int((village.get("troops") or {}).get(key, 0) or 0)
             if amount > 0:
                 troops.append(f"{html.escape(str(units.get(key, {}).get('name', key)))} — <b>{amount}</b>")
-        lines.extend(troops or ["Войска не указаны"])
+        lines.extend(troops or [bot.tr('Войска не указаны')])
 
         hero = village.get("hero") or {}
         if hero.get("present"):
-            lines.append("🦸 <b>Герой находится здесь</b>")
+            lines.append(bot.tr('🦸 <b>Герой находится здесь</b>'))
 
     inv = bot.hero_inventory(player)
-    lines += ["", "<b>🎒 Инвентарь героя:</b>"]
-    lines.append("🚩 Штандарты: " + (", ".join(f"+{x}%" for x in inv.get("standards", [])) or "нет"))
-    lines.append("🥾 Сапоги: " + (", ".join(f"+{x}%" for x in inv.get("boots", [])) or "нет"))
-    lines.append("🗺 Карты: " + (", ".join(f"+{x}%" for x in inv.get("maps", [])) or "нет"))
+    lines += ["", bot.tr('<b>🎒 Инвентарь героя:</b>')]
+    lines.append(bot.tr('🚩 Штандарты: ') + (", ".join(f"+{x}%" for x in inv.get("standards", [])) or bot.tr('нет')))
+    lines.append(bot.tr('🥾 Сапоги: ') + (", ".join(f"+{x}%" for x in inv.get("boots", [])) or bot.tr('нет')))
+    lines.append(bot.tr('🗺 Карты: ') + (", ".join(f"+{x}%" for x in inv.get("maps", [])) or bot.tr('нет')))
 
     lines += [
         "",
-        "Если данные изменились, открой <b>⚙️ Мои настройки</b> в Центре дефа и обнови их.",
+        bot.tr('Если данные изменились, открой <b>⚙️ Мои настройки</b> в Центре дефа и обнови их.'),
     ]
     return "\n".join(lines)
 

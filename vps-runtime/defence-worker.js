@@ -737,32 +737,34 @@ async function sendDiscordReminder(env,item){
   await discordApi(env,"/channels/"+dm.id+"/messages","POST",{content:text,allowed_mentions:{parse:[]}});
 }
 
-async function sendPrivateReminder(env, item) {
-  const mode = item.speed_mode === "hero" ? "🦸 С героем"
-    : item.speed_mode === "ram" ? "🐏 + 1 таран"
-    : item.speed_mode === "catapult" ? "🪨 + 1 катапульта"
-    : "⚡ Без героя";
+export function telegramReminderMessage(item) {
+  const en = item.language === "en";
+  const mode = item.speed_mode === "hero" || String(item.speed_mode || "").startsWith("h")
+    ? (en ? "🦸 With hero" : "🦸 С героем")
+    : item.speed_mode === "ram" ? (en ? "🐏 + 1 ram" : "🐏 + 1 таран")
+    : item.speed_mode === "catapult" ? (en ? "🪨 + 1 catapult" : "🪨 + 1 катапульта")
+    : (en ? "⚡ Without hero" : "⚡ Без героя");
   const warning = item.speed_mode === "ram"
-    ? "\n\n❗ Не забудь добавить <b>1 таран</b>."
+    ? (en ? "\n\n❗ Remember to include <b>1 ram</b>." : "\n\n❗ Не забудь добавить <b>1 таран</b>.")
     : item.speed_mode === "catapult"
-      ? "\n\n❗ Не забудь добавить <b>1 катапульту</b>." : "";
-  // Travian officially supports opening Rally Point with x/y directly.
-  // Using coordinates avoids targetMapId conversion mistakes (especially Y sign).
+      ? (en ? "\n\n❗ Remember to include <b>1 catapult</b>." : "\n\n❗ Не забудь добавить <b>1 катапульту</b>.") : "";
   const tx = Number(item.target_x);
   const ty = Number(item.target_y);
   const sendDefUrl =
     `https://ts8.x1.asia.travian.com/build.php?id=39&tt=2&x=${encodeURIComponent(tx)}&y=${encodeURIComponent(ty)}`;
-
   const text =
-    "<b>🚨 ПОРА ОТПРАВЛЯТЬ ДЕФ</b>\n\n" +
+    (en ? "<b>🚨 TIME TO SEND DEFENCE</b>\n\n" : "<b>🚨 ПОРА ОТПРАВЛЯТЬ ДЕФ</b>\n\n") +
     `🏘 <b>${item.village || "?"}</b> → 🎯 <b>${item.target_x} ${item.target_y}</b>\n` +
-    `🛡 <b>${item.def_points || 0}</b> очков\n` +
+    `🛡 <b>${item.def_points || 0}</b> ${en ? "points" : "очков"}\n` +
     `${mode}\n\n` +
-    `🚨 Отправить до: <b>${item.deadline || "?"}</b>\n` +
-    `⚔️ Атака: <b>${item.attack_time_display || item.attack_time || "?"}</b>\n\n` +
-    "⏱ До отправки около 5 минут." +
-    warning;
+    `🚨 ${en ? "Send by" : "Отправить до"}: <b>${item.deadline || "?"}</b>\n` +
+    `⚔️ ${en ? "Attack" : "Атака"}: <b>${item.attack_time_display || item.attack_time || "?"}</b>\n\n` +
+    (en ? "⏱ About 5 minutes remain to send." : "⏱ До отправки около 5 минут.") + warning;
+  return {text, sendDefUrl, buttonText: en ? "⚔️ Send defence" : "⚔️ Отправить деф"};
+}
 
+async function sendPrivateReminder(env, item) {
+  const {text, sendDefUrl, buttonText} = telegramReminderMessage(item);
   const response = await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
     {
@@ -774,7 +776,7 @@ async function sendPrivateReminder(env, item) {
         parse_mode: "HTML",
         reply_markup: {
           inline_keyboard: [[
-            { text: "⚔️ Отправить деф", url: sendDefUrl }
+            { text: buttonText, url: sendDefUrl }
           ]]
         }
       })

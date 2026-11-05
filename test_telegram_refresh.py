@@ -1092,3 +1092,87 @@ class DefenceLatencyTests(unittest.TestCase):
   a=defence.bot;response=unittest.mock.Mock(ok=True);response.json.return_value={'ok':True,'result':{}}
   with patch.object(a,'TELEGRAM_TOKEN','fixture'),patch.object(a,'load_json',return_value={'center_chat_id':-100}),patch.object(a,'_member_tag_cache',{}),patch.object(a.requests,'get',return_value=response) as get:
    self.assertEqual(a.telegram_member_tag(2),'');self.assertEqual(a.telegram_member_tag(2),'');get.assert_called_once()
+
+class DefenceLanguageTests(unittest.TestCase):
+ def setUp(self):
+  from contextlib import ExitStack
+  self.stack=ExitStack();self.addCleanup(self.stack.close);self.bot=defence.bot
+  self.data={'1':dict(telegram_id=1,first_name='Ресурсы и войска',private_chat_id=1,state=None,villages=[],substitutes=[]),'2':dict(telegram_id=2,first_name='Other',private_chat_id=2,state=None,villages=[],substitutes=[])}
+  def mocked(obj,name,**kw):return self.stack.enter_context(patch.object(obj,name,**kw))
+  self.mocked=mocked;mocked(self.bot,'players',side_effect=lambda:self.data)
+  mocked(self.bot,'get_player',side_effect=lambda user:(self.data,self.data[str(user['id'])]))
+  self.save=mocked(self.bot,'save_players');self.send=mocked(self.bot,'send_private');self.edit=mocked(self.bot,'edit');self.answer=mocked(self.bot,'answer_callback')
+ def click(self,action,uid=1,group=False):
+  message={'chat':{'id':-100 if group else uid,'type':'supergroup' if group else 'private'},'message_id':99,'message_thread_id':self.bot.THREAD_ID}
+  defence.handle_update(callback={'id':'fixture','from':{'id':uid},'message':message,'data':action})
+ def test_language_selection_is_personal_and_does_not_clear_draft(self):
+  self.data['1']['state']={'type':'send_total_amount','request_id':77};before=dict(self.data['1']['state'])
+  self.click('def_language:en');self.assertEqual(self.data['1']['telegram_language'],'en');self.assertNotIn('telegram_language',self.data['2']);self.assertEqual(self.data['1']['state'],before);self.save.assert_called_once()
+  self.assertIn('Request defence',str(self.edit.call_args.args[3]))
+  self.click('def_language:ru');self.assertIn('Запросить деф',str(self.edit.call_args.args[3]))
+  self.assertEqual(self.bot._language.get(),'ru')
+ def test_language_menu_in_group_never_edits_shared_centre(self):
+  self.click('def_language:menu',group=True);self.edit.assert_not_called();self.send.assert_called_once();self.assertEqual(self.send.call_args.args[0],1)
+  self.click('def_language:en',group=True);self.edit.assert_not_called();self.assertEqual(self.data['1']['telegram_language'],'en')
+ def test_language_command_in_private_and_other_threads(self):
+  defence.handle_update(message={'chat':{'id':1,'type':'private'},'from':{'id':1},'text':'/language'})
+  self.assertIn('Choose your language',self.send.call_args.args[1])
+  self.send.reset_mock()
+  self.assertFalse(self.bot.handle_language(message={'chat':{'id':-100,'type':'supergroup'},'from':{'id':1},'message_thread_id':12,'text':'/language'}));self.send.assert_not_called()
+ def test_guide_all_pages_and_settings_are_english_and_names_unchanged(self):
+  profile=dict(self.data['1'],telegram_language='en',race='gaul',villages=[{'coordinates':'22 63','arena':7,'troops':{'phalanx':25}}])
+  config={'units':{'phalanx':{'name':'Фаланги','speed':7}}}
+  with patch.object(self.bot,'load_json',return_value=config),self.bot.language_scope(profile):
+   for index in range(len(self.bot.DEFENCE_GUIDE)):
+    text,keyboard=self.bot.defence_guide_page(index);self.assertNotRegex(text,r'[А-Яа-яЁё]' if index!=9 else r'пехота');self.assertLess(len(text),4096)
+   self.assertIn('Gaul',self.bot.settings_text(profile));self.assertIn('Phalanx: 25',self.bot.settings_text(profile));self.assertNotRegex(self.bot.hero_menu_text(profile),r'[А-Яа-яЁё]')
+   req=dict(id=77,target_x=1,target_y=2,target_player=profile['first_name'],attack_time_display='02.01.2030 22:00:00',required_def=2000)
+   self.assertIn('Ресурсы и войска',defence.request_text(req));self.assertIn('DEFENCE REQUEST',defence.request_text(req))
+  self.assertEqual(config['units']['phalanx']['name'],'Фаланги')
+ def test_saved_language_scopes_normal_updates_and_restores_context_on_failure(self):
+  self.data['1']['telegram_language']='en'
+  seen=[]
+  with patch.object(defence,'_handle_localized_update',side_effect=lambda *a:seen.append(self.bot.tr('⚡ Быстрая отправка'))):
+   for uid in (1,2,1):defence.handle_update(message={'from':{'id':uid},'chat':{'id':uid,'type':'private'},'text':'/def'})
+  self.assertEqual(seen,['⚡ Quick send','⚡ Быстрая отправка','⚡ Quick send'])
+  with patch.object(defence,'_handle_localized_update',side_effect=RuntimeError('fixture')):
+   with self.assertRaises(RuntimeError):defence.handle_update(message={'from':{'id':1}})
+  self.assertEqual(self.bot._language.get(),'ru')
+ def test_shared_centre_stays_russian_for_english_caller(self):
+  with patch.object(defence,'load_state',return_value={'center_chat_id':-100,'center_message_id':88}),patch.object(self.bot,'load_json',return_value=[]),self.bot.language_scope({'telegram_language':'en'}):
+   self.assertTrue(defence.refresh_center());self.assertIn('ЦЕНТР ДЕФА',self.edit.call_args.args[2]);self.assertEqual(self.bot._language.get(),'en')
+ def test_new_request_notifications_use_each_recipients_language(self):
+  from datetime import datetime
+  self.data['1']['telegram_language']='en'
+  req=dict(id=77,target_x=1,target_y=2,target_player='Target',attack_time_display='fixture',required_def=2000)
+  item=dict(idx=0,remaining=1,name='Phalanx',village={'coordinates':'22 63'},amount=25,with_hero=False,value=1,deadline=datetime(2030,1,2,20,tzinfo=defence.SERVER_TZ))
+  with patch.object(defence,'notification_source_options',return_value=[item]),patch.object(self.bot,'tg') as tg,self.bot.language_scope({'telegram_language':'en'}):defence.notify_eligible_defenders(req)
+  self.assertIn('NEW DEFENCE REQUEST',tg.call_args_list[0].kwargs['text']);self.assertIn('НОВАЯ ЗАЯВКА',tg.call_args_list[1].kwargs['text'])
+ def test_reminder_language_uses_operator_profile(self):
+  import os
+  self.data['1']['telegram_language']='en'
+  contribution={'telegram_id':2,'reminder_telegram_id':1,'plan':[{'reminder_at':'2030-01-02 19:55:00','village':'22 63','def_points':250}]}
+  with patch.dict(os.environ,{'DEFENCE_TELEGRAM_TOKEN':'fixture'}),patch.object(defence.requests,'post') as post:
+   self.assertTrue(defence.schedule_defence_reminders({'id':77},contribution));payload=post.call_args.kwargs['json']['reminders'][0];self.assertEqual((payload['language'],payload['telegram_id']),('en',1))
+ def test_settings_reminder_and_existing_gear_labels(self):
+  from defence_settings_reminder import reminder_text
+  self.data['1']['telegram_language']='en'
+  with patch.object(self.bot,'load_json',return_value={'units':{}}):
+   self.assertIn('Time to update',reminder_text(self.data['1']));self.assertIn('Пора обновить',reminder_text(self.data['2']))
+  with self.bot.language_scope(self.data['1']):self.assertEqual(self.bot.gear_label('🦸 Герой · 🚩 +20%'),'🦸 Hero · 🚩 +20%')
+  self.assertEqual(self.bot.gear_label('🦸 Hero · 🚩 +20%'),'🦸 Герой · 🚩 +20%')
+
+class DefenceEnglishSendTests(unittest.TestCase):
+ setUp=DelegatedDefenceTests.setUp
+ def click(self,action):defence.handle_update(callback={'id':'fixture','from':self.user,'message':self.message,'data':action})
+ def text(self,value):defence.handle_update(message=dict(self.message,text=value,**{'from':self.user}))
+ def test_quick_send_in_english_records_points_without_reminder(self):
+  self.actor['telegram_language']='en';self.click('send_quick:77');self.assertIn('defence points',self.send.call_args.args[1]);self.text('250')
+  self.assertEqual(self.req['contributions'][0]['def_points'],250);self.assertEqual(self.req['contributions'][0]['plan'],[]);self.reminders.assert_not_called();self.assertIn('Accepted:',self.send.call_args.args[1])
+ def test_english_substitute_sends_from_authorised_account(self):
+  self.actor['telegram_language']='en';before=self.copy(self.owner);self.click('send_other:77');self.text('250')
+  contribution=self.req['contributions'][0];self.assertEqual(contribution['telegram_id'],99);self.assertEqual(contribution['recorded_by_telegram_id'],55);self.assertEqual(self.owner,before);self.assertIn('recorded by',self.send.call_args.args[1])
+ def test_quick_button_is_first_in_both_languages(self):
+  for language,label in [('ru','⚡ Быстрая отправка'),('en','⚡ Quick send')]:
+   with defence.bot.language_scope({'telegram_language':language}):
+    button=defence.send_def_plan_keyboard(self.actor,self.req)['inline_keyboard'][0][0];self.assertEqual(button['text'],label);self.assertEqual(button['callback_data'],'send_quick:77')
