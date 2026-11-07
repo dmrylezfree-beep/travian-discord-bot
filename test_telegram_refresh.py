@@ -1176,3 +1176,24 @@ class DefenceEnglishSendTests(unittest.TestCase):
   for language,label in [('ru','⚡ Быстрая отправка'),('en','⚡ Quick send')]:
    with defence.bot.language_scope({'telegram_language':language}):
     button=defence.send_def_plan_keyboard(self.actor,self.req)['inline_keyboard'][0][0];self.assertEqual(button['text'],label);self.assertEqual(button['callback_data'],'send_quick:77')
+
+class PrivateVillageInputRoutingTests(unittest.TestCase):
+ def test_string_settings_states_route_to_original_handler(self):
+  for state in ['add_village_coords','edit_village_coords','subs',None,{}, {'type':'add_village_arena','coordinates':'22 63'}]:
+   with self.subTest(state=state),patch.object(defence,'adopt_pinned_centre',return_value=False),patch.object(defence.bot,'get_player',return_value=({}, {'state':state})),patch.object(defence,'_original_process_text') as original:
+    message={'chat':{'id':55,'type':'private'},'from':{'id':55},'text':'22 63'}
+    defence.process_text(message);original.assert_called_once_with(message)
+ def test_add_village_coordinates_advance_to_arena_in_both_languages(self):
+  bot=defence.bot
+  for language in ('ru','en'):
+   player={'telegram_id':55,'state':'add_village_coords','villages':[],'telegram_language':language};data={'55':player}
+   village={'uid':123,'tribe_id':3,'x':22,'y':63}
+   with self.subTest(language=language),patch.object(defence,'adopt_pinned_centre',return_value=False),patch.object(bot,'get_player',return_value=(data,player)),patch.object(defence,'find_target',return_value=(village,Path('fixture.sql'))),patch.object(bot,'save_players'),patch.object(bot,'send') as send,bot.language_scope(player):
+    defence.process_text({'chat':{'id':55,'type':'private'},'from':{'id':55},'text':'22 63'})
+    self.assertEqual(player['state']['type'],'add_village_arena');self.assertEqual(player['state']['coordinates'],'22 63');self.assertEqual(player['travian_uid'],123)
+    self.assertIn('Tournament Square' if language=='en' else 'Арены',send.call_args.args[1])
+ def test_invalid_coordinates_reply_and_keep_form(self):
+  player={'telegram_id':55,'state':'add_village_coords','villages':[]}
+  with patch.object(defence,'adopt_pinned_centre',return_value=False),patch.object(defence.bot,'get_player',return_value=({'55':player},player)),patch.object(defence.bot,'send') as send:
+   defence.process_text({'chat':{'id':55,'type':'private'},'from':{'id':55},'text':'wrong'})
+   self.assertEqual(player['state'],'add_village_coords');send.assert_called_once();self.assertIn('Неверный формат',send.call_args.args[1])

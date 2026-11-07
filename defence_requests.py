@@ -1331,8 +1331,9 @@ def process_text(message):
         return
     if is_private:
         _, private_player = bot.get_player(user)
-        private_state = private_player.get("state") or {}
-        if private_state.get("type") not in {"send_total_amount", "send_village_amount", "send_draft"} or text.startswith("/"):
+        private_state = private_player.get("state")
+        private_type = private_state.get("type") if isinstance(private_state, dict) else None
+        if private_type not in {"send_total_amount", "send_village_amount", "send_draft"} or text.startswith("/"):
             return _original_process_text(message)
     if not is_private and not bot.in_def_thread(message):
         return
