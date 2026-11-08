@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-08T20:16:28.917669+00:00",
+  "created_at": "2026-11-08T21:16:33.392569+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -5697,6 +5697,16 @@
             19
           ]
         ],
+        "save_reminders": {
+          "c19ae74d71fa4638:6": {
+            "aid": "6",
+            "oid": "c19ae74d71fa4638",
+            "point": [
+              52,
+              20
+            ]
+          }
+        },
         "telegram_id": 14175563,
         "tribe_id": 2,
         "village": "NeverAgain",
@@ -6227,6 +6237,282 @@
             "y": 65
           }
         }
+      },
+      "c19ae74d71fa4638": {
+        "arrival": "09.11.2026 23:00:00",
+        "arrival_iso": "2026-11-09T23:00:00+03:00",
+        "attacks": {
+          "1": {
+            "arena": 7,
+            "arrival": "09.11.2026 23:00:00",
+            "arrival_iso": "2026-11-09T23:00:00+03:00",
+            "comment": "",
+            "id": "1",
+            "mode": "spam",
+            "offer_id": "14175563",
+            "offer_player": "ZHSA",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "35|28",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "2": {
+            "arena": 7,
+            "arrival": "09.11.2026 23:00:00",
+            "arrival_iso": "2026-11-09T23:00:00+03:00",
+            "comment": "",
+            "id": "2",
+            "mode": "spam",
+            "offer_id": "14175563",
+            "offer_player": "ZHSA",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "38|11",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "3": {
+            "arena": 7,
+            "arrival": "09.11.2026 23:00:00",
+            "arrival_iso": "2026-11-09T23:00:00+03:00",
+            "comment": "",
+            "id": "3",
+            "mode": "spam",
+            "offer_id": "14175563",
+            "offer_player": "ZHSA",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "42|15",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "5": {
+            "arena": 7,
+            "arrival": "09.11.2026 23:00:00",
+            "arrival_iso": "2026-11-09T23:00:00+03:00",
+            "comment": "",
+            "id": "5",
+            "mode": "spam",
+            "offer_id": "14175563",
+            "offer_player": "ZHSA",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "56|33",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "6": {
+            "arena": 7,
+            "arrival": "09.11.2026 23:00:00",
+            "arrival_iso": "2026-11-09T23:00:00+03:00",
+            "comment": "",
+            "id": "6",
+            "mode": "destroy",
+            "offer_id": "14175563",
+            "offer_player": "ZHSA",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "42|16",
+            "wave_plan": [
+              {
+                "text": "весь офф + все тараны + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              }
+            ],
+            "waves": 4
+          }
+        },
+        "base_speed": 3,
+        "comment": "",
+        "created_at": "2026-11-08T23:52:42+03:00",
+        "created_by": 14175563,
+        "creator_name": "Сергей Живулько",
+        "creator_username": "ZHSA1987",
+        "enemy_alliance": "東方華人",
+        "enemy_alliance_key": "12",
+        "id": "c19ae74d71fa4638",
+        "name": "Операция №1",
+        "offers": {
+          "14175563": {
+            "arena": 7,
+            "army_snapshot": {
+              "troops": {
+                "Вождь": 0,
+                "Дубинщик": 5200,
+                "Катапульта": 160,
+                "Копейщик": 0,
+                "Паладин": 0,
+                "Скаут": 0,
+                "Стенобитное орудие": 210,
+                "Тевтонская конница": 670,
+                "Топорщик": 0
+              },
+              "updated_at": "2026-11-08T22:51:42+03:00"
+            },
+            "offset": 0,
+            "player": "ZHSA",
+            "save_points": [
+              [
+                45,
+                21
+              ],
+              [
+                52,
+                20
+              ],
+              [
+                44,
+                19
+              ]
+            ],
+            "telegram_id": 14175563,
+            "village": "NeverAgain",
+            "x": 52,
+            "y": 23
+          }
+        },
+        "published_at": "2026-11-08T23:54:40+03:00",
+        "ready": {},
+        "status": "published",
+        "targets": {
+          "35|28": {
+            "alliance": "東方華人",
+            "alliance_id": 12,
+            "alliance_snapshot": "map_2026-11-08.sql",
+            "comment": "",
+            "created_at": "2026-11-08T23:04:38+03:00",
+            "map_missing": false,
+            "mode": "spam",
+            "player": "穿山王",
+            "player_id": 224,
+            "population": 820,
+            "priority": 1,
+            "tribe_id": 3,
+            "type": "Не определено",
+            "updated_at": "2026-11-08T23:04:38+03:00",
+            "village": "02.阿羅拉穿山王",
+            "village_id": 30149,
+            "x": 35,
+            "y": 28
+          },
+          "38|11": {
+            "alliance": "東方華人",
+            "alliance_id": 12,
+            "alliance_snapshot": "map_2026-11-08.sql",
+            "comment": "",
+            "created_at": "2026-11-08T23:05:35+03:00",
+            "map_missing": false,
+            "mode": "spam",
+            "player": "大飞哥",
+            "player_id": 230,
+            "population": 704,
+            "priority": 1,
+            "tribe_id": 2,
+            "type": "Не определено",
+            "updated_at": "2026-11-08T23:05:35+03:00",
+            "village": "大飞哥",
+            "village_id": 17891,
+            "x": 38,
+            "y": 11
+          },
+          "42|15": {
+            "alliance": "東方華人",
+            "alliance_id": 12,
+            "alliance_snapshot": "map_2026-11-08.sql",
+            "comment": "",
+            "created_at": "2026-11-08T23:00:01+03:00",
+            "map_missing": false,
+            "mode": "spam",
+            "player": "卡卡西",
+            "player_id": 557,
+            "population": 660,
+            "priority": 1,
+            "tribe_id": 2,
+            "type": "Не определено",
+            "updated_at": "2026-11-08T23:00:01+03:00",
+            "village": "1卡卡西",
+            "village_id": 22129,
+            "x": 42,
+            "y": 15
+          },
+          "42|16": {
+            "alliance": "東方華人",
+            "alliance_id": 12,
+            "alliance_snapshot": "map_2026-11-08.sql",
+            "comment": "",
+            "created_at": "2026-11-08T22:59:11+03:00",
+            "map_missing": false,
+            "mode": "spam",
+            "player": "长流水",
+            "player_id": 199,
+            "population": 707,
+            "priority": 1,
+            "tribe_id": 1,
+            "type": "Не определено",
+            "updated_at": "2026-11-08T22:59:11+03:00",
+            "village": "常平仓02",
+            "village_id": 31425,
+            "x": 42,
+            "y": 16
+          },
+          "56|33": {
+            "alliance": "東方華人",
+            "alliance_id": 12,
+            "alliance_snapshot": "map_2026-11-08.sql",
+            "comment": "",
+            "created_at": "2026-11-08T22:58:03+03:00",
+            "map_missing": false,
+            "mode": "spam",
+            "player": "LOL",
+            "player_id": 1554,
+            "population": 769,
+            "priority": 1,
+            "tribe_id": 1,
+            "type": "Не определено",
+            "updated_at": "2026-11-08T22:58:03+03:00",
+            "village": "LOL`s village",
+            "village_id": 27666,
+            "x": 56,
+            "y": 33
+          }
+        }
       }
     },
     "data/alliance_ops/targets.json": {
@@ -6248,6 +6534,44 @@
         "village_id": 30149,
         "x": 35,
         "y": 28
+      },
+      "37|16": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-11-08.sql",
+        "comment": "",
+        "created_at": "2026-11-08T23:21:27+03:00",
+        "map_missing": false,
+        "player": "小蜜蜂",
+        "player_id": 251,
+        "population": 652,
+        "priority": 1,
+        "tribe_id": 2,
+        "type": "Деф",
+        "updated_at": "2026-11-08T23:21:27+03:00",
+        "village": "小蜜蜂",
+        "village_id": 17981,
+        "x": 37,
+        "y": 16
+      },
+      "37|23": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-11-08.sql",
+        "comment": "",
+        "created_at": "2026-11-08T23:19:52+03:00",
+        "map_missing": false,
+        "player": "诸神来了",
+        "player_id": 581,
+        "population": 662,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Деф",
+        "updated_at": "2026-11-08T23:19:52+03:00",
+        "village": "诸神来了的村莊",
+        "village_id": 22398,
+        "x": 37,
+        "y": 23
       },
       "37|28": {
         "alliance": "東方華人",
