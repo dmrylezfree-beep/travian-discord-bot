@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-08T17:16:00.235759+00:00",
+  "created_at": "2026-11-08T18:16:04.538615+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -187,8 +187,8 @@
             "coordinates": "50 13",
             "arena": 11,
             "troops": {
-              "phalanx": 500,
-              "druidrider": 2960
+              "phalanx": 450,
+              "druidrider": 2500
             },
             "hero": {
               "present": true
@@ -198,7 +198,7 @@
             "coordinates": "13 3",
             "arena": 0,
             "troops": {
-              "phalanx": 1000
+              "phalanx": 100
             },
             "hero": {
               "present": false
