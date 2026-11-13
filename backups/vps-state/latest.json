@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-13T06:26:30.212402+00:00",
+  "created_at": "2026-11-13T07:26:36.059086+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -846,7 +846,7 @@
             "coordinates": "31 26",
             "arena": 3,
             "troops": {
-              "phalanx": 575
+              "phalanx": 2200
             },
             "hero": {
               "present": false
@@ -856,22 +856,23 @@
             "coordinates": "183 138",
             "arena": 0,
             "troops": {
-              "phalanx": 4550,
-              "druidrider": 115
+              "phalanx": 7800,
+              "druidrider": 115,
+              "haeduan": 350
             },
             "hero": {
-              "present": true
+              "present": false
             }
           },
           {
             "coordinates": "180 137",
-            "arena": 5,
+            "arena": 8,
             "troops": {
-              "phalanx": 3600,
-              "druidrider": 730
+              "phalanx": 8000,
+              "druidrider": 2200
             },
             "hero": {
-              "present": false
+              "present": true
             }
           }
         ],
@@ -6351,20 +6352,20 @@
       "320784442": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 5,
+        "arena": 16,
         "army": {
           "troops": {
-            "Императорская конница": 1500,
-            "Империанец": 1400,
+            "Императорская конница": 7000,
+            "Империанец": 8000,
             "Конница Цезаря": 0,
             "Конница легата": 0,
-            "Легионер": 1200,
-            "Огненная катапульта": 120,
+            "Легионер": 0,
+            "Огненная катапульта": 500,
             "Преторианец": 0,
-            "Сенатор": 0,
-            "Таран": 40
+            "Сенатор": 1,
+            "Таран": 140
           },
-          "updated_at": "2026-10-24T12:01:07+03:00"
+          "updated_at": "2026-11-13T09:30:56+03:00"
         },
         "player": "Котята",
         "player_id": 1111,
@@ -6671,48 +6672,29 @@
       }
     },
     "data/alliance_ops/targets.json": {
-      "28|26": {
+      "151|33": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
+        "alliance_snapshot": "map_2026-11-13.sql",
         "comment": "",
-        "created_at": "2026-11-09T09:07:29+03:00",
+        "created_at": "2026-11-13T09:54:15+03:00",
         "map_missing": false,
-        "player": "穿山王",
-        "player_id": 224,
-        "population": 993,
+        "player": "WGG",
+        "player_id": 15,
+        "population": 766,
         "priority": 1,
-        "tribe_id": 3,
+        "tribe_id": 1,
         "type": "Столица",
-        "updated_at": "2026-11-09T09:07:29+03:00",
-        "village": "01.穿山王",
-        "village_id": 17869,
-        "x": 28,
-        "y": 26
-      },
-      "35|28": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-11-08T23:04:38+03:00",
-        "map_missing": false,
-        "player": "穿山王",
-        "player_id": 224,
-        "population": 820,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Не определено",
-        "updated_at": "2026-11-08T23:04:38+03:00",
-        "village": "02.阿羅拉穿山王",
-        "village_id": 30149,
-        "x": 35,
-        "y": 28
+        "updated_at": "2026-11-13T09:54:15+03:00",
+        "village": "Shake",
+        "village_id": 30942,
+        "x": 151,
+        "y": 33
       },
       "37|16": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
+        "alliance_snapshot": "map_2026-11-13.sql",
         "comment": "",
         "created_at": "2026-11-08T23:21:27+03:00",
         "map_missing": false,
@@ -6731,7 +6713,7 @@
       "37|23": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
+        "alliance_snapshot": "map_2026-11-13.sql",
         "comment": "",
         "created_at": "2026-11-08T23:19:52+03:00",
         "map_missing": false,
@@ -6747,86 +6729,10 @@
         "x": 37,
         "y": 23
       },
-      "37|28": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-11-08T23:01:37+03:00",
-        "map_missing": false,
-        "player": "兽王子",
-        "player_id": 518,
-        "population": 698,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Деф",
-        "updated_at": "2026-11-08T23:01:37+03:00",
-        "village": "00出生",
-        "village_id": 21465,
-        "x": 37,
-        "y": 28
-      },
-      "38|11": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-11-08T23:05:35+03:00",
-        "map_missing": false,
-        "player": "大飞哥",
-        "player_id": 230,
-        "population": 704,
-        "priority": 1,
-        "tribe_id": 2,
-        "type": "Не определено",
-        "updated_at": "2026-11-08T23:05:35+03:00",
-        "village": "大飞哥",
-        "village_id": 17891,
-        "x": 38,
-        "y": 11
-      },
-      "40|51": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-10-24T11:59:16+03:00",
-        "map_missing": false,
-        "player": "小小玩家",
-        "player_id": 1581,
-        "population": 595,
-        "priority": 1,
-        "tribe_id": 2,
-        "type": "Обычная",
-        "updated_at": "2026-10-24T11:59:16+03:00",
-        "village": "1.小小玩家",
-        "village_id": 27707,
-        "x": 40,
-        "y": 51
-      },
-      "42|15": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-11-08T23:00:01+03:00",
-        "map_missing": false,
-        "player": "卡卡西",
-        "player_id": 557,
-        "population": 660,
-        "priority": 1,
-        "tribe_id": 2,
-        "type": "Не определено",
-        "updated_at": "2026-11-08T23:00:01+03:00",
-        "village": "1卡卡西",
-        "village_id": 22129,
-        "x": 42,
-        "y": 15
-      },
       "42|16": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
+        "alliance_snapshot": "map_2026-11-13.sql",
         "comment": "",
         "created_at": "2026-11-08T22:59:11+03:00",
         "map_missing": false,
@@ -6842,105 +6748,10 @@
         "x": 42,
         "y": 16
       },
-      "47|35": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-11-08T23:00:39+03:00",
-        "map_missing": false,
-        "player": "童大人",
-        "player_id": 868,
-        "population": 901,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Деф",
-        "updated_at": "2026-11-08T23:00:39+03:00",
-        "village": "11111密谍司白龍",
-        "village_id": 25560,
-        "x": 47,
-        "y": 35
-      },
-      "49|21": {
-        "alliance": "",
-        "alliance_id": 0,
-        "alliance_snapshot": "map_2026-10-31.sql",
-        "comment": "",
-        "created_at": "2026-10-25T00:20:28+03:00",
-        "map_missing": true,
-        "player": "komting",
-        "player_id": 678,
-        "population": 316,
-        "priority": 1,
-        "tribe_id": 1,
-        "type": "Столица",
-        "updated_at": "2026-10-25T00:20:28+03:00",
-        "village": "A",
-        "village_id": 23097,
-        "x": 49,
-        "y": 21
-      },
-      "49|25": {
-        "alliance": "東方華人2",
-        "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-27.sql",
-        "comment": "",
-        "created_at": "2026-10-25T00:21:12+03:00",
-        "map_missing": true,
-        "player": "卡卡東",
-        "player_id": 769,
-        "population": 603,
-        "priority": 1,
-        "tribe_id": 1,
-        "type": "Столица",
-        "updated_at": "2026-10-25T00:21:12+03:00",
-        "village": "卡卡東的村莊",
-        "village_id": 23746,
-        "x": 49,
-        "y": 25
-      },
-      "50|17": {
-        "alliance": "KE",
-        "alliance_id": 1,
-        "alliance_snapshot": "map_2026-10-31.sql",
-        "comment": "",
-        "created_at": "2026-10-25T00:24:32+03:00",
-        "map_missing": true,
-        "player": "Horsethief",
-        "player_id": 242,
-        "population": 512,
-        "priority": 1,
-        "tribe_id": 2,
-        "type": "Столица",
-        "updated_at": "2026-10-25T00:24:32+03:00",
-        "village": "01",
-        "village_id": 23737,
-        "x": 50,
-        "y": 17
-      },
-      "51|30": {
-        "alliance": "東华KE2",
-        "alliance_id": 34,
-        "alliance_snapshot": "map_2026-10-31.sql",
-        "comment": "",
-        "created_at": "2026-10-25T00:24:58+03:00",
-        "map_missing": true,
-        "player": "yu_yu_0307",
-        "player_id": 1105,
-        "population": 567,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Столица",
-        "updated_at": "2026-10-25T00:24:58+03:00",
-        "village": "4446",
-        "village_id": 25707,
-        "x": 51,
-        "y": 30
-      },
       "55|28": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-09.sql",
+        "alliance_snapshot": "map_2026-11-13.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:47+03:00",
         "map_missing": false,
@@ -6956,29 +6767,10 @@
         "x": 55,
         "y": 28
       },
-      "56|33": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-09.sql",
-        "comment": "",
-        "created_at": "2026-11-08T22:58:03+03:00",
-        "map_missing": false,
-        "player": "LOL",
-        "player_id": 1554,
-        "population": 769,
-        "priority": 1,
-        "tribe_id": 1,
-        "type": "Не определено",
-        "updated_at": "2026-11-08T22:58:03+03:00",
-        "village": "LOL`s village",
-        "village_id": 27666,
-        "x": 56,
-        "y": 33
-      },
       "61|23": {
         "alliance": "東华KE2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-11-09.sql",
+        "alliance_snapshot": "map_2026-11-13.sql",
         "comment": "",
         "created_at": "2026-10-25T00:23:34+03:00",
         "map_missing": false,
@@ -6993,25 +6785,6 @@
         "village_id": 27651,
         "x": 61,
         "y": 23
-      },
-      "63|65": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-10-31.sql",
-        "comment": "",
-        "created_at": "2026-10-10T17:45:56+03:00",
-        "map_missing": true,
-        "player": "小小玩家",
-        "player_id": 1581,
-        "population": 394,
-        "priority": 5,
-        "tribe_id": 2,
-        "type": "Столица",
-        "updated_at": "2026-10-10T17:45:56+03:00",
-        "village": "2.小小玩家",
-        "village_id": 30236,
-        "x": 63,
-        "y": 65
       }
     },
     "data/alliance_ops/states.json": {
