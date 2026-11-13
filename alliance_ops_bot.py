@@ -397,22 +397,51 @@ def target_alliance_name(target):
 def refresh_target_alliances():
     targets=load(TARGETS);snapshot=latest_snapshot()
     if not targets or not snapshot:return targets
-    remaining=set(targets);changed=False
-    for row in rows(snapshot.read_text(encoding='utf-8',errors='replace')):
-        try:
-            a=split_sql(row)
-            if len(a)<11:continue
-            key=f'{int(clean(a[1]))}|{int(clean(a[2]))}'
-            if key not in remaining:continue
-            update={'alliance_id':int(clean(a[8])),'alliance':clean(a[9]),
-                    'player_id':int(clean(a[6])),'player':clean(a[7]),'village_id':int(clean(a[4])),
-                    'village':clean(a[5]),'alliance_snapshot':snapshot.name,'map_missing':False}
-            if any(targets[key].get(k)!=v for k,v in update.items()):targets[key].update(update);changed=True
-            remaining.remove(key)
-        except (ValueError,IndexError,TypeError):continue
-    for key in remaining:
-        if not targets[key].get('map_missing'):targets[key]['map_missing']=True;changed=True
-    if changed:save(TARGETS,targets);persist('Refresh target alliances from map snapshot')
+    # Parse and validate the whole snapshot before removing anything. An empty,
+    # unreadable or truncated map must never be interpreted as an empty world.
+    try:
+        raw=snapshot.read_text(encoding='utf-8-sig')
+        inserts=[line for line in raw.splitlines() if re.match(r'^\s*INSERT\s+INTO\s+`?x_world`?\s+VALUES\b',line,re.I)]
+        if not inserts or any(not line.rstrip().endswith(';') for line in inserts):
+            raise ValueError('Incomplete world snapshot')
+        world={}
+        for line in inserts:
+            quote=None;escaped=False;depth=0
+            for char in line:
+                if escaped:escaped=False;continue
+                if char=='\\':escaped=True;continue
+                if quote:
+                    if char==quote:quote=None
+                elif char in "'\"":quote=char
+                elif char=='(':depth+=1
+                elif char==')':
+                    depth-=1
+                    if depth<0:raise ValueError('Unbalanced world row')
+            if quote or escaped or depth:raise ValueError('Unfinished world row')
+            parsed=list(rows(line))
+            if not parsed:raise ValueError('Invalid world rows')
+            for row in parsed:
+                a=split_sql(row)
+                if len(a)<11:raise ValueError('Incomplete village row')
+                x,y=int(clean(a[1])),int(clean(a[2]))
+                if not -200<=x<=200 or not -200<=y<=200:raise ValueError('Invalid coordinates')
+                key=f'{x}|{y}'
+                if key in world:raise ValueError('Duplicate village coordinates')
+                world[key]={'alliance_id':int(clean(a[8])),'alliance':clean(a[9]),
+                            'player_id':int(clean(a[6])),'player':clean(a[7]),'village_id':int(clean(a[4])),
+                            'village':clean(a[5]),'alliance_snapshot':snapshot.name,'map_missing':False}
+    except (OSError,UnicodeError,ValueError,IndexError,TypeError):
+        print('Target refresh skipped: world snapshot could not be validated',flush=True)
+        return targets
+    changed=False;removed=0
+    for key in list(targets):
+        if key not in world:
+            del targets[key];changed=True;removed+=1
+        elif any(targets[key].get(k)!=v for k,v in world[key].items()):
+            targets[key].update(world[key]);changed=True
+    if changed:
+        save(TARGETS,targets);persist('Refresh target alliances and remove villages missing from world snapshot')
+    if removed:print(f'Removed {removed} missing villages from target database',flush=True)
     return targets
 
 
@@ -1363,11 +1392,15 @@ def callback(c):
     if x.startswith("targettype:"):
         k=x.split(":",1)[1];send(cid,"🏷 Выберите тип:",[[btn(t,f"settype:{k}:{t}")] for t in TARGET_TYPES]);return
     if x.startswith("settype:"):
-        _,k,v=x.split(":",2);ts=load(TARGETS);ts[k]["type"]=v;save(TARGETS,ts);persist("Update alliance ops target");show_target(cid,k);return
+        _,k,v=x.split(":",2);ts=load(TARGETS)
+        if k not in ts:show_target(cid,k);return
+        ts[k]["type"]=v;save(TARGETS,ts);persist("Update alliance ops target");show_target(cid,k);return
     if x.startswith("targetprio:"):
         k=x.split(":",1)[1];send(cid,"⭐ Выберите важность:",[[btn(str(i),f"setprio:{k}:{i}") for i in range(1,6)]]);return
     if x.startswith("setprio:"):
-        _,k,v=x.split(":",2);ts=load(TARGETS);ts[k]["priority"]=int(v);save(TARGETS,ts);persist("Update alliance ops target");show_target(cid,k);return
+        _,k,v=x.split(":",2);ts=load(TARGETS)
+        if k not in ts:show_target(cid,k);return
+        ts[k]["priority"]=int(v);save(TARGETS,ts);persist("Update alliance ops target");show_target(cid,k);return
     if x.startswith("targetcomment:"):k=x.split(":",1)[1];state(uid,"target_comment",{"key":k});send(cid,"📝 Введите комментарий. Для очистки отправьте <code>-</code>.");return
     if x.startswith("targetdelete:"):
         k=x.split(":",1)[1];send(cid,f"Удалить <code>{k}</code>?",[[btn("✅ Да",f"confirmdelete:{k}"),btn("❌ Нет",f"target:{k}")]]);return
@@ -1379,7 +1412,12 @@ def main():
     if not TOKEN:raise RuntimeError("ALLIANCE_OPS_TELEGRAM_TOKEN is required")
     print("ALLIANCE OPS BOT",api("getMe").get("username"),flush=True)
     offset=None
+    last_target_refresh=None
     while True:
+        if last_target_refresh is None or time.monotonic()-last_target_refresh>=24*60*60:
+            last_target_refresh=time.monotonic()
+            try:refresh_target_alliances()
+            except Exception:print("Target refresh failed; will retry",flush=True)
         try:
             p={"timeout":25,"allowed_updates":["message","callback_query"]}
             if offset is not None:p["offset"]=offset

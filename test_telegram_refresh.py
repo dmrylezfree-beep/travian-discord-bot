@@ -130,7 +130,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   target,_=o.village_at(1,0);self.assertEqual(target['alliance_id'],7);self.assertEqual(target['alliance'],'Enemy')
   targets=o.refresh_target_alliances();self.assertEqual(targets['1|0']['alliance_id'],7)
   self.assertEqual(targets['1|0']['priority'],5);self.assertEqual(targets['1|0']['comment'],'keep')
-  self.assertEqual(o.target_alliance_key(targets['2|0']),'unknown')
+  self.assertNotIn('2|0',targets)
  def test_alliance_groups_keep_unallied_and_unknown_separate(self):
   o=self.ops;targets=self.alliance_targets();o.op_alliance_picker(1,{})
   buttons=self.sender.call_args.args[2];callbacks=[b['callback_data'] for row in buttons for b in row]
@@ -1197,3 +1197,22 @@ class PrivateVillageInputRoutingTests(unittest.TestCase):
   with patch.object(defence,'adopt_pinned_centre',return_value=False),patch.object(defence.bot,'get_player',return_value=({'55':player},player)),patch.object(defence.bot,'send') as send:
    defence.process_text({'chat':{'id':55,'type':'private'},'from':{'id':55},'text':'wrong'})
    self.assertEqual(player['state'],'add_village_coords');send.assert_called_once();self.assertIn('Неверный формат',send.call_args.args[1])
+
+class MissingOperationTargetsTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def snapshot(self,raw,date='2030-01-02'):
+  self.ops.SNAPSHOTS.mkdir(exist_ok=True);p=self.ops.SNAPSHOTS/f'map_{date}.sql';p.write_bytes(raw if isinstance(raw,bytes) else raw.encode());return p
+ def valid(self,x=1,y=0):return f"INSERT INTO x_world VALUES (1,{x},{y},1,11,'Village',99,'Player',7,'Enemy',300);\n"
+ def test_missing_targets_removed_present_refreshed_operations_unchanged(self):
+  o=self.ops;o.save(o.TARGETS,{'1|0':{'x':1,'y':0,'comment':'keep','type':'Офф'},'2|0':{'x':2,'y':0,'map_missing':True}})
+  before=o.OPERATIONS.read_bytes();self.snapshot(self.valid());result=o.refresh_target_alliances()
+  self.assertEqual(set(result),{'1|0'});self.assertEqual(result['1|0']['comment'],'keep');self.assertEqual(result['1|0']['player'],'Player');self.assertFalse(result['1|0']['map_missing']);self.assertEqual(o.OPERATIONS.read_bytes(),before);self.assertEqual(o.load(o.TARGETS),result)
+ def test_empty_unreadable_or_incomplete_snapshots_never_remove_targets(self):
+  o=self.ops;original={'1|0':{'x':1,'y':0}}
+  for raw in ['', 'not sql', b'\xff', self.valid(2,0).rstrip()[:-2]+';', self.valid(2,0).rstrip()[:-1], "INSERT INTO x_world VALUES (1,2,0);\n", self.valid(2,0)+"INSERT INTO x_world VALUES (1,'bad',0,1,11,'Village',99,'Player',7,'Enemy',300);\n"]:
+   with self.subTest(raw=repr(raw)):
+    o.save(o.TARGETS,original);self.snapshot(raw);self.assertEqual(o.refresh_target_alliances(),original);self.assertEqual(o.load(o.TARGETS),original)
+ def test_latest_snapshot_used_and_all_missing_targets_can_be_removed(self):
+  o=self.ops;o.save(o.TARGETS,{'1|0':{'x':1,'y':0}});self.snapshot(self.valid(),date='2030-01-01');self.snapshot(self.valid(2,0));self.assertEqual(o.refresh_target_alliances(),{});self.assertEqual(o.load(o.TARGETS),{})
+ def test_no_snapshot_keeps_targets(self):
+  o=self.ops;original=o.load(o.TARGETS);self.assertEqual(o.refresh_target_alliances(),original)
