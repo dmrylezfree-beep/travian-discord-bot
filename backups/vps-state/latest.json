@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-13T12:26:59.247535+00:00",
+  "created_at": "2026-11-13T13:27:05.705217+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -6465,6 +6465,64 @@
         "x": 76,
         "y": 79
       },
+      "5019114411": {
+        "alliance": "Сокол",
+        "alliance_id": 8,
+        "arena": 11,
+        "army": {
+          "troops": {
+            "Гром Теутатеса": 5776,
+            "Друид-всадник": 0,
+            "Мечник": 7356,
+            "Предводитель": 0,
+            "Следопыт": 30,
+            "Таран": 176,
+            "Требушет": 432,
+            "Фаланга": 158,
+            "Эдуйская конница": 120
+          },
+          "updated_at": "2026-11-13T15:54:44+03:00"
+        },
+        "player": "Gross",
+        "player_id": 724,
+        "population": 992,
+        "registered_at": "2026-11-13T15:54:44+03:00",
+        "telegram_id": 5019114411,
+        "tribe_id": 3,
+        "village": "N",
+        "village_id": 30320,
+        "x": 115,
+        "y": 41
+      },
+      "5019114411_cd925be8": {
+        "alliance": "Сокол",
+        "alliance_id": 8,
+        "arena": 8,
+        "army": {
+          "troops": {
+            "Гром Теутатеса": 2056,
+            "Друид-всадник": 0,
+            "Мечник": 0,
+            "Предводитель": 0,
+            "Следопыт": 5,
+            "Таран": 0,
+            "Требушет": 0,
+            "Фаланга": 0,
+            "Эдуйская конница": 0
+          },
+          "updated_at": "2026-11-13T15:55:59+03:00"
+        },
+        "player": "Gross",
+        "player_id": 724,
+        "population": 701,
+        "registered_at": "2026-11-13T15:55:59+03:00",
+        "telegram_id": 5019114411,
+        "tribe_id": 3,
+        "village": "15ху",
+        "village_id": 31621,
+        "x": 127,
+        "y": -97
+      },
       "6284198504": {
         "alliance": "Сокол",
         "alliance_id": 8,
@@ -6672,6 +6730,44 @@
       }
     },
     "data/alliance_ops/targets.json": {
+      "104|137": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-11-13.sql",
+        "comment": "",
+        "created_at": "2026-11-13T16:05:06+03:00",
+        "map_missing": false,
+        "player": "TKDOG",
+        "player_id": 703,
+        "population": 884,
+        "priority": 1,
+        "tribe_id": 1,
+        "type": "Столица",
+        "updated_at": "2026-11-13T16:05:06+03:00",
+        "village": "TKGOD",
+        "village_id": 30914,
+        "x": 104,
+        "y": 137
+      },
+      "149|111": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-11-13.sql",
+        "comment": "",
+        "created_at": "2026-11-13T16:05:29+03:00",
+        "map_missing": false,
+        "player": "hallroad",
+        "player_id": 221,
+        "population": 900,
+        "priority": 1,
+        "tribe_id": 1,
+        "type": "Столица",
+        "updated_at": "2026-11-13T16:05:29+03:00",
+        "village": "[00] hallroad",
+        "village_id": 31123,
+        "x": 149,
+        "y": 111
+      },
       "151|33": {
         "alliance": "東方華人",
         "alliance_id": 12,
@@ -6785,6 +6881,44 @@
         "village_id": 27651,
         "x": 61,
         "y": 23
+      },
+      "79|147": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-11-13.sql",
+        "comment": "",
+        "created_at": "2026-11-13T16:04:46+03:00",
+        "map_missing": false,
+        "player": "ragn",
+        "player_id": 196,
+        "population": 762,
+        "priority": 1,
+        "tribe_id": 2,
+        "type": "Столица",
+        "updated_at": "2026-11-13T16:04:46+03:00",
+        "village": "RAGN",
+        "village_id": 30886,
+        "x": 79,
+        "y": 147
+      },
+      "80|141": {
+        "alliance": "東方華人",
+        "alliance_id": 12,
+        "alliance_snapshot": "map_2026-11-13.sql",
+        "comment": "",
+        "created_at": "2026-11-13T16:04:22+03:00",
+        "map_missing": false,
+        "player": "ppg",
+        "player_id": 256,
+        "population": 899,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Столица",
+        "updated_at": "2026-11-13T16:04:22+03:00",
+        "village": "长风",
+        "village_id": 30608,
+        "x": 80,
+        "y": 141
       }
     },
     "data/alliance_ops/states.json": {
