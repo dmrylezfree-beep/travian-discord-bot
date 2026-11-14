@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-14T06:29:18.305411+00:00",
+  "created_at": "2026-11-14T07:29:23.822481+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -806,7 +806,7 @@
         "villages": [
           {
             "coordinates": "43 9",
-            "arena": 0,
+            "arena": 10,
             "troops": {
               "spearman": 100
             },
@@ -816,9 +816,10 @@
           },
           {
             "coordinates": "57 9",
-            "arena": 10,
+            "arena": 13,
             "troops": {
-              "spearman": 1000
+              "spearman": 1500,
+              "paladin": 250
             },
             "hero": {
               "present": false
@@ -6975,7 +6976,7 @@
       "104|137": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-13T16:05:06+03:00",
         "map_missing": false,
@@ -6994,7 +6995,7 @@
       "112|101": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-13T22:46:27+03:00",
         "map_missing": false,
@@ -7013,7 +7014,7 @@
       "149|111": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-13T16:05:29+03:00",
         "map_missing": false,
@@ -7032,7 +7033,7 @@
       "151|33": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-13T09:54:15+03:00",
         "map_missing": false,
@@ -7051,7 +7052,7 @@
       "37|16": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-08T23:21:27+03:00",
         "map_missing": false,
@@ -7070,7 +7071,7 @@
       "37|23": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-08T23:19:52+03:00",
         "map_missing": false,
@@ -7089,7 +7090,7 @@
       "42|16": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-08T22:59:11+03:00",
         "map_missing": false,
@@ -7108,7 +7109,7 @@
       "55|28": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:47+03:00",
         "map_missing": false,
@@ -7127,7 +7128,7 @@
       "61|23": {
         "alliance": "東华KE2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-10-25T00:23:34+03:00",
         "map_missing": false,
@@ -7146,7 +7147,7 @@
       "79|147": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-13T16:04:46+03:00",
         "map_missing": false,
@@ -7165,7 +7166,7 @@
       "80|141": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-13.sql",
+        "alliance_snapshot": "map_2026-11-14.sql",
         "comment": "",
         "created_at": "2026-11-13T16:04:22+03:00",
         "map_missing": false,
