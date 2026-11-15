@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-15T16:32:34.594995+00:00",
+  "created_at": "2026-11-15T17:32:39.023636+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -94,10 +94,30 @@
         "villages": [
           {
             "coordinates": "96 67",
-            "arena": 9,
+            "arena": 18,
             "troops": {
-              "phalanx": 1500,
-              "druidrider": 500
+              "phalanx": 18000,
+              "druidrider": 4200
+            },
+            "hero": {
+              "present": false
+            }
+          },
+          {
+            "coordinates": "96 68",
+            "arena": 10,
+            "troops": {
+              "druidrider": 2500
+            },
+            "hero": {
+              "present": false
+            }
+          },
+          {
+            "coordinates": "13 7",
+            "arena": 0,
+            "troops": {
+              "phalanx": 9000
             },
             "hero": {
               "present": false
