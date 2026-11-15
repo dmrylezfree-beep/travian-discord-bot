@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-15T12:32:01.162874+00:00",
+  "created_at": "2026-11-15T13:32:03.982829+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -385,10 +385,10 @@
         "villages": [
           {
             "coordinates": "43 47",
-            "arena": 6,
+            "arena": 7,
             "troops": {
-              "phalanx": 6500,
-              "druidrider": 2200,
+              "phalanx": 6700,
+              "druidrider": 2500,
               "haeduan": 100
             },
             "hero": {
