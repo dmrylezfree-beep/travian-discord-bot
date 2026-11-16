@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-16T06:33:48.046071+00:00",
+  "created_at": "2026-11-16T07:33:55.136280+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -7095,7 +7095,7 @@
       "104|137": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-13T16:05:06+03:00",
         "map_missing": false,
@@ -7114,7 +7114,7 @@
       "112|101": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-13T22:46:27+03:00",
         "map_missing": false,
@@ -7133,7 +7133,7 @@
       "149|111": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-13T16:05:29+03:00",
         "map_missing": false,
@@ -7152,7 +7152,7 @@
       "37|16": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-08T23:21:27+03:00",
         "map_missing": false,
@@ -7168,29 +7168,10 @@
         "x": 37,
         "y": 16
       },
-      "37|23": {
-        "alliance": "東方華人",
-        "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
-        "comment": "",
-        "created_at": "2026-11-08T23:19:52+03:00",
-        "map_missing": false,
-        "player": "诸神来了",
-        "player_id": 581,
-        "population": 662,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Деф",
-        "updated_at": "2026-11-08T23:19:52+03:00",
-        "village": "诸神来了的村莊",
-        "village_id": 22398,
-        "x": 37,
-        "y": 23
-      },
       "42|16": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-08T22:59:11+03:00",
         "map_missing": false,
@@ -7209,7 +7190,7 @@
       "55|28": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-10-25T00:21:47+03:00",
         "map_missing": false,
@@ -7228,7 +7209,7 @@
       "61|23": {
         "alliance": "東华KE2",
         "alliance_id": 34,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-10-25T00:23:34+03:00",
         "map_missing": false,
@@ -7247,7 +7228,7 @@
       "79|147": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-13T16:04:46+03:00",
         "map_missing": false,
@@ -7266,7 +7247,7 @@
       "80|141": {
         "alliance": "東方華人",
         "alliance_id": 12,
-        "alliance_snapshot": "map_2026-11-15.sql",
+        "alliance_snapshot": "map_2026-11-16.sql",
         "comment": "",
         "created_at": "2026-11-13T16:04:22+03:00",
         "map_missing": false,
