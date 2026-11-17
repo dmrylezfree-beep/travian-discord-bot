@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-17T16:38:02.755992+00:00",
+  "created_at": "2026-11-17T17:38:06.999558+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -419,7 +419,9 @@
             "coordinates": "47 45",
             "arena": 0,
             "troops": {
-              "haeduan": 130
+              "haeduan": 130,
+              "phalanx": 7400,
+              "druidrider": 3000
             },
             "hero": {
               "present": false
