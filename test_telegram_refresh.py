@@ -51,7 +51,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   offer=dict(x=0,y=0,arena=0,player='fixture',village='origin',tribe_id=1)
   self.op=dict(id='op',created_by=1,name='Fixture',status='published',offers={'1':offer},targets={'t':dict(x=1,y=0)},attacks={})
   for aid,hour,mode in [('before',11,'spam'),('real',12,'destroy'),('same',12,'spam'),('after',13,'spam')]:
-   self.op['attacks'][aid]=dict(id=aid,offer_id='1',target_key='t',mode=mode,arrival_iso=f'2030-01-02T{hour}:20:00+03:00',arena=0,speed=3,waves=2,wave_plan=[{'text':'19 любых юнитов + 1 катапульта'}]*2)
+   self.op['attacks'][aid]=dict(id=aid,offer_id='1',target_key='t',mode=mode,arrival_iso=f'2030-01-02T{hour}:20:00+00:00',arena=0,speed=3,waves=2,wave_plan=[{'text':'19 любых юнитов + 1 катапульта'}]*2)
   ops.save(ops.OFFERS,{'1':dict(offer,save_points=[[1,0]])});ops.save(ops.OPERATIONS,{'op':self.op})
  def test_coordinate_validation_and_deduplication(self):
   f=self.ops.save_points_parse
@@ -85,7 +85,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o=self.ops;offers=o.load(o.OFFERS);offers['1']['arena']=20;o.save(o.OFFERS,offers)
   o.personal_support(1,1,'op');text=self.sender.call_args.args[1]
   self.assertIn('Текущая арена: <b>20</b>',text);self.assertIn('11:19:00',text);self.assertIn('11:59:00',text)
-  plan=o.load(o.OPERATIONS);plan['op']['attacks']['real']['arrival_iso']='2030-01-02T14:20:00+03:00';o.save(o.OPERATIONS,plan)
+  plan=o.load(o.OPERATIONS);plan['op']['attacks']['real']['arrival_iso']='2030-01-02T14:20:00+00:00';o.save(o.OPERATIONS,plan)
   o.personal_support(1,1,'op');self.assertIn('13:59:00',self.sender.call_args.args[1])
  def test_only_own_published_plan_is_accessible(self):
   o=self.ops;self.assertIsNone(o.personal_operation(2,'op'));o.personal_support(2,2,'op');self.assertIn('недоступен',self.sender.call_args.args[1])
@@ -97,7 +97,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   message['text']='2|0\n3|0';o.handle_message(message)
   self.assertEqual(o.load(o.OFFERS)['1']['save_points'],[[2,0],[3,0]]);self.assertIsNone(o.getstate(1))
  def test_multiple_real_attacks_selection_and_missing_real(self):
-  o=self.ops;extra=dict(self.op['attacks']['real'],id='real2',arrival_iso='2030-01-02T15:20:00+03:00');self.op['attacks']['real2']=extra
+  o=self.ops;extra=dict(self.op['attacks']['real'],id='real2',arrival_iso='2030-01-02T15:20:00+00:00');self.op['attacks']['real2']=extra
   self.assertEqual(o.selected_real(self.op,1)['id'],'real');self.assertEqual(o.selected_real(self.op,1,'real2')['id'],'real2')
   self.op['attacks']['real']['sent_at']='done';extra['sent_at']='done';o.save(o.OPERATIONS,{'op':self.op})
   o.personal_support(1,1,'op');self.assertIn('нет предстоящей реальной атаки',self.sender.call_args.args[1])
@@ -156,14 +156,14 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.assertEqual(drafts[0]['enemy_alliance'],'Enemy');self.assertIn('Enemy',o.op_summary(drafts[0]))
  def test_switching_alliance_clears_selection_but_keeps_schedule_and_offers(self):
   o=self.ops;self.alliance_targets();uid=next(iter(o.COORDINATORS))
-  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'}
   o.state(uid,'op_pick_targets',d)
   with patch.object(o,'api'):
    for data in ['opalliance:back','opalliance:2','opalliance:3','opalliance:done']:o.callback({'id':'test','from':{'id':uid},'message':{'chat':{'id':uid}},'data':data})
   actual=o.getstate(uid)['data'];self.assertEqual(actual['targets'],{});self.assertEqual(actual['offers'],['1']);self.assertEqual(actual['arrival_iso'],d['arrival_iso'])
  def test_draft_rejects_alliance_change_before_generation(self):
   o=self.ops;self.alliance_targets();self.snapshot(9)
-  d={'alliance_key':'2','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  d={'alliance_key':'2','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'}
   with self.assertRaises(ValueError):o.generate_op(1,d)
   self.assertEqual(set(o.load(o.OPERATIONS)),{'op'})
  def test_map_refresh_does_not_change_existing_operation(self):
@@ -183,7 +183,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
 
  def add_second_village(self):
   o=self.ops;offers=o.load(o.OFFERS)
-  self.op.update(arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+03:00',base_speed=3)
+  self.op.update(arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+00:00',base_speed=3)
   for a in self.op['attacks'].values():a.update(arrival='02.01.2030 12:20:00',offset=0,offer_player='fixture')
   offers['1_extra']=dict(offers['1'],telegram_id=1,x=10,y=0,arena=10,village='second',save_points=[[11,0]])
   o.save(o.OFFERS,offers);self.op['offers']['1_extra']=dict(offers['1_extra'],offset=0)
@@ -264,7 +264,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_deleted_village_is_not_in_draft_picker_or_new_draft(self):
   o=self.ops;self.add_second_village();self.click_village('village:remove:1_extra');o.op_offer_picker(1,{})
   callbacks=[b['callback_data'] for row in self.sender.call_args.args[2] for b in row];self.assertNotIn('opofftoggle:1_extra',callbacks)
-  self.alliance_targets();d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1_extra'],'offsets':{},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  self.alliance_targets();d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1_extra'],'offsets':{},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'}
   with self.assertRaises(ValueError):o.generate_op(1,d)
  def test_old_single_village_data_works_without_migration(self):
   o=self.ops;self.assertEqual(set(o.own_offers(1)),{'1'});self.assertEqual(o.op_members(self.op),{'1'})
@@ -273,7 +273,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
 
  def test_draft_with_two_villages_preserves_owner_and_origins(self):
   o=self.ops;self.add_second_village();self.alliance_targets()
-  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1','1_extra'],'offsets':{'1':0,'1_extra':2},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1','1_extra'],'offsets':{'1':0,'1_extra':2},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'}
   oid=o.generate_op(1,d);op=o.load(o.OPERATIONS)[oid]
   self.assertEqual(set(op['offers']),{'1','1_extra'});self.assertEqual(o.op_members(op),{'1'})
   self.assertEqual(op['offers']['1_extra']['telegram_id'],1);self.assertEqual(op['offers']['1_extra']['save_points'],[[11,0]])
@@ -359,7 +359,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.click_village('ops:new',uid=3);self.assertEqual(o.getstate(3)['step'],'op_pick_alliance')
  def test_operation_ids_do_not_collide_for_simultaneous_authors(self):
   o=self.ops;self.alliance_targets()
-  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'}
   first=o.generate_op(1,d);second=o.generate_op(2,d);third=o.generate_op(1,d)
   self.assertEqual(len({first,second,third}),3);plans=o.load(o.OPERATIONS)
   self.assertEqual(plans[first]['created_by'],1);self.assertEqual(plans[second]['created_by'],2)
@@ -415,8 +415,8 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.assertIn('11:19:00',label)
  def test_reminder_is_durable_and_sent_once_at_five_minutes(self):
   o=self.ops;self.click_village('mine:choose:op:real:1:0');self.assertIn('op:real',o.load(o.OFFERS)['1']['save_reminders'])
-  self.sender.reset_mock();self.save_clock('2030-01-02T11:13:59+03:00');o.send_save_reminders();self.sender.assert_not_called()
-  self.save_clock('2030-01-02T11:14:00+03:00');o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertEqual(self.sender.call_args.args[0],1)
+  self.sender.reset_mock();self.save_clock('2030-01-02T11:13:59+00:00');o.send_save_reminders();self.sender.assert_not_called()
+  self.save_clock('2030-01-02T11:14:00+00:00');o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertEqual(self.sender.call_args.args[0],1)
   self.assertIn('11:19:00',self.sender.call_args.args[1]);self.assertIn('11:59:00',self.sender.call_args.args[1]);self.assertIn('sent_for',o.load(o.OFFERS)['1']['save_reminders']['op:real'])
   self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
   self.click_village('mine:choose:op:real:1:0');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
@@ -424,23 +424,23 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o=self.ops;offers=o.load(o.OFFERS);offers['1']['save_points']=[[1,0],[2,0]];o.save(o.OFFERS,offers)
   self.click_village('mine:choose:op:real:1:0');self.click_village('mine:choose:op:real:2:0')
   self.assertEqual(o.load(o.OFFERS)['1']['save_reminders']['op:real']['point'],[2,0])
-  self.save_clock('2030-01-02T10:34:00+03:00');self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertIn('10:39:00',self.sender.call_args.args[1])
-  self.save_clock('2030-01-02T11:14:00+03:00');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+  self.save_clock('2030-01-02T10:34:00+00:00');self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertIn('10:39:00',self.sender.call_args.args[1])
+  self.save_clock('2030-01-02T11:14:00+00:00');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
  def test_reminder_cancel_and_point_removal(self):
   o=self.ops;self.click_village('mine:choose:op:real:1:0');self.click_village('mine:unsave:op:real')
   self.assertNotIn('op:real',o.load(o.OFFERS)['1']['save_reminders'])
   self.click_village('mine:choose:op:real:1:0');self.click_village('savepoint:remove:1:1:0')
   self.assertEqual(o.load(o.OFFERS)['1']['save_reminders'],{})
  def test_reminder_delivery_failure_retries_without_marking_sent(self):
-  o=self.ops;self.click_village('mine:choose:op:real:1:0');self.save_clock('2030-01-02T11:14:00+03:00')
+  o=self.ops;self.click_village('mine:choose:op:real:1:0');self.save_clock('2030-01-02T11:14:00+00:00')
   self.sender.side_effect=RuntimeError('fixture offline');o.send_save_reminders()
   self.assertNotIn('sent_for',o.load(o.OFFERS)['1']['save_reminders']['op:real'])
   self.sender.side_effect=None;self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1)
  def test_plan_retime_reschedules_selected_point(self):
   o=self.ops;self.click_village('mine:choose:op:real:1:0')
-  plans=o.load(o.OPERATIONS);plans['op']['attacks']['real']['arrival_iso']='2030-01-02T13:20:00+03:00';o.save(o.OPERATIONS,plans)
-  self.save_clock('2030-01-02T11:14:00+03:00');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
-  self.save_clock('2030-01-02T12:14:00+03:00');o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertIn('12:19:00',self.sender.call_args.args[1])
+  plans=o.load(o.OPERATIONS);plans['op']['attacks']['real']['arrival_iso']='2030-01-02T13:20:00+00:00';o.save(o.OPERATIONS,plans)
+  self.save_clock('2030-01-02T11:14:00+00:00');self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
+  self.save_clock('2030-01-02T12:14:00+00:00');o.send_save_reminders();self.assertEqual(self.sender.call_count,1);self.assertIn('12:19:00',self.sender.call_args.args[1])
  def test_invalidated_attack_or_registration_drops_reminder(self):
   import copy
   o=self.ops;self.click_village('mine:choose:op:real:1:0');base_offers=o.load(o.OFFERS);base_ops=o.load(o.OPERATIONS)
@@ -456,18 +456,18 @@ class AllianceOpsSupportTests(unittest.TestCase):
     o.save(o.OFFERS,offers);o.save(o.OPERATIONS,plans);self.sender.reset_mock();o.send_save_reminders()
     self.sender.assert_not_called();self.assertEqual(o.load(o.OFFERS)['1']['save_reminders'],{})
  def test_past_save_is_not_selectable_and_never_reminded(self):
-  o=self.ops;self.save_clock('2030-01-02T11:20:00+03:00');self.click_village('mine:choose:op:real:1:0')
+  o=self.ops;self.save_clock('2030-01-02T11:20:00+00:00');self.click_village('mine:choose:op:real:1:0')
   self.assertFalse(o.load(o.OFFERS)['1'].get('save_reminders'))
   self.sender.reset_mock();o.send_save_reminders();self.sender.assert_not_called()
  def test_within_five_minutes_selection_sends_soon(self):
-  o=self.ops;self.save_clock('2030-01-02T11:16:00+03:00');self.click_village('mine:choose:op:real:1:0')
+  o=self.ops;self.save_clock('2030-01-02T11:16:00+00:00');self.click_village('mine:choose:op:real:1:0')
   self.sender.reset_mock();o.send_save_reminders();self.assertEqual(self.sender.call_count,1)
  def test_other_user_and_unregistered_point_cannot_create_reminder(self):
   o=self.ops;self.click_village('mine:choose:op:real:1:0',uid=2);self.click_village('mine:choose:op:real:99:99',uid=1)
   self.assertFalse(o.load(o.OFFERS)['1'].get('save_reminders'))
  def test_creator_telegram_tag_is_stored_and_shown_in_personal_plan(self):
   o=self.ops;self.alliance_targets();uid=3
-  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'}
+  d={'alliance_key':'2','alliance_name':'Enemy','targets':{'1|0':'spam'},'offers':['1'],'offsets':{'1':0},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'}
   o.state(uid,'op_pick_targets',d)
   with patch.object(o,'api'):o.callback({'id':'test','from':{'id':uid,'username':'operation_author','first_name':'Author'},'message':{'chat':{'id':uid}},'data':'opgenerate'})
   op=next(p for p in o.load(o.OPERATIONS).values() if p.get('created_by')==3)
@@ -1238,7 +1238,7 @@ class MultiAllianceOperationTests(unittest.TestCase):
    self.click('opgenerate')
   drafts=[p for p in o.load(o.OPERATIONS).values() if p['status']=='draft'];self.assertEqual(len(drafts),1);self.assertEqual(set(drafts[0]['targets']),{'1|0','2|0','3|0'});self.assertEqual(drafts[0]['enemy_alliance_keys'],['0','2','3']);self.assertIn('Enemy',drafts[0]['enemy_alliance'])
  def test_deselect_prunes_only_that_alliances_targets_and_keeps_other_settings(self):
-  o=self.ops;self.alliance_targets();d={'alliance_keys':['2','3'],'targets':{'1|0':'spam','2|0':'capture'},'offers':['1'],'offsets':{'1':-2},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+03:00'};o.state(1,'op_pick_targets',d)
+  o=self.ops;self.alliance_targets();d={'alliance_keys':['2','3'],'targets':{'1|0':'spam','2|0':'capture'},'offers':['1'],'offsets':{'1':-2},'base_speed':3,'arrival_iso':'2030-01-02T15:00:00+00:00'};o.state(1,'op_pick_targets',d)
   with patch.object(o,'api') as api:
    self.click('opalliance:back');self.click('opalliance:2')
    self.assertTrue(any(call.args[0]=='editMessageText' and call.args[1]['message_id']==77 for call in api.call_args_list));self.click('opalliance:done')
@@ -1262,7 +1262,7 @@ class OperationDepartureListTests(unittest.TestCase):
  def test_all_sends_sorted_by_departure_and_detail_links(self):
   o=self.ops;self.fixture();o.op_departures(1,'op');text,buttons=self.sender.call_args.args[1:]
   self.assertLess(text.index('11:00:00'),text.index('12:00:00'));self.assertLess(text.index('12:00:00'),text.index('13:00:00'))
-  self.assertIn('МСК (UTC+3)',text);self.assertIn('0|0',text);self.assertIn('1|0',text);self.assertIn('Test &lt;operation&gt;',text)
+  self.assertIn('Время сервера Travian',text);self.assertIn('0|0',text);self.assertIn('1|0',text);self.assertIn('Test &lt;operation&gt;',text)
   links=[b['callback_data'] for row in buttons for b in row];self.assertEqual(sum(x.startswith('oa:op:') for x in links),4)
  def test_uses_calculated_departure_not_arrival_and_refreshes_after_edit(self):
   o=self.ops;self.fixture();op=o.load(o.OPERATIONS)['op'];op['offers']['far']={**op['offers']['1'],'x':100,'arena':0,'player':'Far'}
@@ -1288,3 +1288,36 @@ class OperationDepartureListTests(unittest.TestCase):
   for attack in op['attacks'].values():attack['speed']=0
   o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op');text=self.sender.call_args.args[1];self.assertIn('Время не рассчитано',text);self.assertLess(len(text),4096)
   op['attacks']={};o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op');self.assertIn('пока нет отправок',self.sender.call_args.args[1])
+
+class OperationServerTimeTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def test_input_uses_server_clock_in_winter_and_summer(self):
+  o=self.ops
+  for value,offset in [('18.11.2026 21:30:00',0),('18.07.2026 21:30:00',3600)]:
+   dt=o.op_dt(value);self.assertEqual(dt.hour,21);self.assertEqual(dt.utcoffset().total_seconds(),offset)
+  for value in ['25.10.2026 01:30:00','29.03.2026 01:30:00','bad']:self.assertIsNone(o.op_dt(value))
+ def test_old_moscow_clock_is_reinterpreted_as_server_time(self):
+  o=self.ops;op=self.op;op.update(arrival_iso='2030-01-02T12:20:00+03:00',arrival='02.01.2030 12:20:00')
+  op['attacks']['real']['arrival_iso']='2030-01-02T12:20:00+03:00'
+  from datetime import datetime
+  stamp=datetime.fromisoformat(op['arrival_iso']).timestamp();o.save(o.OPERATIONS,{'op':op});before=o.OPERATIONS.read_bytes();loaded=o.load(o.OPERATIONS)['op']
+  self.assertEqual(loaded['arrival'],'02.01.2030 12:20:00');self.assertEqual(loaded['attacks']['real']['arrival'],'02.01.2030 12:20:00');self.assertEqual(datetime.fromisoformat(loaded['arrival_iso']).timestamp(),stamp+10800);self.assertEqual(o.OPERATIONS.read_bytes(),before)
+ def test_travel_and_offsets_across_dst_use_elapsed_seconds(self):
+  o=self.ops;op=self.op;a=op['attacks']['real'];a.update(arrival_iso='2026-10-25T02:10:00+00:00',speed=1,arena=0)
+  departure,_=o.op_travel(a,op);self.assertEqual(departure.strftime('%H:%M:%S %z'),'01:10:00 +0000')
+  self.assertEqual(o.server_datetime(a['arrival_iso']).timestamp()-departure.timestamp(),3600)
+  op['arrival_iso']='2026-10-25T00:59:59+01:00';a['offset']=2;o.op_retime(op,a);self.assertEqual(a['arrival'],'25.10.2026 01:00:01')
+  op['arrival_iso']='2026-10-25T01:59:59+01:00';o.op_retime(op,a);self.assertEqual(a['arrival_iso'],'2026-10-25T01:00:01+00:00')
+ def test_midnight_and_save_roundtrip_keep_exact_elapsed_time(self):
+  o=self.ops;departure=o.op_dt('19.11.2026 00:10:00');start,arrival,back,_=o.save_trip({'x':0,'y':0},[1,0],0,departure)
+  self.assertEqual(start.strftime('%d.%m %H:%M:%S'),'18.11 23:29:00');self.assertEqual(departure.timestamp()-back.timestamp(),60);self.assertEqual(back.timestamp()-start.timestamp(),2400)
+  fall=o.server_datetime('2026-10-25T02:00:00+00:00');start,arrival,back,_=o.save_trip({'x':0,'y':0},[5,0],0,fall);self.assertEqual(back.timestamp()-start.timestamp(),12000)
+ def test_reminder_markers_match_same_instant_with_different_offsets(self):
+  o=self.ops;self.assertTrue(o.same_time_marker('2026-11-18T12:00:00+03:00','2026-11-18T09:00:00+00:00'));self.assertFalse(o.same_time_marker('2026-11-18T12:00:00+03:00','2026-11-18T12:00:00+00:00'));self.assertTrue(o.same_time_marker('2026-11-18T12:00:00+03:00|[1, 0]','2026-11-18T09:00:00+00:00|[1, 0]'))
+
+ def test_migration_is_idempotent_and_preserves_clock_offsets_and_waves(self):
+  o=self.ops;op=self.op;op.update(arrival_iso='2030-01-02T12:20:00+03:00',arrival='02.01.2030 12:20:00')
+  op['attacks']['real']['arrival_iso']='2030-01-02T12:20:00+03:00'
+  o.save(o.OPERATIONS,{'op':op});o.state(1,'op_pick_targets',{'arrival_iso':'2030-01-02T12:20:00+03:00'})
+  o.migrate_server_times();first=o.OPERATIONS.read_bytes();loaded=o.load(o.OPERATIONS)['op'];self.assertEqual(loaded['arrival_iso'],'2030-01-02T12:20:00+00:00');self.assertEqual(loaded['attacks']['real']['wave_plan'],op['attacks']['real']['wave_plan']);self.assertEqual(o.getstate(1)['data']['arrival_iso'],'2030-01-02T12:20:00+00:00')
+  o.migrate_server_times();self.assertEqual(o.OPERATIONS.read_bytes(),first)

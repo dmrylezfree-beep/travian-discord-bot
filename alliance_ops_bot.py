@@ -1,6 +1,7 @@
 import os, re, json, time, html, subprocess, uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import requests
 
 TELEGRAM_PROXY_URL = os.environ.get("TELEGRAM_PROXY_URL")
@@ -11,7 +12,8 @@ COORDINATORS={317595036}
 SNAPSHOTS=Path("data/snapshots")
 DATA=Path("data/alliance_ops")
 OFFERS=DATA/"offers.json"; TARGETS=DATA/"targets.json"; STATES=DATA/"states.json"; OPERATIONS=DATA/"operations.json"
-TZ=timezone(timedelta(hours=3))
+TZ=ZoneInfo('Europe/London')
+TIME_NOTE='🕒 Время сервера Travian (Europe/London): летом UTC+1, зимой UTC.'
 TRIBES={1:"Римляне",2:"Германцы",3:"Галлы",6:"Египтяне",7:"Гунны",8:"Спартанцы"}
 TROOPS={
 1:["Легионер","Преторианец","Империанец","Конница легата","Императорская конница","Конница Цезаря","Таран","Огненная катапульта","Сенатор"],
@@ -22,6 +24,53 @@ TROOPS={
 8:["Гоплит","Страж","Щитоносец","Разведчик","Элпида","Коринфский всадник","Таран","Баллиста","Эфор"]}
 TARGET_TYPES=["Столица","Офф","Деф","Обычная","Не определено"]
 
+def server_datetime(value):
+    value=datetime.fromisoformat(value) if isinstance(value,str) else value
+    return value.replace(tzinfo=TZ) if value.tzinfo is None else value.astimezone(TZ)
+
+
+def shift_seconds(value,seconds):
+    return datetime.fromtimestamp(server_datetime(value).timestamp()+seconds,TZ)
+
+
+def normalize_operation_times(operations):
+    for op in operations.values():
+        legacy=op.get('time_zone')!='Europe/London'
+        for item in [op]+list(op.get('attacks',{}).values()):
+            if not item.get('arrival_iso'):continue
+            if legacy:
+                # Explicit owner choice: keep the entered clock, reinterpret it
+                # as Travian time, rather than preserve its old Moscow instant.
+                wall=datetime.fromisoformat(item['arrival_iso']).replace(tzinfo=None)
+                dt=op_dt(wall.strftime('%d.%m.%Y %H:%M:%S'))
+                if dt is None:raise ValueError('Ambiguous legacy operation time')
+            else:dt=server_datetime(item['arrival_iso'])
+            item['arrival_iso']=dt.isoformat()
+            item['arrival']=dt.strftime('%d.%m.%Y %H:%M:%S')
+        op['time_zone']='Europe/London'
+    return operations
+
+
+def migrate_server_times():
+    # One-time migration happens before polling/reminders. All rows are prepared
+    # before either file is replaced; no silent partial conversion of an op.
+    operations=json.loads(OPERATIONS.read_text(encoding='utf-8'))
+    states=json.loads(STATES.read_text(encoding='utf-8'))
+    original=json.dumps(operations,sort_keys=True)
+    normalize_operation_times(operations)
+    for session in states.values():
+        data=session.get('data') or {}
+        if data.get('arrival_iso') and data.get('time_zone')!='Europe/London':
+            wall=datetime.fromisoformat(data['arrival_iso']).replace(tzinfo=None)
+            dt=op_dt(wall.strftime('%d.%m.%Y %H:%M:%S'))
+            if dt is None:raise ValueError('Ambiguous legacy wizard time')
+            data['arrival_iso']=dt.isoformat();data['time_zone']='Europe/London'
+    if json.dumps(operations,sort_keys=True)!=original:
+        temp=OPERATIONS.with_suffix('.json.tmp');save(temp,operations);temp.replace(OPERATIONS)
+    if states!=json.loads(STATES.read_text(encoding='utf-8')):
+        temp=STATES.with_suffix('.json.tmp');save(temp,states);temp.replace(STATES)
+
+
 def now(): return datetime.now(TZ).isoformat(timespec="seconds")
 def ensure():
     DATA.mkdir(parents=True,exist_ok=True)
@@ -29,7 +78,9 @@ def ensure():
         if not p.exists(): p.write_text("{}",encoding="utf-8")
 def load(p):
     ensure()
-    try: return json.loads(p.read_text(encoding="utf-8"))
+    try:
+        value=json.loads(p.read_text(encoding="utf-8"))
+        return normalize_operation_times(value) if p==OPERATIONS else value
     except: return {}
 def save(p,d): p.write_text(json.dumps(d,ensure_ascii=False,indent=2,sort_keys=True),encoding="utf-8")
 def persist(msg):
@@ -112,6 +163,7 @@ def api(method,payload=None):
     if not d.get("ok"):raise RuntimeError(d)
     return d.get("result")
 def send(cid,text,kb=None):
+    if TIME_NOTE not in text:text+="\n\n"+TIME_NOTE
     p={"chat_id":cid,"text":text,"parse_mode":"HTML"}
     if kb:p["reply_markup"]={"inline_keyboard":kb}
     return api("sendMessage",p)
@@ -269,9 +321,15 @@ def show_target(cid,key):
 
 def op_dt(text):
     for fmt in ("%d.%m.%Y %H:%M:%S","%d.%m.%Y %H:%M"):
-        try:return datetime.strptime(text,fmt).replace(tzinfo=TZ)
-        except ValueError:pass
+        try:wall=datetime.strptime(text,fmt)
+        except ValueError:continue
+        choices=set()
+        for fold in (0,1):
+            stamp=wall.replace(tzinfo=TZ,fold=fold).timestamp()
+            if datetime.fromtimestamp(stamp,TZ).replace(tzinfo=None)==wall:choices.add(stamp)
+        return datetime.fromtimestamp(choices.pop(),TZ) if len(choices)==1 else None
     return None
+
 
 def op_id():
     return uuid.uuid4().hex[:16]
@@ -484,9 +542,9 @@ def generate_op(uid,d):
     if not d.get('targets') or not selected_alliance_keys(d) or any(key not in targets_all or target_alliance_key(targets_all[key]) not in selected_alliance_keys(d) for key in d['targets']):
         raise ValueError('Цели или их альянс изменились. Выберите альянсы и цели заново.')
     if any(key not in offers_all for key in d.get('offers',[])):raise ValueError('Офф-деревня удалена. Выберите офферов заново.')
-    arrival_dt=datetime.fromisoformat(d["arrival_iso"])
+    arrival_dt=server_datetime(d["arrival_iso"])
     op={"id":oid,"name":"Операция","status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
-        "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,"creator_username":d.get("creator_username"),"creator_name":d.get("creator_name"),
+        "time_zone":"Europe/London","arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,"creator_username":d.get("creator_username"),"creator_name":d.get("creator_name"),
         "comment":"","offers":{},"targets":{},"attacks":{},
         "enemy_alliance_keys":sorted(selected_alliance_keys(d)),"enemy_alliance_key":next(iter(selected_alliance_keys(d))) if len(selected_alliance_keys(d))==1 else None,"enemy_alliance":d.get("alliance_name","")}
     for ouid in d["offers"]:
@@ -499,7 +557,7 @@ def generate_op(uid,d):
     for ouid,o in op["offers"].items():
         for key,t in op["targets"].items():
             i+=1; defaults=op_attack_defaults(t["mode"],t)
-            actual=arrival_dt+timedelta(seconds=o["offset"])
+            actual=shift_seconds(arrival_dt,o["offset"])
             op["attacks"][str(i)]={"id":str(i),"offer_id":ouid,"offer_player":o["player"],"target_key":key,
                 "mode":defaults["mode"],"waves":defaults["waves"],"wave_plan":defaults["wave_plan"],
                 "comment":"","offset":o["offset"],"arrival":actual.strftime("%d.%m.%Y %H:%M:%S"),
@@ -532,7 +590,7 @@ def op_store(ops, msg="Edit operation"):
     save(OPERATIONS,ops)
 
 def op_retime(op,a):
-    dt=datetime.fromisoformat(op["arrival_iso"])+timedelta(seconds=int(a["offset"]))
+    dt=shift_seconds(server_datetime(op["arrival_iso"]),int(a["offset"]))
     a["arrival_iso"]=dt.isoformat()
     a["arrival"]=dt.strftime("%d.%m.%Y %H:%M:%S")
 
@@ -544,7 +602,7 @@ def op_travel(a,op):
     # Travian tournament square: beyond 20 fields, speed rises by 20% per arena level.
     if speed<=0:return None,dist
     hours=min(dist,20)/speed+max(0,dist-20)/(speed*(1+arena*.2))
-    return datetime.fromisoformat(a["arrival_iso"])-timedelta(seconds=round(hours*3600)),dist
+    return shift_seconds(server_datetime(a["arrival_iso"]),-round(hours*3600)),dist
 
 def operation_departures(op):
     result=[]
@@ -564,7 +622,7 @@ def op_departures(cid,oid,page=0,message_id=None):
     jobs=operation_departures(op);page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
     page=max(0,min(int(page),pages-1))
     lines=['🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
-           'От самой ранней к самой поздней. Время — МСК (UTC+3).',f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
+           'От самой ранней к самой поздней.',TIME_NOTE,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
     buttons=[]
     for index,(departure,aid,attack) in enumerate(jobs[page*page_size:(page+1)*page_size],page*page_size+1):
         offer=op.get('offers',{}).get(attack.get('offer_id'),{})
@@ -661,7 +719,7 @@ def op_new_send(cid,oid,ouid,key):
 
 def personal_jobs(op,uid):
     jobs=[a for a in op.get("attacks",{}).values() if op_owner(op,a.get("offer_id"))==str(uid)]
-    return sorted(jobs,key=lambda a:(op_travel(a,op)[0] or datetime.max.replace(tzinfo=TZ),str(a["id"])))
+    return sorted(jobs,key=lambda a:(op_travel(a,op)[0].timestamp() if op_travel(a,op)[0] else float('inf'),str(a["id"])))
 
 def cleanup_expired_operations():
     ops=load(OPERATIONS)
@@ -674,8 +732,8 @@ def cleanup_expired_operations():
         if not attacks:
             continue
         try:
-            arrivals=[datetime.fromisoformat(a["arrival_iso"]) for a in attacks]
-            if all(dt.tzinfo is not None and dt<=current for dt in arrivals):
+            arrivals=[server_datetime(a["arrival_iso"]) for a in attacks]
+            if all(dt.tzinfo is not None and dt.timestamp()<=current.timestamp() for dt in arrivals):
                 expired.append(oid)
         except (KeyError,ValueError,TypeError):
             continue
@@ -721,7 +779,7 @@ def personal_operation(uid,oid):
 def real_jobs(op,uid):
     current=datetime.now(TZ)
     return [a for a in personal_jobs(op,uid) if a.get("mode") in ("destroy","capture")
-            and not a.get("sent_at") and op_travel(a,op)[0] and op_travel(a,op)[0]>current]
+            and not a.get("sent_at") and op_travel(a,op)[0] and op_travel(a,op)[0].timestamp()>current.timestamp()]
 
 
 def selected_real(op,uid,aid=None):
@@ -734,8 +792,8 @@ def save_trip(origin,point,arena,departure):
     distance=(min(dx,401-dx)**2+min(dy,401-dy)**2)**0.5
     if not distance:raise ValueError("Сейв-точка совпадает с вашей офф-деревней.")
     seconds=round((min(distance,20)/3+max(0,distance-20)/(3*(1+int(arena)*.2)))*3600)
-    back=departure-timedelta(minutes=1)
-    return back-timedelta(seconds=2*seconds),back-timedelta(seconds=seconds),back,distance
+    back=shift_seconds(departure,-60)
+    return shift_seconds(back,-2*seconds),shift_seconds(back,-seconds),back,distance
 
 
 def spam_wave_units(text):
@@ -757,7 +815,7 @@ def spam_reserve(op,uid,real):
     for a in personal_jobs(op,uid):
         if a.get("mode")!="spam" or a.get("sent_at") or a["offer_id"]!=real["offer_id"]:continue
         dt=op_travel(a,op)[0]
-        key="before" if dt<departure else "after" if dt>departure else "same"
+        key="before" if dt.timestamp()<departure.timestamp() else "after" if dt.timestamp()>departure.timestamp() else "same"
         waves=a.get("wave_plan",[])
         for wave in waves:
             group=groups[key];group["waves"]+=1
@@ -819,13 +877,21 @@ def choose_save_point(cid,uid,oid,aid,point=None):
         reminders.pop(ident,None);send(cid,'🔕 Напоминание о сейве отменено.')
     else:
         option=save_option(op,uid,aid,point)
-        if not option or option[1]<=datetime.now(TZ):send(cid,'Точка недоступна или время выхода уже прошло. Обновите план.');return
+        if not option or option[1].timestamp()<=datetime.now(TZ).timestamp():send(cid,'Точка недоступна или время выхода уже прошло. Обновите план.');return
         previous=reminders.get(ident,{})
         if previous.get('point')!=point:reminders[ident]={'oid':oid,'aid':aid,'point':point}
-        start=option[1];due=start-timedelta(minutes=5)
-        send(cid,f"🔔 Выбрана точка <b>{point[0]}|{point[1]}</b>. Выход: <b>{start.strftime('%d.%m %H:%M:%S')}</b> (МСК). "+('Напоминание придёт в ближайшее время: до выхода меньше пяти минут.' if due<=datetime.now(TZ) else f"Напомню за 5 минут — {due.strftime('%d.%m %H:%M:%S')}."))
+        start=option[1];due=shift_seconds(start,-300)
+        send(cid,f"🔔 Выбрана точка <b>{point[0]}|{point[1]}</b>. Выход: <b>{start.strftime('%d.%m %H:%M:%S')}</b> (время Travian). "+('Напоминание придёт в ближайшее время: до выхода меньше пяти минут.' if due.timestamp()<=datetime.now(TZ).timestamp() else f"Напомню за 5 минут — {due.strftime('%d.%m %H:%M:%S')}."))
     save(OFFERS,offers);persist('Update personal save reminder')
     personal_support(cid,uid,oid,'save',aid)
+
+
+def same_time_marker(first,second):
+    if not first or not second:return first==second
+    try:
+        first_time,_,first_suffix=str(first).partition('|');second_time,_,second_suffix=str(second).partition('|')
+        return first_suffix==second_suffix and server_datetime(first_time).timestamp()==server_datetime(second_time).timestamp()
+    except (ValueError,TypeError):return first==second
 
 
 def send_save_reminders():
@@ -836,15 +902,15 @@ def send_save_reminders():
             op=ops.get(selection.get('oid'),{});uid=offer_owner(key,offer);point=selection.get('point')
             try:option=save_option(op,uid,selection.get('aid'),point)
             except (ValueError,TypeError,KeyError):option=None
-            if not option or option[0]!=key or option[1]<=current:
+            if not option or option[0]!=key or option[1].timestamp()<=current.timestamp():
                 reminders.pop(ident,None);save(OFFERS,offers);continue
             _,start,arrival,back=option
             marker=start.isoformat()+'|'+str(point)
-            if current<start-timedelta(minutes=5) or selection.get('sent_for')==marker:continue
+            if current.timestamp()<start.timestamp()-300 or same_time_marker(selection.get('sent_for'),marker):continue
             oid=selection['oid'];aid=selection['aid']
             text=(f"🔔 <b>Пора подготовить сейв армии</b>\n{html.escape(op.get('name','Операция'))}\n"
                   f"🏘 Из: <b>{offer['x']}|{offer['y']}</b> → <b>{point[0]}|{point[1]}</b>\n"
-                  f"Отправить: <b>{start.strftime('%d.%m.%Y %H:%M:%S')}</b> (МСК)\n"
+                  f"Отправить: <b>{start.strftime('%d.%m.%Y %H:%M:%S')}</b> (время Travian)\n"
                   f"Вернуться: <b>{back.strftime('%d.%m %H:%M:%S')}</b> — за минуту до реальной атаки.\n"
                   'Скорость 3, полный поход туда и обратно.')
             try:send(int(uid),text,[[btn('🛡 Открыть сейв',f'mine:save:{oid}:{aid}')]])
@@ -864,7 +930,7 @@ def personal_support(cid,uid,oid,kind="save",aid=None):
         lines=[f"🛡 <b>Сейв-точки · {html.escape(op['name'])}</b>" if kind=="save" else f"💡 <b>Спам · {html.escape(op['name'])}</b>",
                f"Офф-деревня: <b>{html.escape(village_label(op['offers'][real['offer_id']]))}</b>",
                f"Реальная атака: <code>{html.escape(real['target_key'])}</code>",
-               f"Отправка: <b>{departure.strftime('%d.%m.%Y %H:%M:%S')}</b> (МСК)",""]
+               f"Отправка: <b>{departure.strftime('%d.%m.%Y %H:%M:%S')}</b> (время Travian)",""]
         if kind=="save":
             origin=op['offers'][real['offer_id']];offer=current_plan_offer(op,real['offer_id']);arena=int(offer.get('arena',origin['arena']))
             lines.extend([f"Скорость: <b>3</b> · Текущая арена: <b>{arena}</b>","Полный поход туда и обратно, без бонусов героя и артефактов."])
@@ -875,9 +941,9 @@ def personal_support(cid,uid,oid,kind="save",aid=None):
                 try:start,arrival,back,distance=save_trip(origin,point,arena,departure)
                 except ValueError:continue
                 lines.extend(["",f"📍 <b>{point[0]}|{point[1]}</b> · {distance:.2f} клеток",
-                              f"Уйти: <code>{start.strftime('%d.%m %H:%M:%S')}</code>"+(" — время уже прошло" if start<=datetime.now(TZ) else ""),
+                              f"Уйти: <code>{start.strftime('%d.%m %H:%M:%S')}</code>"+(" — время уже прошло" if start.timestamp()<=datetime.now(TZ).timestamp() else ""),
                               f"Прибыть в точку: {arrival.strftime('%d.%m %H:%M:%S')}",f"Вернуться: <b>{back.strftime('%d.%m %H:%M:%S')}</b>"])
-                if start>datetime.now(TZ) and owns_offer(uid,real['offer_id']) and same_origin(offer,origin):
+                if start.timestamp()>datetime.now(TZ).timestamp() and owns_offer(uid,real['offer_id']) and same_origin(offer,origin):
                     mark='✅' if choice.get('point')==point else '🔔'
                     buttons.append([btn(f"{mark} {point[0]}|{point[1]} · {start.strftime('%d.%m %H:%M:%S')}",f"mine:choose:{oid}:{real['id']}:{point[0]}:{point[1]}")])
             if choice:buttons.append([btn('🔕 Отменить напоминание',f"mine:unsave:{oid}:{real['id']}")])
@@ -907,15 +973,15 @@ def personal_op(cid,uid,oid,message_id=None):
     done=sum(bool(a.get("sent_at")) for a in jobs)
     current=datetime.now(TZ)
     pending=[(op_travel(a,op)[0],a) for a in jobs if not a.get("sent_at")]
-    future=[(dt,a) for dt,a in pending if dt and dt>current]
-    overdue=[(dt,a) for dt,a in pending if dt and dt<=current]
+    future=[(dt,a) for dt,a in pending if dt and dt.timestamp()>current.timestamp()]
+    overdue=[(dt,a) for dt,a in pending if dt and dt.timestamp()<=current.timestamp()]
     lines=[f"⚔️ <b>{html.escape(op['name'])}</b>",
            "Автор: "+creator_tag(op),
            f"Готовность: {'✅ подтверждена' if op.get('ready',{}).get(str(uid)) else '⏳ не подтверждена'}",
            f"Отправлено: <b>{done} из {len(jobs)}</b>",""]
     if future:
-        dt,a=min(future,key=lambda z:z[0])
-        remaining=max(0,int((dt-current).total_seconds()))
+        dt,a=min(future,key=lambda z:z[0].timestamp())
+        remaining=max(0,int((dt.timestamp()-current.timestamp())))
         h,rem=divmod(remaining,3600);m,sec=divmod(rem,60)
         lines.append(f"⏰ Следующая: <b>{dt.strftime('%d.%m %H:%M:%S')}</b> → <code>{a['target_key']}</code>")
         lines.append(f"⌛ До отправки: <b>{h:02d}:{m:02d}:{sec:02d}</b>")
@@ -925,12 +991,12 @@ def personal_op(cid,uid,oid,message_id=None):
     lines.append(f"🔄 Обновлено: {current.strftime('%H:%M:%S')}")
     buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")],
              [btn("🛡 Сейв-точки",f"mine:save:{oid}"),btn("💡 Юниты для спама",f"mine:spam:{oid}")]]
-    buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt<=current else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
+    buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt.timestamp()<=current.timestamp() else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
                 for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
     if not op.get("ready",{}).get(str(uid)):
         buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
     buttons.append([btn("⬅️ Мой план","mine:list")])
-    message="\n".join(lines)
+    message="\n".join(lines)+"\n\n"+TIME_NOTE
     if message_id is None:
         send(cid,message,buttons)
     else:
@@ -986,12 +1052,12 @@ def send_reminders():
             if a.get("sent_at"):continue
             departure,_=op_travel(a,op)
             if not departure:continue
-            seconds=(departure-current).total_seconds()
+            seconds=(departure.timestamp()-current.timestamp())
             marker=departure.isoformat()
-            if not 0<seconds<=300 or a.get("reminder_sent_for")==marker:continue
+            if not 0<seconds<=300 or same_time_marker(a.get("reminder_sent_for"),marker):continue
             grouped.setdefault(op_owner(op,a["offer_id"]),[]).append((departure,a,marker))
         for offer_uid,jobs in grouped.items():
-            jobs.sort(key=lambda item:(item[0],str(item[1]["id"])))
+            jobs.sort(key=lambda item:(item[0].timestamp(),str(item[1]["id"])))
             lines=[f"⏰ <b>{html.escape(op['name'])}: отправки в ближайшие 5 минут</b>"]
             buttons=[]
             for departure,a,marker in jobs:
@@ -1095,8 +1161,8 @@ def handle_message(m):
 
     if step=="op_arrival":
         dt=op_dt(text)
-        if not dt:send(cid,"❌ Формат: <code>05.10.2026 20:00:00</code>");return
-        d["arrival_iso"]=dt.isoformat();d["base_speed"]=3
+        if not dt:send(cid,"❌ Введите время сервера Travian: <code>05.10.2026 20:00:00</code>. В час перевода часов выберите однозначное время.");return
+        d["arrival_iso"]=dt.isoformat();d["time_zone"]="Europe/London";d["base_speed"]=3
         d["offers"]=[];d["offsets"]={}
         state(uid,"op_pick_offers",d);op_offer_picker(cid,d);return
     if step=="op_offset":
@@ -1143,11 +1209,11 @@ def handle_message(m):
         if not owned_operation(uid,d.get('oid')):state(uid);send(cid,'⛔ Операция недоступна.');return
         dt=op_dt(text)
         if not dt:
-            send(cid,"❌ Введите дату и время: <code>10.10.2026 23:30:00</code>");return
+            send(cid,"❌ Введите дату и время сервера Travian: <code>10.10.2026 23:30:00</code>. В час перевода часов выберите однозначное время.");return
         oid=d["oid"];ops=load(OPERATIONS);op=ops.get(oid)
         if not op:state(uid);send(cid,"❌ Операция не найдена.");return
-        old_dt=datetime.fromisoformat(op["arrival_iso"])
-        delta=dt-old_dt
+        old_dt=server_datetime(op["arrival_iso"])
+        delta=timedelta(seconds=dt.timestamp()-old_dt.timestamp())
         if delta.total_seconds()==0:
             state(uid);send(cid,"Время операции не изменилось.");show_op(cid,oid);return
         op["arrival_iso"]=dt.isoformat()
@@ -1305,7 +1371,7 @@ def callback(c):
             if d.get('arrival_iso'):
                 state(uid,'op_pick_targets',d);op_target_picker(cid,d)
             else:
-                state(uid,'op_arrival',d);send(cid,'🕐 <b>Новая операция</b>\nАльянсы: <b>'+html.escape(d['alliance_name'])+'</b>\nВведите дату и время прибытия.\nФормат: <code>05.10.2026 20:00:00</code>')
+                state(uid,'op_arrival',d);send(cid,'🕐 <b>Новая операция</b>\nАльянсы: <b>'+html.escape(d['alliance_name'])+'</b>\nВведите дату и время прибытия по серверу Travian.\nФормат: <code>05.10.2026 20:00:00</code>')
             return
         if key not in groups:send(cid,'Целей этого альянса больше нет.');op_alliance_picker(cid,d);return
         if key in selected:selected.remove(key)
@@ -1413,7 +1479,7 @@ def callback(c):
         sent=sum(bool(a.get("sent_at")) for a in op["attacks"].values())
         state(uid,"op_change_time",{"oid":oid})
         send(cid,f"🕒 <b>Изменить время операции</b>\nТекущее: <b>{op['arrival']}</b>\\n"
-             f"Введите новую дату и время прибытия в формате <code>10.10.2026 23:30:00</code>.\\n"
+             f"Введите новую дату и время прибытия по серверу Travian в формате <code>10.10.2026 23:30:00</code>.\\n"
              f"Индивидуальные смещения сохранятся. Уже отправленных атак: {sent} (не изменятся).")
         return
     if x.startswith("oall:"):op_all_edit_menu(cid,x.split(":",1)[1]);return
@@ -1487,6 +1553,7 @@ def callback(c):
 
 def main():
     ensure()
+    migrate_server_times()
     if not TOKEN:raise RuntimeError("ALLIANCE_OPS_TELEGRAM_TOKEN is required")
     print("ALLIANCE OPS BOT",api("getMe").get("username"),flush=True)
     offset=None
