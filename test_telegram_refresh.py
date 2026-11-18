@@ -313,6 +313,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_every_management_callback_denies_other_users_and_coordinator(self):
   o=self.ops;self.private_fixture()
   args={'op':'op','optargets':'op','opoffers':'op','optarget':'op:t','opoffer':'op:1','oa':'op:real','owaves':'op:real','oedit':'op:real:comment','otypes':'op:real','otype':'op:real:spam','owadd':'op:real','owdel':'op:real','odelask':'op:real','odelyes':'op:real','oofferedit':'op:1','oretime':'op','oall':'op','obulk':'op:all:-','oadd':'op','oaddoffer':'op:1','oaddtarget':'op:1:t','opdeleteask':'op','opdeleteyes':'op','odraftask':'op','odraftyes':'op','publish':'op','progress':'op'}
+  args['opdepartures']='op:0'
   self.assertEqual(set(args),set(o.OP_MANAGEMENT_ACTIONS))
   for actor in [2,next(iter(o.COORDINATORS))]:
    for action,suffix in args.items():
@@ -1253,3 +1254,37 @@ class MultiAllianceOperationTests(unittest.TestCase):
   with patch.object(o,'api'):
    o.state(1,'op_pick_alliance',{'alliance_key':'2'});self.click('opalliance:done');self.assertEqual(o.getstate(1)['step'],'op_arrival');self.click('ops:new',uid=2)
   self.assertEqual(o.getstate(1)['data']['alliance_keys'],['2']);self.assertEqual(o.getstate(2)['data'],{});self.assertEqual(o.OPERATIONS.read_bytes(),before)
+
+class OperationDepartureListTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  self.op.update(created_by=1,name='Test <operation>');self.ops.save(self.ops.OPERATIONS,{'op':self.op})
+ def test_all_sends_sorted_by_departure_and_detail_links(self):
+  o=self.ops;self.fixture();o.op_departures(1,'op');text,buttons=self.sender.call_args.args[1:]
+  self.assertLess(text.index('11:00:00'),text.index('12:00:00'));self.assertLess(text.index('12:00:00'),text.index('13:00:00'))
+  self.assertIn('МСК (UTC+3)',text);self.assertIn('0|0',text);self.assertIn('1|0',text);self.assertIn('Test &lt;operation&gt;',text)
+  links=[b['callback_data'] for row in buttons for b in row];self.assertEqual(sum(x.startswith('oa:op:') for x in links),4)
+ def test_uses_calculated_departure_not_arrival_and_refreshes_after_edit(self):
+  o=self.ops;self.fixture();op=o.load(o.OPERATIONS)['op'];op['offers']['far']={**op['offers']['1'],'x':100,'arena':0,'player':'Far'}
+  op['attacks']['late']=dict(op['attacks']['after'],id='late',offer_id='far');o.save(o.OPERATIONS,{'op':op})
+  self.assertEqual(o.operation_departures(op)[0][1],'late')
+  op['attacks']['late']['speed']=100;o.save(o.OPERATIONS,{'op':op});self.assertNotEqual(o.operation_departures(op)[0][1],'late')
+ def test_pages_include_every_send_and_edit_same_message(self):
+  o=self.ops;self.fixture();op=o.load(o.OPERATIONS)['op'];template=next(iter(op['attacks'].values()));op['attacks']={str(i):dict(template,id=str(i)) for i in range(17)};o.save(o.OPERATIONS,{'op':op});seen=[]
+  with patch.object(o,'api') as api:
+   for page in range(4):
+    o.callback({'id':'fixture','from':{'id':1},'message':{'message_id':77,'chat':{'id':1,'type':'private'}},'data':f'opdepartures:op:{page}'})
+    edit=[call for call in api.call_args_list if call.args[0]=='editMessageText'][-1].args[1];self.assertEqual(edit['message_id'],77);self.assertLess(len(edit['text']),4096)
+    seen.extend(b['callback_data'].split(':')[-1] for row in edit['reply_markup']['inline_keyboard'] for b in row if b['callback_data'].startswith('oa:'))
+  self.assertEqual(len(seen),17);self.assertEqual(len(set(seen)),17)
+ def test_only_owner_can_view_even_if_participant(self):
+  o=self.ops;self.fixture();self.sender.reset_mock();o.op_departures(2,'op');self.assertIn('недоступна',self.sender.call_args.args[1])
+  with patch.object(o,'api') as api:
+   o.callback({'id':'fixture','from':{'id':2},'message':{'message_id':77,'chat':{'id':2,'type':'private'}},'data':'opdepartures:op:0'})
+   self.assertFalse(any(call.args[0]=='editMessageText' for call in api.call_args_list))
+ def test_empty_invalid_time_and_long_names_do_not_hide_sends(self):
+  o=self.ops;self.fixture();op=o.load(o.OPERATIONS)['op'];op['offers']['1']['player']='&'*200
+  op['targets']['t']['player']='&'*200
+  for attack in op['attacks'].values():attack['speed']=0
+  o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op');text=self.sender.call_args.args[1];self.assertIn('Время не рассчитано',text);self.assertLess(len(text),4096)
+  op['attacks']={};o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op');self.assertIn('пока нет отправок',self.sender.call_args.args[1])

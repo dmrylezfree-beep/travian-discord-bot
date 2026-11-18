@@ -203,7 +203,7 @@ def personal_village(cid,uid,key):
 
 # Every management callback names an existing operation in its second field.
 OP_MANAGEMENT_ACTIONS=frozenset({
- 'op','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
+ 'op','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
  'owadd','owdel','odelask','odelyes','oofferedit','oretime','oall','obulk','oadd',
  'oaddoffer','oaddtarget','opdeleteask','opdeleteyes','odraftask','odraftyes','publish','progress'})
 
@@ -316,6 +316,7 @@ def show_op(cid,oid):
     op=load(OPERATIONS).get(oid)
     if not op:send(cid,"❌ Операция не найдена.");return
     buttons=[[btn("📊 Готовность и прогресс",f"progress:{oid}")],
+             [btn("🕐 Все отправки по времени",f"opdepartures:{oid}:0")],
              [btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],
              [btn("🕒 Изменить время операции",f"oretime:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],
              ]
@@ -544,6 +545,57 @@ def op_travel(a,op):
     if speed<=0:return None,dist
     hours=min(dist,20)/speed+max(0,dist-20)/(speed*(1+arena*.2))
     return datetime.fromisoformat(a["arrival_iso"])-timedelta(seconds=round(hours*3600)),dist
+
+def operation_departures(op):
+    result=[]
+    for aid,attack in op.get('attacks',{}).items():
+        try:
+            departure,_=op_travel(attack,op)
+            if departure is not None:
+                departure=departure.replace(tzinfo=TZ) if departure.tzinfo is None else departure.astimezone(TZ)
+        except (KeyError,ValueError,TypeError,OverflowError,ZeroDivisionError):departure=None
+        result.append((departure,str(aid),attack))
+    return sorted(result,key=lambda item:(item[0].timestamp() if item[0] else float('inf'),item[1]))
+
+
+def op_departures(cid,oid,page=0,message_id=None):
+    op=owned_operation(cid,oid)
+    if not op:send(cid,'⛔ Операция недоступна.');return
+    jobs=operation_departures(op);page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
+    page=max(0,min(int(page),pages-1))
+    lines=['🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
+           'От самой ранней к самой поздней. Время — МСК (UTC+3).',f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
+    buttons=[]
+    for index,(departure,aid,attack) in enumerate(jobs[page*page_size:(page+1)*page_size],page*page_size+1):
+        offer=op.get('offers',{}).get(attack.get('offer_id'),{})
+        target=op.get('targets',{}).get(attack.get('target_key'),{})
+        origin=f"{offer.get('x','?')}|{offer.get('y','?')}"
+        destination=f"{target['x']}|{target['y']}" if 'x' in target and 'y' in target else str(attack.get('target_key','?'))
+        clock=departure.strftime('%d.%m.%Y %H:%M:%S') if departure else '⚠️ Время не рассчитано'
+        player=html.escape(str(offer.get('player') or attack.get('offer_player') or '?')[:40])
+        target_player=html.escape(str(target.get('player') or '?')[:40])
+        mode=html.escape(str(op_mode_name(attack.get('mode','?')))[:40])
+        lines.extend([f'<b>{index}. {clock}</b>'+(' · ✅ Отправлено' if attack.get('sent_at') else ''),
+                      f'👤 {player} · 🏘 <code>{html.escape(origin)}</code>',
+                      f'🎯 <code>{html.escape(destination)}</code> — {target_player}',
+                      f'{mode} · Волн: {int(attack.get("waves",0) or 0)}',''])
+        buttons.append([btn(f'{index}. '+(departure.strftime('%H:%M:%S') if departure else '⚠️')+f' · {origin} → {destination}',f'oa:{oid}:{aid}')])
+    if not jobs:lines.append('В операции пока нет отправок.')
+    nav=[]
+    if page:nav.append(btn('⬅️ Назад',f'opdepartures:{oid}:{page-1}'))
+    if page+1<pages:nav.append(btn('Дальше ➡️',f'opdepartures:{oid}:{page+1}'))
+    if nav:buttons.append(nav)
+    buttons.append([btn('🔄 Обновить',f'opdepartures:{oid}:{page}')])
+    buttons.append([btn('⬅️ К операции',f'op:{oid}')])
+    text='\n'.join(lines)
+    if message_id is None:send(cid,text,buttons)
+    else:
+        try:api('editMessageText',{'chat_id':cid,'message_id':message_id,'text':text,'parse_mode':'HTML','reply_markup':{'inline_keyboard':buttons}})
+        except requests.HTTPError as error:
+            response=getattr(error,'response',None)
+            if response is not None and response.status_code==400 and 'message is not modified' in response.text.lower():return
+            raise
+
 
 def op_attack_view(cid,oid,aid):
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
@@ -1304,6 +1356,10 @@ def callback(c):
             else:d['targets']={};state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d)
             return
         state(uid);show_op(cid,oid);return
+    if x.startswith('opdepartures:'):
+        parts=x.split(':')
+        page=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else 0
+        op_departures(cid,parts[1],page,c['message'].get('message_id'));return
     if x.startswith("optargets:"):op_targets(cid,x.split(":",1)[1]);return
     if x.startswith("opoffers:"):op_offers(cid,x.split(":",1)[1]);return
     if x.startswith("optarget:"):
