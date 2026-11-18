@@ -313,7 +313,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_every_management_callback_denies_other_users_and_coordinator(self):
   o=self.ops;self.private_fixture()
   args={'op':'op','optargets':'op','opoffers':'op','optarget':'op:t','opoffer':'op:1','oa':'op:real','owaves':'op:real','oedit':'op:real:comment','otypes':'op:real','otype':'op:real:spam','owadd':'op:real','owdel':'op:real','odelask':'op:real','odelyes':'op:real','oofferedit':'op:1','oretime':'op','oall':'op','obulk':'op:all:-','oadd':'op','oaddoffer':'op:1','oaddtarget':'op:1:t','opdeleteask':'op','opdeleteyes':'op','odraftask':'op','odraftyes':'op','publish':'op','progress':'op'}
-  args['opdepartures']='op:0'
+  args['opdepartures']='op:0';args['oofferpick']='op:0';args['oofferjoin']='op:1'
   self.assertEqual(set(args),set(o.OP_MANAGEMENT_ACTIONS))
   for actor in [2,next(iter(o.COORDINATORS))]:
    for action,suffix in args.items():
@@ -1321,3 +1321,37 @@ class OperationServerTimeTests(unittest.TestCase):
   o.save(o.OPERATIONS,{'op':op});o.state(1,'op_pick_targets',{'arrival_iso':'2030-01-02T12:20:00+03:00'})
   o.migrate_server_times();first=o.OPERATIONS.read_bytes();loaded=o.load(o.OPERATIONS)['op'];self.assertEqual(loaded['arrival_iso'],'2030-01-02T12:20:00+00:00');self.assertEqual(loaded['attacks']['real']['wave_plan'],op['attacks']['real']['wave_plan']);self.assertEqual(o.getstate(1)['data']['arrival_iso'],'2030-01-02T12:20:00+00:00')
   o.migrate_server_times();self.assertEqual(o.OPERATIONS.read_bytes(),first)
+
+class AddOperationOfferTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;self.op.update(status='draft',created_by=1,arrival_iso='2030-01-02T12:20:00+00:00',arrival='02.01.2030 12:20:00',time_zone='Europe/London',base_speed=3)
+  self.op['targets']={'t':{'x':1,'y':0,'type':'Столица','mode':'destroy'},'second':{'x':2,'y':0,'type':'Обычная','mode':'spam'}}
+  offers=o.load(o.OFFERS);offers['2']=dict(offers['1'],telegram_id=2,x=10,y=10,arena=7,player='Other',village='Second');o.save(o.OFFERS,offers);o.save(o.OPERATIONS,{'op':self.op});return o.load(o.OPERATIONS)['op']
+ def test_add_village_creates_all_targets_once_and_preserves_existing_sends(self):
+  o=self.ops;before=self.fixture();source=o.OFFERS.read_bytes();o.op_add_offer(1,'op','2');after=o.load(o.OPERATIONS)['op']
+  for aid,attack in before['attacks'].items():self.assertEqual(after['attacks'][aid],attack)
+  added=[a for a in after['attacks'].values() if a['offer_id']=='2'];self.assertEqual(len(added),2);self.assertEqual({a['target_key'] for a in added},{'t','second'})
+  for attack in added:
+   self.assertEqual((attack['arena'],attack['speed'],attack['offset'],attack['mode']),(7,3,0,'spam'));self.assertEqual(attack['arrival_iso'],after['arrival_iso'])
+  self.assertEqual({a['target_key']:a['waves'] for a in added},{'t':4,'second':2});self.assertEqual(after['offers']['2']['telegram_id'],2);self.assertEqual(o.OFFERS.read_bytes(),source)
+  o.op_add_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],after)
+ def test_no_access_or_published_or_deleted_village_can_add(self):
+  o=self.ops;before=self.fixture();o.op_add_offer(2,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  offers=o.load(o.OFFERS);offers['2']['deleted_at']=o.now();o.save(o.OFFERS,offers);o.op_add_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  before['status']='published';o.save(o.OPERATIONS,{'op':before});o.op_add_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+ def test_picker_excludes_existing_and_deleted_and_pages_in_same_message(self):
+  o=self.ops;self.fixture();offers=o.load(o.OFFERS)
+  for i in range(3,14):offers[str(i)]=dict(offers['2'],telegram_id=i,x=i)
+  offers['3']['deleted_at']=o.now();o.save(o.OFFERS,offers)
+  with patch.object(o,'api') as api:
+   seen=[]
+   for page in (0,1):
+    o.op_add_offer_picker(1,'op',page,77);data=api.call_args.args[1];self.assertEqual(data['message_id'],77)
+    seen.extend(b['callback_data'] for row in data['reply_markup']['inline_keyboard'] for b in row if b['callback_data'].startswith('oofferjoin:'))
+  self.assertEqual(len(seen),11);self.assertNotIn('oofferjoin:op:1',seen);self.assertNotIn('oofferjoin:op:3',seen)
+ def test_callback_button_in_draft_and_author_only(self):
+  o=self.ops;self.fixture();o.show_op(1,'op');self.assertIn('oofferpick:op:0',str(self.sender.call_args))
+  with patch.object(o,'api'):
+   for uid in (2,1):o.callback({'id':'fixture','from':{'id':uid},'message':{'message_id':77,'chat':{'id':uid,'type':'private'}},'data':'oofferjoin:op:2'})
+  self.assertEqual(len(o.load(o.OPERATIONS)['op']['offers']),2)

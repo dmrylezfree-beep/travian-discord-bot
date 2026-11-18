@@ -255,7 +255,7 @@ def personal_village(cid,uid,key):
 
 # Every management callback names an existing operation in its second field.
 OP_MANAGEMENT_ACTIONS=frozenset({
- 'op','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
+ 'op','oofferpick','oofferjoin','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
  'owadd','owdel','odelask','odelyes','oofferedit','oretime','oall','obulk','oadd',
  'oaddoffer','oaddtarget','opdeleteask','opdeleteyes','odraftask','odraftyes','publish','progress'})
 
@@ -383,6 +383,7 @@ def show_op(cid,oid):
         buttons.append([btn("🗑 Удалить операцию",f"opdeleteask:{oid}")])
     else:
         buttons.insert(0,[btn("📢 Опубликовать",f"publish:{oid}")])
+        buttons.append([btn("➕ Добавить офф-деревню",f"oofferpick:{oid}:0")])
         buttons.append([btn("🗑 Удалить черновик",f"odraftask:{oid}")])
     buttons.append([btn("⬅️ Операции","ops:list")])
     send(cid,op_summary(op),buttons)
@@ -407,6 +408,7 @@ def op_offers(cid,oid):
         n=sum(1 for a in op["attacks"].values() if a["offer_id"]==uid)
         off=o.get("offset",0); sign="+" if off>0 else ""
         rows.append([btn(f"{village_label(o)} · {sign}{off} сек · {n}",f"opoffer:{oid}:{uid}")])
+    if op.get("status")=="draft":rows.append([btn("➕ Добавить офф-деревню",f"oofferpick:{oid}:0")])
     rows.append([btn("⬅️ К операции",f"op:{oid}")])
     send(cid,"👥 <b>Офферы операции</b>",rows)
 
@@ -697,6 +699,52 @@ def op_all_edit_menu(cid,oid):
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
     send(cid,"⏱ <b>Массовое изменение</b>\nЗадать одинаковое смещение всем отправкам операции (включая ранее изменённые).",
          [[btn("⏱ Установить смещение всем",f"obulk:{oid}:all:all")],[btn("⬅️ Операция",f"op:{oid}")]])
+
+def op_add_offer_picker(cid,oid,page=0,message_id=None):
+    op=owned_operation(cid,oid)
+    if not op:send(cid,'⛔ Операция недоступна.');return
+    if op.get('status')!='draft':send(cid,'Добавление офф-деревни доступно только в черновике.');return
+    available=[(key,offer) for key,offer in active_offers().items() if key not in op.get('offers',{})]
+    available.sort(key=lambda item:(str(item[1].get('player','')).casefold(),item[1]['x'],item[1]['y'],item[0]))
+    page_size=8;pages=max(1,(len(available)+page_size-1)//page_size);page=max(0,min(int(page),pages-1))
+    text=('➕ <b>Добавить офф-деревню</b>\nВыберите зарегистрированную деревню. Для неё сразу создадутся спам-отправки на все цели черновика. Скорость — базовая для операции, арена — из настроек деревни, смещение — 0 секунд. Его можно изменить в разделе «По офферам».\n'
+          f'Доступно деревень: {len(available)} · Страница {page+1}/{pages}')
+    if not available:text+='\nВсе зарегистрированные офф-деревни уже добавлены или пока нет доступных деревень.'
+    buttons=[[btn(village_label(offer),f'oofferjoin:{oid}:{key}')] for key,offer in available[page*page_size:(page+1)*page_size]]
+    nav=[]
+    if page:nav.append(btn('⬅️ Назад',f'oofferpick:{oid}:{page-1}'))
+    if page+1<pages:nav.append(btn('Дальше ➡️',f'oofferpick:{oid}:{page+1}'))
+    if nav:buttons.append(nav)
+    buttons.append([btn('⬅️ К операции',f'op:{oid}')])
+    if message_id is None:send(cid,text,buttons)
+    else:
+        api('editMessageText',{'chat_id':cid,'message_id':message_id,'text':text+'\n\n'+TIME_NOTE,'parse_mode':'HTML','reply_markup':{'inline_keyboard':buttons}})
+
+
+def op_add_offer(cid,oid,ouid):
+    if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
+    ops=load(OPERATIONS);op=ops.get(oid)
+    if not op or op.get('status')!='draft':send(cid,'Добавление офф-деревни доступно только в черновике.');return
+    if ouid in op.get('offers',{}):send(cid,'Эта офф-деревня уже есть в черновике. Повторные отправки не созданы.');return
+    source=active_offers().get(ouid)
+    if not source:send(cid,'Эта офф-деревня больше недоступна. Обновите список.');return
+    if not op.get('targets'):send(cid,'В черновике нет целей. Сначала добавьте цели операции.');return
+    offer={'telegram_id':int(offer_owner(ouid,source)),'save_points':source.get('save_points',[]),
+           'player':source['player'],'village':source['village'],'x':source['x'],'y':source['y'],
+           'arena':source['arena'],'offset':0,'army_snapshot':source.get('army',{})}
+    next_id=max([int(key) for key in op['attacks'] if str(key).isdigit()] or [0])+1
+    additions={}
+    for key,target in op['targets'].items():
+        aid=str(next_id);next_id+=1;defaults=op_attack_defaults('spam',target)
+        attack={'id':aid,'offer_id':ouid,'offer_player':offer['player'],'target_key':key,
+                'mode':defaults['mode'],'waves':defaults['waves'],'wave_plan':defaults['wave_plan'],
+                'comment':'','offset':0,'speed':op['base_speed'],'arena':offer['arena']}
+        op_retime(op,attack);additions[aid]=attack
+    op['offers'][ouid]=offer;op['attacks'].update(additions)
+    op_store(ops,'Add offence village and all targets to operation draft')
+    send(cid,f'✅ Добавлена офф-деревня <b>{html.escape(village_label(source))}</b>. Создано отправок: <b>{len(additions)}</b>. Все новые отправки — спам; реальные атаки можно настроить отдельно.')
+    show_op(cid,oid)
+
 
 def op_new_send_picker(cid,oid):
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
@@ -1488,6 +1536,11 @@ def callback(c):
         if oid not in load(OPERATIONS):return
         state(uid,"op_bulk_offset",{"oid":oid,"scope":scope,"ouid":ouid})
         send(cid,"⏱ Введите новое смещение в секундах. Оно перезапишет смещение всех выбранных отправок.");return
+    if x.startswith('oofferpick:'):
+        parts=x.split(':');page=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else 0
+        op_add_offer_picker(cid,parts[1],page,c['message'].get('message_id'));return
+    if x.startswith('oofferjoin:'):
+        _,oid,ouid=x.split(':',2);op_add_offer(cid,oid,ouid);return
     if x.startswith("oadd:"):op_new_send_picker(cid,x.split(":",1)[1]);return
     if x.startswith("oaddoffer:"):
         _,oid,ouid=x.split(":",2);op=load(OPERATIONS).get(oid)
