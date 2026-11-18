@@ -445,41 +445,49 @@ def refresh_target_alliances():
     return targets
 
 
-def op_alliance_picker(cid,d):
-    targets=refresh_target_alliances();groups={}
+def selected_alliance_keys(data):
+    # Keep unfinished single-alliance wizards compatible with the new menu.
+    if 'alliance_keys' in data:return set(map(str,data['alliance_keys']))
+    return {str(data['alliance_key'])} if data.get('alliance_key') is not None else set()
+
+
+def op_alliance_picker(cid,d,message_id=None):
+    targets=refresh_target_alliances();groups={};selected=selected_alliance_keys(d)
     for target in targets.values():
         key=target_alliance_key(target)
         group=groups.setdefault(key,{'name':target_alliance_name(target),'count':0});group['count']+=1
-    buttons=[[btn(f"{g['name']} · {g['count']} целей",f'opalliance:{key}')]
+    buttons=[[btn(f"{'✅' if key in selected else '⬜'} {g['name']} · {g['count']} целей",f'opalliance:{key}')]
              for key,g in sorted(groups.items(),key=lambda item:(item[0] in ('0','unknown'),item[1]['name'].casefold(),item[0]))]
-    text='🏳️ <b>Выберите альянс для операции</b>\nЗатем будут доступны только цели этого альянса. Данные — по последнему доступному снимку карты.'
+    text='🏳️ <b>Выберите альянсы для операции</b>\nОтметьте один или несколько альянсов и нажмите «Дальше». Затем будут доступны цели всех выбранных альянсов. Данные — по последнему доступному снимку карты.'
     if not groups:text+='\n\nБаза целей пуста. Сначала добавьте цели.'
-    if 'unknown' in groups:text+='\n«Альянс не определён»: нет данных об альянсе или деревня отсутствует в снимке.'
-    buttons.append([btn('⬅️ Меню','menu')]);send(cid,text,buttons)
+    if selected:buttons.append([btn(f'Дальше ➡️ ({len(selected)})','opalliance:done')])
+    buttons.append([btn('⬅️ Меню','menu')])
+    if message_id is None:send(cid,text,buttons)
+    else:api('editMessageText',{'chat_id':cid,'message_id':message_id,'text':text,'parse_mode':'HTML','reply_markup':{'inline_keyboard':buttons}})
 
 
 def op_target_picker(cid,d):
-    if 'alliance_key' not in d:op_alliance_picker(cid,d);return
+    if not selected_alliance_keys(d):op_alliance_picker(cid,d);return
     targets=load(TARGETS);selected=d.get('targets',{});buttons=[]
-    eligible={k:t for k,t in targets.items() if target_alliance_key(t)==d['alliance_key']}
+    eligible={k:t for k,t in targets.items() if target_alliance_key(t) in selected_alliance_keys(d)}
     for key,target in eligible.items():
         mark={'spam':'🟡','destroy':'🔥','capture':'👑'}.get(selected.get(key),'⬜')
         buttons.append([btn(f"{mark} {key} · {target.get('player','?')} · {target.get('type','?')}",f'optargetpick:{key}')])
     count=len(set(selected)&set(eligible))
     buttons.append([btn(f'⚙️ Создать черновик ({count})','opgenerate')])
-    buttons.append([btn('🏳️ Сменить альянс','opalliance:back')])
-    send(cid,f"🎯 <b>Цели операции · {html.escape(d.get('alliance_name',''))}</b>\n\nНажмите, чтобы добавить или убрать цель. Все отправки создаются как спам; реальные атаки можно настроить в черновике."+('\nЦелей в этой группе больше нет — выберите другой альянс.' if not eligible else ''),buttons)
+    buttons.append([btn('🏳️ Изменить альянсы','opalliance:back')])
+    send(cid,f"🎯 <b>Цели операции · {html.escape(d.get('alliance_name',''))}</b>\n\nНажмите, чтобы добавить или убрать цель. Все отправки создаются как спам; реальные атаки можно настроить в черновике."+('\nЦелей в этой группе больше нет — выберите другие альянсы.' if not eligible else ''),buttons)
 
 def generate_op(uid,d):
     offers_all=active_offers(); targets_all=refresh_target_alliances(); oid=op_id()
-    if not d.get('targets') or 'alliance_key' not in d or any(key not in targets_all or target_alliance_key(targets_all[key])!=d['alliance_key'] for key in d['targets']):
-        raise ValueError('Цели или их альянс изменились. Выберите альянс и цели заново.')
+    if not d.get('targets') or not selected_alliance_keys(d) or any(key not in targets_all or target_alliance_key(targets_all[key]) not in selected_alliance_keys(d) for key in d['targets']):
+        raise ValueError('Цели или их альянс изменились. Выберите альянсы и цели заново.')
     if any(key not in offers_all for key in d.get('offers',[])):raise ValueError('Офф-деревня удалена. Выберите офферов заново.')
     arrival_dt=datetime.fromisoformat(d["arrival_iso"])
     op={"id":oid,"name":"Операция","status":"draft","arrival":arrival_dt.strftime("%d.%m.%Y %H:%M:%S"),
         "arrival_iso":d["arrival_iso"],"base_speed":d["base_speed"],"created_at":now(),"created_by":uid,"creator_username":d.get("creator_username"),"creator_name":d.get("creator_name"),
         "comment":"","offers":{},"targets":{},"attacks":{},
-        "enemy_alliance_key":d["alliance_key"],"enemy_alliance":d.get("alliance_name","")}
+        "enemy_alliance_keys":sorted(selected_alliance_keys(d)),"enemy_alliance_key":next(iter(selected_alliance_keys(d))) if len(selected_alliance_keys(d))==1 else None,"enemy_alliance":d.get("alliance_name","")}
     for ouid in d["offers"]:
         o=offers_all[ouid]
         op["offers"][ouid]={"telegram_id":int(offer_owner(ouid,o)),"save_points":o.get("save_points",[]),"player":o["player"],"village":o["village"],"x":o["x"],"y":o["y"],"arena":o["arena"],
@@ -1047,7 +1055,7 @@ def handle_message(m):
         if remaining:
             nxt=remaining[0];d["offset_uid"]=nxt;state(uid,"op_offset",d);o=load(OFFERS)[nxt];send(cid,f"⏱ Смещение для <b>{html.escape(village_label(o))}</b> в секундах.\nНапример: <code>0</code>, <code>-1</code>, <code>+2</code>.");return
         d.pop("offset_uid",None);d["targets"]={}
-        if 'alliance_key' in d:state(uid,'op_pick_targets',d);op_target_picker(cid,d)
+        if selected_alliance_keys(d):state(uid,'op_pick_targets',d);op_target_picker(cid,d)
         else:state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d)
         return
 
@@ -1233,14 +1241,28 @@ def callback(c):
         if not st or st['step'] not in ('op_pick_alliance','op_pick_targets'):return
         d=st['data'];key=x.split(':',1)[1]
         if key=='back':state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d);return
-        targets=load(TARGETS);target=next((t for t in targets.values() if target_alliance_key(t)==key),None)
-        if target is None:send(cid,'Целей этого альянса больше нет.');op_alliance_picker(cid,d);return
-        if d.get('alliance_key')!=key:d['targets']={}
-        d['alliance_key']=key;d['alliance_name']=target_alliance_name(target)
-        if d.get('arrival_iso'):
-            state(uid,'op_pick_targets',d);op_target_picker(cid,d)
-        else:
-            state(uid,'op_arrival',d);send(cid,'🕐 <b>Новая операция</b>\nАльянс: <b>'+html.escape(d['alliance_name'])+'</b>\nВведите дату и время прибытия.\nФормат: <code>05.10.2026 20:00:00</code>')
+        targets=refresh_target_alliances();groups={target_alliance_key(t):target_alliance_name(t) for t in targets.values()}
+        selected=selected_alliance_keys(d)
+        if key=='done':
+            if not selected or not selected.issubset(groups):
+                send(cid,'Выберите хотя бы один альянс с доступными целями.');op_alliance_picker(cid,d);return
+            d['alliance_keys']=sorted(selected);d['alliance_name']=', '.join(groups[k] for k in sorted(selected))
+            if len(selected)==1:d['alliance_key']=next(iter(selected))
+            else:d.pop('alliance_key',None)
+            d['targets']={k:v for k,v in d.get('targets',{}).items() if k in targets and target_alliance_key(targets[k]) in selected}
+            if d.get('arrival_iso'):
+                state(uid,'op_pick_targets',d);op_target_picker(cid,d)
+            else:
+                state(uid,'op_arrival',d);send(cid,'🕐 <b>Новая операция</b>\nАльянсы: <b>'+html.escape(d['alliance_name'])+'</b>\nВведите дату и время прибытия.\nФормат: <code>05.10.2026 20:00:00</code>')
+            return
+        if key not in groups:send(cid,'Целей этого альянса больше нет.');op_alliance_picker(cid,d);return
+        if key in selected:selected.remove(key)
+        else:selected.add(key)
+        d['alliance_keys']=sorted(selected)
+        d.pop('alliance_key',None)
+        d['alliance_name']=', '.join(groups[k] for k in sorted(selected) if k in groups)
+        d['targets']={k:v for k,v in d.get('targets',{}).items() if k in targets and target_alliance_key(targets[k]) in selected}
+        state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d,c.get('message',{}).get('message_id'))
         return
     if x.startswith("opofftoggle:"):
         st=getstate(uid)
@@ -1260,8 +1282,8 @@ def callback(c):
         if not st or st["step"]!="op_pick_targets":return
         d=st["data"];key=x.split(":",1)[1]
         target=load(TARGETS).get(key)
-        if not target or target_alliance_key(target)!=d.get('alliance_key'):
-            send(cid,'Эта цель не относится к выбранному альянсу.');return
+        if not target or target_alliance_key(target) not in selected_alliance_keys(d):
+            send(cid,'Эта цель не относится к выбранным альянсам.');return
         if key in d["targets"]:d["targets"].pop(key)
         else:d["targets"][key]="spam"
         state(uid,"op_pick_targets",d)
