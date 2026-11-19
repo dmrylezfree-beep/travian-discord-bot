@@ -433,7 +433,7 @@ def op_offer_detail(cid,oid,uid):
         if a["offer_id"]==uid:
             t=op["targets"][a["target_key"]]
             lines.append(f"• {op_mode_name(a['mode'])} <code>{a['target_key']}</code> {html.escape(t['player'])} — <code>{a['arrival']}</code> · {a['waves']} волн")
-    rows=[[btn(f"⚔️ {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["offer_id"]==uid]
+    rows=[[btn(f"{op_mode_name(a['mode'])} · {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["offer_id"]==uid]
     rows += [[btn("⏱ Смещение оффера",f"oofferedit:{oid}:{uid}")],[btn("⬅️ К офферам",f"opoffers:{oid}")]];send(cid,"\n".join(lines),rows)
 
 def op_offer_picker(cid,d):
