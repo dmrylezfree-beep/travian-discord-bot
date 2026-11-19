@@ -1093,7 +1093,7 @@ def personal_op(cid,uid,oid,message_id=None):
     lines.append(f"🔄 Обновлено: {current.strftime('%H:%M:%S')}")
     buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")],
              [btn("🛡 Сейв-точки",f"mine:save:{oid}"),btn("💡 Юниты для спама",f"mine:spam:{oid}")]]
-    buttons += [[btn(f"{'✅' if a.get('sent_at') else '🔴' if dt and dt.timestamp()<=current.timestamp() else '⏳'} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
+    buttons += [[btn(f"{op_mode_name(a['mode']).split()[0]}{' ✅' if a.get('sent_at') else ' 🔴' if dt and dt.timestamp()<=current.timestamp() else ''} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
                 for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
     if not op.get("ready",{}).get(str(uid)):
         buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
