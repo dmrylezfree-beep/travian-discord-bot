@@ -1,4 +1,4 @@
-import os, re, json, time, html, subprocess, uuid
+import os, re, json, time, html, subprocess, uuid, hashlib
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -255,7 +255,7 @@ def personal_village(cid,uid,key):
 
 # Every management callback names an existing operation in its second field.
 OP_MANAGEMENT_ACTIONS=frozenset({
- 'op','oofferpick','oofferjoin','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
+ 'op','oormask','oormyes','oofferpick','oofferjoin','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
  'owadd','owdel','odelask','odelyes','oofferedit','oretime','oall','obulk','oadd',
  'oaddoffer','oaddtarget','opdeleteask','opdeleteyes','odraftask','odraftyes','publish','progress'})
 
@@ -434,6 +434,7 @@ def op_offer_detail(cid,oid,uid):
             t=op["targets"][a["target_key"]]
             lines.append(f"• {op_mode_name(a['mode'])} <code>{a['target_key']}</code> {html.escape(t['player'])} — <code>{a['arrival']}</code> · {a['waves']} волн")
     rows=[[btn(f"{op_mode_name(a['mode'])} · {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["offer_id"]==uid]
+    if op.get("status")=="draft":rows.append([btn("🗑 Убрать офф-деревню из черновика",f"oormask:{oid}:{uid}")])
     rows += [[btn("⏱ Смещение оффера",f"oofferedit:{oid}:{uid}")],[btn("⬅️ К офферам",f"opoffers:{oid}")]];send(cid,"\n".join(lines),rows)
 
 def op_offer_picker(cid,d):
@@ -722,6 +723,34 @@ def op_all_edit_menu(cid,oid):
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
     send(cid,"⏱ <b>Массовое изменение</b>\nЗадать одинаковое смещение всем отправкам операции (включая ранее изменённые).",
          [[btn("⏱ Установить смещение всем",f"obulk:{oid}:all:all")],[btn("⬅️ Операция",f"op:{oid}")]])
+
+def offer_removal_token(op,key):
+    payload={'offer':op.get('offers',{}).get(key),'attacks':{aid:a for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)}}
+    return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:10]
+
+
+def op_remove_offer(cid,oid,key,token=None):
+    if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
+    ops=load(OPERATIONS);op=ops.get(oid)
+    if not op or op.get('status')!='draft':send(cid,'Удалять офф-деревню этим действием можно только из черновика.');return
+    offer=op.get('offers',{}).get(key)
+    if not offer:send(cid,'Эта офф-деревня уже убрана из черновика.');return
+    signature=offer_removal_token(op,key)
+    if token is None or token!=signature:
+        count=sum(str(a.get('offer_id'))==str(key) for a in op.get('attacks',{}).values())
+        text=('🗑 <b>Убрать офф-деревню из черновика?</b>\n'+html.escape(village_label(offer))+
+              f'\nБудут удалены все её отправки: <b>{count}</b>. Регистрация деревни, другие офферы и цели операции сохранятся.')
+        if token is not None:text='⚠️ Настройки или отправки изменились. Проверьте удаление ещё раз.\n\n'+text
+        send(cid,text,[[btn('🗑 Да, убрать деревню и отправки',f'oormyes:{oid}:{key}:{signature}')],
+                       [btn('❌ Отмена',f'opoffer:{oid}:{key}')]])
+        return
+    removed=[aid for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)]
+    for aid in removed:del op['attacks'][aid]
+    del op['offers'][key]
+    op_store(ops,'Remove offence village and all its sends from draft')
+    send(cid,f'✅ Офф-деревня убрана из черновика. Удалено отправок: <b>{len(removed)}</b>.')
+    op_offers(cid,oid)
+
 
 def op_add_offer_picker(cid,oid,page=0,message_id=None):
     op=owned_operation(cid,oid)
@@ -1560,6 +1589,12 @@ def callback(c):
         if oid not in load(OPERATIONS):return
         state(uid,"op_bulk_offset",{"oid":oid,"scope":scope,"ouid":ouid})
         send(cid,"⏱ Введите новое смещение в секундах. Оно перезапишет смещение всех выбранных отправок.");return
+    if x.startswith('oormask:'):
+        _,oid,key=x.split(':',2);op_remove_offer(cid,oid,key);return
+    if x.startswith('oormyes:'):
+        parts=x.split(':')
+        if len(parts)==4:op_remove_offer(cid,parts[1],parts[2],parts[3])
+        return
     if x.startswith('oofferpick:'):
         parts=x.split(':');page=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else 0
         op_add_offer_picker(cid,parts[1],page,c['message'].get('message_id'));return

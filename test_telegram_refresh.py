@@ -313,7 +313,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
  def test_every_management_callback_denies_other_users_and_coordinator(self):
   o=self.ops;self.private_fixture()
   args={'op':'op','optargets':'op','opoffers':'op','optarget':'op:t','opoffer':'op:1','oa':'op:real','owaves':'op:real','oedit':'op:real:comment','otypes':'op:real','otype':'op:real:spam','owadd':'op:real','owdel':'op:real','odelask':'op:real','odelyes':'op:real','oofferedit':'op:1','oretime':'op','oall':'op','obulk':'op:all:-','oadd':'op','oaddoffer':'op:1','oaddtarget':'op:1:t','opdeleteask':'op','opdeleteyes':'op','odraftask':'op','odraftyes':'op','publish':'op','progress':'op'}
-  args['opdepartures']='op:0';args['oofferpick']='op:0';args['oofferjoin']='op:1'
+  args['opdepartures']='op:0';args['oofferpick']='op:0';args['oofferjoin']='op:1';args['oormask']='op:1';args['oormyes']='op:1:token'
   self.assertEqual(set(args),set(o.OP_MANAGEMENT_ACTIONS))
   for actor in [2,next(iter(o.COORDINATORS))]:
    for action,suffix in args.items():
@@ -1378,3 +1378,27 @@ class DraftArenaRefreshTests(unittest.TestCase):
   o=self.ops;self.fixture();before=o.OPERATIONS.read_bytes();o.show_op(2,'op');self.assertEqual(o.OPERATIONS.read_bytes(),before);o.show_op(1,'op');self.assertEqual(o.load(o.OPERATIONS)['op']['offers']['1']['arena'],12)
  def test_arena_change_updates_departure_for_long_distance(self):
   o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);ops['op']['targets']['t']['x']=100;o.save(o.OPERATIONS,ops);old=o.op_travel(ops['op']['attacks']['real'],ops['op'])[0];o.sync_draft_arenas();op=o.load(o.OPERATIONS)['op'];new=o.op_travel(op['attacks']['real'],op)[0];self.assertGreater(new.timestamp(),old.timestamp())
+
+class RemoveDraftOfferTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;self.op.update(status='draft',created_by=1,arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+00:00',base_speed=3)
+  self.op['targets']['t']['player']='Target';self.op['offers']['1']['offset']=0;self.op['offers']['second']=dict(self.op['offers']['1'],telegram_id=1,x=10)
+  self.op['attacks']['keep']=dict(self.op['attacks']['real'],id='keep',offer_id='second')
+  o.save(o.OPERATIONS,{'op':self.op});return o.load(o.OPERATIONS)['op']
+ def test_confirm_deletes_only_selected_village_and_all_its_sends(self):
+  o=self.ops;before=self.fixture();profile=o.OFFERS.read_bytes();o.op_remove_offer(1,'op','1');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  self.assertIn('4',self.sender.call_args.args[1]);token=o.offer_removal_token(before,'1');o.op_remove_offer(1,'op','1',token);after=o.load(o.OPERATIONS)['op']
+  self.assertEqual(set(after['offers']),{'second'});self.assertEqual(after['attacks'],{'keep':before['attacks']['keep']});self.assertEqual(after['targets'],before['targets']);self.assertEqual(o.OFFERS.read_bytes(),profile)
+  o.op_remove_offer(1,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],after)
+ def test_other_author_published_and_changed_confirmation_cannot_delete(self):
+  o=self.ops;before=self.fixture();token=o.offer_removal_token(before,'1');o.op_remove_offer(2,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  before['attacks']['real']['speed']=4;o.save(o.OPERATIONS,{'op':before});o.op_remove_offer(1,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  before['status']='published';o.save(o.OPERATIONS,{'op':before});o.op_remove_offer(1,'op','1',o.offer_removal_token(before,'1'));self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+ def test_button_in_offers_detail_and_callback_confirmation(self):
+  o=self.ops;before=self.fixture();o.op_offer_detail(1,'op','1');self.assertIn('oormask:op:1',str(self.sender.call_args))
+  with patch.object(o,'api'):
+   base={'id':'fixture','from':{'id':1},'message':{'chat':{'id':1,'type':'private'}}}
+   o.callback(dict(base,data='oormask:op:1'));self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+   o.callback(dict(base,data='oormyes:op:1:'+o.offer_removal_token(before,'1')))
+  self.assertNotIn('1',o.load(o.OPERATIONS)['op']['offers'])
