@@ -364,10 +364,10 @@ class AllianceOpsSupportTests(unittest.TestCase):
   self.assertEqual(len({first,second,third}),3);plans=o.load(o.OPERATIONS)
   self.assertEqual(plans[first]['created_by'],1);self.assertEqual(plans[second]['created_by'],2)
   self.assertNotEqual(plans[first]['name'],plans[third]['name'])
- def test_profile_arena_update_does_not_edit_foreign_operation(self):
+ def test_profile_arena_update_refreshes_foreign_operation_routes(self):
   o=self.ops;plans=self.private_fixture();plans['op']['created_by']=2;o.save(o.OPERATIONS,plans);before=o.load(o.OPERATIONS)
   self.click_village('village:arena:1',uid=1);self.message_ops('20',uid=1)
-  after=o.load(o.OPERATIONS);self.assertEqual(after['op'],before['op']);self.assertEqual(o.load(o.OFFERS)['1']['arena'],20)
+  after=o.load(o.OPERATIONS);self.assertEqual(after['op']['offers']['1']['arena'],20);self.assertTrue(all(a['arena']==20 for a in after['op']['attacks'].values() if a['offer_id']=='1'));self.assertEqual(after['op']['created_by'],before['op']['created_by']);self.assertEqual(o.load(o.OFFERS)['1']['arena'],20)
  def test_group_callback_cannot_relay_private_operation(self):
   o=self.ops;self.private_fixture();self.sender.reset_mock()
   with patch.object(o,'api'):o.callback({'id':'test','from':{'id':1},'message':{'chat':{'id':-100,'type':'supergroup'}},'data':'op:op'})
@@ -1361,23 +1361,23 @@ class DraftArenaRefreshTests(unittest.TestCase):
  def fixture(self):
   o=self.ops;self.op.update(status='draft',created_by=1,base_speed=3,arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+00:00');o.save(o.OPERATIONS,{'op':self.op});offers=o.load(o.OFFERS);offers['1']['arena']=12;o.save(o.OFFERS,offers)
  def test_draft_uses_latest_arena_without_moving_arrivals_or_other_fields(self):
-  o=self.ops;self.fixture();before=o.load(o.OPERATIONS)['op'];self.assertEqual(o.sync_draft_arenas(),4);after=o.load(o.OPERATIONS)['op']
+  o=self.ops;self.fixture();before=o.load(o.OPERATIONS)['op'];self.assertEqual(o.sync_operation_arenas(),4);after=o.load(o.OPERATIONS)['op']
   self.assertEqual(after['offers']['1']['arena'],12)
   for aid,attack in after['attacks'].items():
    self.assertEqual(attack['arena'],12)
    for field in ('arrival_iso','speed','waves','wave_plan','offer_id','target_key'):self.assertEqual(attack[field],before['attacks'][aid][field])
-  self.assertEqual(o.sync_draft_arenas(),0)
- def test_published_and_sent_and_manual_overrides_are_preserved(self):
+  self.assertEqual(o.sync_operation_arenas(),0)
+ def test_sent_sends_preserved_and_pending_manual_values_follow_village_update(self):
   o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);op=ops['op'];op['attacks']['real']['arena_override']=True;op['attacks']['same']['arena']=7;op['attacks']['after']['sent_at']='done';o.save(o.OPERATIONS,ops)
-  self.assertEqual(o.sync_draft_arenas(),1);op=o.load(o.OPERATIONS)['op'];self.assertEqual(op['attacks']['real']['arena'],0);self.assertEqual(op['attacks']['same']['arena'],7);self.assertEqual(op['attacks']['after']['arena'],0)
-  op['status']='published';o.save(o.OPERATIONS,{'op':op});offers=o.load(o.OFFERS);offers['1']['arena']=15;o.save(o.OFFERS,offers);before=o.OPERATIONS.read_bytes();self.assertEqual(o.sync_draft_arenas(),0);self.assertEqual(o.OPERATIONS.read_bytes(),before)
+  self.assertEqual(o.sync_operation_arenas(),3);op=o.load(o.OPERATIONS)['op'];self.assertEqual(op['attacks']['real']['arena'],12);self.assertEqual(op['attacks']['same']['arena'],12);self.assertEqual(op['attacks']['after']['arena'],0);self.assertNotIn('arena_override',op['attacks']['real'])
+  op['status']='published';o.save(o.OPERATIONS,{'op':op});offers=o.load(o.OFFERS);offers['1']['arena']=15;o.save(o.OFFERS,offers);before=o.load(o.OPERATIONS)['op'];self.assertEqual(o.sync_operation_arenas(),3);after=o.load(o.OPERATIONS)['op'];self.assertEqual(after['attacks']['real']['arena'],15);self.assertEqual(after['attacks']['after'],before['attacks']['after'])
  def test_different_coordinates_or_deleted_profile_are_not_used(self):
-  o=self.ops;self.fixture();offers=o.load(o.OFFERS);offers['1']['x']=55;o.save(o.OFFERS,offers);self.assertEqual(o.sync_draft_arenas(),0)
-  offers['1']['x']=0;offers['1']['deleted_at']=o.now();o.save(o.OFFERS,offers);self.assertEqual(o.sync_draft_arenas(),0)
+  o=self.ops;self.fixture();offers=o.load(o.OFFERS);offers['1']['x']=55;o.save(o.OFFERS,offers);self.assertEqual(o.sync_operation_arenas(),0)
+  offers['1']['x']=0;offers['1']['deleted_at']=o.now();o.save(o.OFFERS,offers);self.assertEqual(o.sync_operation_arenas(),0)
  def test_foreign_view_cannot_trigger_sync_and_owner_view_refreshes(self):
   o=self.ops;self.fixture();before=o.OPERATIONS.read_bytes();o.show_op(2,'op');self.assertEqual(o.OPERATIONS.read_bytes(),before);o.show_op(1,'op');self.assertEqual(o.load(o.OPERATIONS)['op']['offers']['1']['arena'],12)
  def test_arena_change_updates_departure_for_long_distance(self):
-  o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);ops['op']['targets']['t']['x']=100;o.save(o.OPERATIONS,ops);old=o.op_travel(ops['op']['attacks']['real'],ops['op'])[0];o.sync_draft_arenas();op=o.load(o.OPERATIONS)['op'];new=o.op_travel(op['attacks']['real'],op)[0];self.assertGreater(new.timestamp(),old.timestamp())
+  o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);ops['op']['targets']['t']['x']=100;o.save(o.OPERATIONS,ops);old=o.op_travel(ops['op']['attacks']['real'],ops['op'])[0];o.sync_operation_arenas();op=o.load(o.OPERATIONS)['op'];new=o.op_travel(op['attacks']['real'],op)[0];self.assertGreater(new.timestamp(),old.timestamp())
 
 class RemoveDraftOfferTests(unittest.TestCase):
  setUp=AllianceOpsSupportTests.setUp
@@ -1402,3 +1402,23 @@ class RemoveDraftOfferTests(unittest.TestCase):
    o.callback(dict(base,data='oormask:op:1'));self.assertEqual(o.load(o.OPERATIONS)['op'],before)
    o.callback(dict(base,data='oormyes:op:1:'+o.offer_removal_token(before,'1')))
   self.assertNotIn('1',o.load(o.OPERATIONS)['op']['offers'])
+
+class PublishedOperationArenaTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;self.op.update(status='published',created_by=99,name='Other authors plan',ready={'1':True,'2':True});self.op['offers']['second']=dict(self.op['offers']['1'],telegram_id=2,x=10)
+  self.op['attacks']['keep']=dict(self.op['attacks']['real'],id='keep',offer_id='second')
+  self.op['targets']['t']['x']=100;o.save(o.OPERATIONS,{'op':self.op});offers=o.load(o.OFFERS);offers['1']['arena']=12;o.save(o.OFFERS,offers)
+ def test_other_authors_published_operation_updates_arrivals_unchanged_and_notifies_only_affected_player(self):
+  o=self.ops;self.fixture();before=o.load(o.OPERATIONS)['op'];old=o.op_travel(before['attacks']['real'],before)[0];self.sender.reset_mock()
+  self.assertEqual(o.sync_operation_arenas(),4);after=o.load(o.OPERATIONS)['op'];self.assertEqual(after['created_by'],99);self.assertNotIn('1',after['ready']);self.assertTrue(after['ready']['2']);self.assertEqual(after['attacks']['keep'],before['attacks']['keep']);self.assertGreater(o.op_travel(after['attacks']['real'],after)[0],old)
+  for aid,a in before['attacks'].items():
+   for field in ['arrival_iso','speed','waves','wave_plan','offset']:self.assertEqual(a.get(field),after['attacks'][aid].get(field))
+  self.assertEqual(self.sender.call_count,1);self.assertEqual(self.sender.call_args.args[0],1);self.assertIn('повторно подтвердите',self.sender.call_args.args[1]);self.assertEqual(o.sync_operation_arenas(),0);self.assertEqual(self.sender.call_count,1)
+ def test_user_arena_input_updates_other_authors_published_operation_immediately(self):
+  o=self.ops;self.fixture();offers=o.load(o.OFFERS);offers['1']['arena']=0;o.save(o.OFFERS,offers);o.state(1,'arena',{'key':'1'})
+  o.handle_message({'from':{'id':1},'chat':{'id':1,'type':'private'},'text':'12'})
+  op=o.load(o.OPERATIONS)['op'];self.assertEqual(op['offers']['1']['arena'],12);self.assertTrue(all(a['arena']==12 for a in op['attacks'].values() if a['offer_id']=='1'))
+ def test_two_villages_of_same_player_refresh_independently(self):
+  o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);op=ops['op'];op['offers']['second']['telegram_id']=1;offers=o.load(o.OFFERS);offers['second']=dict(offers['1'],telegram_id=1,x=10,arena=7);o.save(o.OFFERS,offers);o.save(o.OPERATIONS,ops)
+  self.assertEqual(o.sync_operation_arenas(),5);op=o.load(o.OPERATIONS)['op'];self.assertEqual(op['attacks']['keep']['arena'],7);self.assertEqual(op['attacks']['real']['arena'],12)
