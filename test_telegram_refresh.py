@@ -1355,3 +1355,26 @@ class AddOperationOfferTests(unittest.TestCase):
   with patch.object(o,'api'):
    for uid in (2,1):o.callback({'id':'fixture','from':{'id':uid},'message':{'message_id':77,'chat':{'id':uid,'type':'private'}},'data':'oofferjoin:op:2'})
   self.assertEqual(len(o.load(o.OPERATIONS)['op']['offers']),2)
+
+class DraftArenaRefreshTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;self.op.update(status='draft',created_by=1,base_speed=3,arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+00:00');o.save(o.OPERATIONS,{'op':self.op});offers=o.load(o.OFFERS);offers['1']['arena']=12;o.save(o.OFFERS,offers)
+ def test_draft_uses_latest_arena_without_moving_arrivals_or_other_fields(self):
+  o=self.ops;self.fixture();before=o.load(o.OPERATIONS)['op'];self.assertEqual(o.sync_draft_arenas(),4);after=o.load(o.OPERATIONS)['op']
+  self.assertEqual(after['offers']['1']['arena'],12)
+  for aid,attack in after['attacks'].items():
+   self.assertEqual(attack['arena'],12)
+   for field in ('arrival_iso','speed','waves','wave_plan','offer_id','target_key'):self.assertEqual(attack[field],before['attacks'][aid][field])
+  self.assertEqual(o.sync_draft_arenas(),0)
+ def test_published_and_sent_and_manual_overrides_are_preserved(self):
+  o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);op=ops['op'];op['attacks']['real']['arena_override']=True;op['attacks']['same']['arena']=7;op['attacks']['after']['sent_at']='done';o.save(o.OPERATIONS,ops)
+  self.assertEqual(o.sync_draft_arenas(),1);op=o.load(o.OPERATIONS)['op'];self.assertEqual(op['attacks']['real']['arena'],0);self.assertEqual(op['attacks']['same']['arena'],7);self.assertEqual(op['attacks']['after']['arena'],0)
+  op['status']='published';o.save(o.OPERATIONS,{'op':op});offers=o.load(o.OFFERS);offers['1']['arena']=15;o.save(o.OFFERS,offers);before=o.OPERATIONS.read_bytes();self.assertEqual(o.sync_draft_arenas(),0);self.assertEqual(o.OPERATIONS.read_bytes(),before)
+ def test_different_coordinates_or_deleted_profile_are_not_used(self):
+  o=self.ops;self.fixture();offers=o.load(o.OFFERS);offers['1']['x']=55;o.save(o.OFFERS,offers);self.assertEqual(o.sync_draft_arenas(),0)
+  offers['1']['x']=0;offers['1']['deleted_at']=o.now();o.save(o.OFFERS,offers);self.assertEqual(o.sync_draft_arenas(),0)
+ def test_foreign_view_cannot_trigger_sync_and_owner_view_refreshes(self):
+  o=self.ops;self.fixture();before=o.OPERATIONS.read_bytes();o.show_op(2,'op');self.assertEqual(o.OPERATIONS.read_bytes(),before);o.show_op(1,'op');self.assertEqual(o.load(o.OPERATIONS)['op']['offers']['1']['arena'],12)
+ def test_arena_change_updates_departure_for_long_distance(self):
+  o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);ops['op']['targets']['t']['x']=100;o.save(o.OPERATIONS,ops);old=o.op_travel(ops['op']['attacks']['real'],ops['op'])[0];o.sync_draft_arenas();op=o.load(o.OPERATIONS)['op'];new=o.op_travel(op['attacks']['real'],op)[0];self.assertGreater(new.timestamp(),old.timestamp())

@@ -370,6 +370,7 @@ def list_ops(cid):
     send(cid,f"⚔️ <b>Мои операции</b>\nВсего: {len(ops)}",rows)
 
 def show_op(cid,oid):
+    sync_draft_arenas(oid,cid)
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
     op=load(OPERATIONS).get(oid)
     if not op:send(cid,"❌ Операция не найдена.");return
@@ -591,6 +592,27 @@ def op_store(ops, msg="Edit operation"):
             except Exception as e:print("change notification error",uid,repr(e),flush=True)
     save(OPERATIONS,ops)
 
+def sync_draft_arenas(oid=None,owner_id=None):
+    offers=active_offers();ops=load(OPERATIONS);changed=False;affected=0
+    for key,op in ops.items():
+        if op.get('status')!='draft' or (oid is not None and str(key)!=str(oid)):continue
+        if owner_id is not None and not operation_is_owned(owner_id,op):continue
+        for offer_key,stored in op.get('offers',{}).items():
+            current=offers.get(offer_key)
+            if not current or not same_origin(current,stored):continue
+            try:old_arena=int(stored.get('arena',0));arena=int(current['arena'])
+            except (ValueError,TypeError,KeyError):continue
+            if not 0<=arena<=20 or old_arena==arena:continue
+            stored['arena']=arena;changed=True
+            for attack in op.get('attacks',{}).values():
+                if str(attack.get('offer_id'))!=str(offer_key) or attack.get('sent_at') or attack.get('arena_override'):continue
+                # Legacy per-attack custom levels differ from the village snapshot.
+                if int(attack.get('arena',old_arena))!=old_arena:continue
+                attack['arena']=arena;attack.pop('reminder_sent_for',None);affected+=1
+    if changed:op_store(ops,'Refresh registered village arenas in operation drafts')
+    return affected
+
+
 def op_retime(op,a):
     dt=shift_seconds(server_datetime(op["arrival_iso"]),int(a["offset"]))
     a["arrival_iso"]=dt.isoformat()
@@ -619,6 +641,7 @@ def operation_departures(op):
 
 
 def op_departures(cid,oid,page=0,message_id=None):
+    sync_draft_arenas(oid,cid)
     op=owned_operation(cid,oid)
     if not op:send(cid,'⛔ Операция недоступна.');return
     jobs=operation_departures(op);page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
@@ -1196,6 +1219,7 @@ def handle_message(m):
         key=d.get('key',str(uid))
         if not owns_offer(uid,key):state(uid);send(cid,'Деревня недоступна.');return
         os_=load(OFFERS);os_[key]["arena"]=int(text);save(OFFERS,os_);state(uid);persist("Update alliance ops arena")
+        draft_affected=sync_draft_arenas()
         ops=load(OPERATIONS);affected=0;external=False
         for op in ops.values():
             if op.get("status")!="published" or key not in op.get("offers",{}) or not same_origin(os_[key],op["offers"][key]):continue
@@ -1205,7 +1229,7 @@ def handle_message(m):
                 if str(a["offer_id"])==key and not a.get("sent_at"):
                     a["arena"]=int(text);a.pop("reminder_sent_for",None);affected+=1
         if affected:op_store(ops)
-        send(cid,f"✅ Арена обновлена. Пересчитано отправок в ваших операциях: {affected}."+(" В операциях других авторов попросите создателя обновить арену в плане." if external else ""),menu(uid));return
+        send(cid,f"✅ Арена обновлена. Пересчитано отправок в черновиках: {draft_affected}, в ваших опубликованных операциях: {affected}."+(" В операциях других авторов попросите создателя обновить арену в плане." if external else ""),menu(uid));return
 
     if step=="op_arrival":
         dt=op_dt(text)
@@ -1245,7 +1269,7 @@ def handle_message(m):
             a["speed"]=v
         elif field=="arena":
             if not text.isdigit() or not 0<=int(text)<=20:send(cid,"❌ Арена 0–20.");return
-            a["arena"]=int(text)
+            a["arena"]=int(text);a["arena_override"]=True
         elif field=="comment":a["comment"]="" if text=="-" else text
         elif field.startswith("wave:"):
             idx=int(field.split(":")[1])
@@ -1611,7 +1635,12 @@ def main():
     print("ALLIANCE OPS BOT",api("getMe").get("username"),flush=True)
     offset=None
     last_target_refresh=None
+    last_arena_refresh=None
     while True:
+        if last_arena_refresh is None or time.monotonic()-last_arena_refresh>=60:
+            last_arena_refresh=time.monotonic()
+            try:sync_draft_arenas()
+            except Exception:print("Draft arena refresh failed; will retry",flush=True)
         if last_target_refresh is None or time.monotonic()-last_target_refresh>=24*60*60:
             last_target_refresh=time.monotonic()
             try:refresh_target_alliances()
