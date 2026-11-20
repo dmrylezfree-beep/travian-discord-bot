@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-20T13:46:37.381324+00:00",
+  "created_at": "2026-11-20T14:46:48.125928+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -7888,6 +7888,9 @@
             "offer_id": "320784442",
             "offer_player": "Котята",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-20T14:40:44+00:00",
+            "reminder_sent_for": "2026-11-20T14:40:44+00:00",
+            "sent_at": "2026-11-20T14:41:31+00:00",
             "speed": 3,
             "target_key": "-1|-47",
             "wave_plan": [
@@ -8404,6 +8407,8 @@
             "offer_id": "993572860",
             "offer_player": "Frontman",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:44:25+00:00",
+            "reminder_sent_for": "2026-11-20T14:44:25+00:00",
             "speed": 3,
             "target_key": "-16|38",
             "wave_plan": [
@@ -9035,6 +9040,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:08:20+00:00",
+            "reminder_sent_for": "2026-11-20T14:08:20+00:00",
+            "sent_at": "2026-11-20T14:09:22+00:00",
             "speed": 3,
             "target_key": "-25|66",
             "wave_plan": [
@@ -9091,6 +9099,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:03:30+00:00",
+            "reminder_sent_for": "2026-11-20T14:03:30+00:00",
+            "sent_at": "2026-11-20T14:08:45+00:00",
             "speed": 3,
             "target_key": "10|-25",
             "wave_plan": [
@@ -9144,6 +9155,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:42:14+00:00",
+            "reminder_sent_for": "2026-11-20T14:42:14+00:00",
+            "sent_at": "2026-11-20T14:45:03+00:00",
             "speed": 3,
             "target_key": "13|-19",
             "wave_plan": [
@@ -9166,6 +9180,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:22:12+00:00",
+            "reminder_sent_for": "2026-11-20T14:22:12+00:00",
+            "sent_at": "2026-11-20T14:22:37+00:00",
             "speed": 3,
             "target_key": "14|-24",
             "wave_plan": [
@@ -9241,6 +9258,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:27:24+00:00",
+            "reminder_sent_for": "2026-11-20T14:27:24+00:00",
+            "sent_at": "2026-11-20T14:29:04+00:00",
             "speed": 3,
             "target_key": "17|-25",
             "wave_plan": [
@@ -9263,6 +9283,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:02:41+00:00",
+            "reminder_sent_for": "2026-11-20T14:02:41+00:00",
+            "sent_at": "2026-11-20T14:03:09+00:00",
             "speed": 3,
             "target_key": "17|-30",
             "wave_plan": [
@@ -9310,6 +9333,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:58:43+00:00",
+            "reminder_sent_for": "2026-11-20T13:58:43+00:00",
+            "sent_at": "2026-11-20T13:59:12+00:00",
             "speed": 3,
             "target_key": "19|-32",
             "wave_plan": [
@@ -9332,6 +9358,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:28:33+00:00",
+            "reminder_sent_for": "2026-11-20T14:28:33+00:00",
+            "sent_at": "2026-11-20T14:29:09+00:00",
             "speed": 3,
             "target_key": "24|-29",
             "wave_plan": [
@@ -9360,6 +9389,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:36:31+00:00",
+            "reminder_sent_for": "2026-11-20T14:36:31+00:00",
+            "sent_at": "2026-11-20T14:36:57+00:00",
             "speed": 3,
             "target_key": "25|-28",
             "wave_plan": [
@@ -9382,6 +9414,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:44:29+00:00",
+            "reminder_sent_for": "2026-11-20T14:44:29+00:00",
+            "sent_at": "2026-11-20T14:45:09+00:00",
             "speed": 3,
             "target_key": "26|-27",
             "wave_plan": [
@@ -9404,6 +9439,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:51:53+00:00",
+            "reminder_sent_for": "2026-11-20T13:51:53+00:00",
+            "sent_at": "2026-11-20T13:52:26+00:00",
             "speed": 3,
             "target_key": "26|-37",
             "wave_plan": [
@@ -9563,6 +9601,8 @@
             "offer_id": "907765051",
             "offer_player": "Ruslan1980",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-20T14:39:01+00:00",
+            "reminder_sent_for": "2026-11-20T14:39:01+00:00",
             "speed": 3,
             "target_key": "-1|-47",
             "wave_plan": [
@@ -10118,6 +10158,9 @@
             "offer_id": "304355451",
             "offer_player": "deversant",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T14:14:00+00:00",
+            "reminder_sent_for": "2026-11-20T14:14:00+00:00",
+            "sent_at": "2026-11-20T14:14:46+00:00",
             "speed": 3,
             "target_key": "-16|38",
             "wave_plan": [
@@ -10208,6 +10251,9 @@
             "offer_id": "304355451",
             "offer_player": "deversant",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:54:44+00:00",
+            "reminder_sent_for": "2026-11-20T13:54:44+00:00",
+            "sent_at": "2026-11-20T14:02:04+00:00",
             "speed": 3,
             "target_key": "-5|71",
             "wave_plan": [
@@ -11057,7 +11103,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:49:49+00:00",
             "reminder_sent_for": "2026-11-20T13:49:49+00:00",
+            "sent_at": "2026-11-20T13:50:05+00:00",
             "speed": 3,
             "target_key": "26|-27",
             "wave_plan": [
@@ -11111,6 +11159,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T14:38:52+00:00",
+            "reminder_sent_for": "2026-11-20T14:38:52+00:00",
+            "sent_at": "2026-11-20T14:39:17+00:00",
             "speed": 3,
             "target_key": "30|-20",
             "wave_plan": [
@@ -11133,6 +11184,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T14:38:08+00:00",
+            "reminder_sent_for": "2026-11-20T14:38:08+00:00",
+            "sent_at": "2026-11-20T14:39:12+00:00",
             "speed": 3,
             "target_key": "32|-22",
             "wave_plan": [
@@ -11254,6 +11308,9 @@
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T14:45:34+00:00",
+            "reminder_sent_for": "2026-11-20T14:45:34+00:00",
+            "sent_at": "2026-11-20T14:46:35+00:00",
             "speed": 3,
             "target_key": "-1|-47",
             "wave_plan": [
