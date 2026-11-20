@@ -1439,3 +1439,39 @@ class OperationWaveButtonTests(unittest.TestCase):
   buttons=[b for row in self.sender.call_args.args[2] for b in row if b['callback_data'].startswith('mine:job:')]
   real=next(b for b in buttons if b['callback_data'].endswith(':real'));spam=next(b for b in buttons if b['callback_data'].endswith(':before'))
   self.assertIn('🟡4',real['text']);self.assertIn('🔥 ✅',real['text']);self.assertIn('🟣2',spam['text']);self.assertIn('🟡',spam['text'])
+
+class OneMinuteOperationReminderTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;self.op.update(created_by=1,ready={'1':True});o.save(o.OPERATIONS,{'op':self.op});self.left=300
+  patcher=patch.object(o,'op_travel',side_effect=lambda *a:(o.datetime.now(o.TZ)+__import__('datetime').timedelta(seconds=self.left),1));self.travel=patcher.start();self.addCleanup(patcher.stop)
+ def tick(self,seconds):
+  # Keep the departure fixed while advancing the test clock.
+  o=self.ops;self.left=seconds
+  from datetime import datetime,timedelta
+  base=datetime(2030,1,2,12,tzinfo=o.TZ);instant=base-timedelta(seconds=seconds)
+  class Clock(datetime):
+   @classmethod
+   def now(cls,tz=None):return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+  with patch.object(o,'datetime',Clock):o.send_reminders()
+ def test_five_then_one_minute_are_independent_once_each(self):
+  o=self.ops;self.fixture();self.sender.reset_mock();self.tick(301);self.sender.assert_not_called()
+  self.tick(300);self.assertEqual(self.sender.call_count,1);self.assertIn('5 минут',self.sender.call_args.args[1]);self.tick(200);self.assertEqual(self.sender.call_count,1)
+  self.tick(60);self.assertEqual(self.sender.call_count,2);self.assertIn('ближайшую минуту',self.sender.call_args.args[1]);self.tick(30);self.tick(1);self.tick(0);self.assertEqual(self.sender.call_count,2)
+  op=o.load(o.OPERATIONS)['op'];self.assertTrue(op['ready']['1']);self.assertTrue(all(a.get('reminder_sent_for') and a.get('reminder_minute_sent_for') for a in op['attacks'].values()))
+ def test_late_start_sends_only_urgent_alert_and_sent_jobs_are_skipped(self):
+  o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);ops['op']['attacks']['real']['sent_at']='done';o.save(o.OPERATIONS,ops);self.sender.reset_mock();self.tick(45)
+  self.assertEqual(self.sender.call_count,1);self.assertIn('ближайшую минуту',self.sender.call_args.args[1]);op=o.load(o.OPERATIONS)['op'];self.assertNotIn('reminder_minute_sent_for',op['attacks']['real']);self.assertNotIn('reminder_sent_for',op['attacks']['before'])
+ def test_failed_alert_retries_and_success_does_not_repeat(self):
+  o=self.ops;self.fixture();self.sender.reset_mock();self.sender.side_effect=RuntimeError('fixture');self.tick(60)
+  self.assertFalse(o.load(o.OPERATIONS)['op']['attacks']['before'].get('reminder_minute_sent_for'))
+  self.sender.side_effect=None;self.tick(40);self.assertEqual(self.sender.call_count,2);self.tick(20);self.assertEqual(self.sender.call_count,2)
+
+class OperationCardWaveColorTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def test_spam_cards_match_two_and_four_wave_badges_without_yellow_spam_icon(self):
+  o=self.ops;self.op['targets']['t'].update(player='Target',village='Target village');self.op.update(created_by=1)
+  a=self.op['attacks']['before'];a.update(offset=0,comment='')
+  for count,badge in [(2,'🟣2'),(4,'🟡4')]:
+   a['waves']=count;a['wave_plan']=[{'text':'fixture'} for _ in range(count)];o.save(o.OPERATIONS,{'op':self.op});o.personal_job(1,1,'op','before');text=self.sender.call_args.args[1]
+   self.assertIn('Волн: '+badge+' · Спам',text);self.assertNotIn('🟡 Спам',text)

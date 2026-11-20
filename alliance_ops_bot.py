@@ -365,6 +365,11 @@ def wave_badge(attack):
     return {2:'🟣2',4:'🟡4'}.get(count,f'⚪{count}')
 
 
+def attack_caption(attack):
+    mode='Спам' if attack.get('mode')=='spam' else op_mode_name(attack.get('mode','?'))
+    return f'Волн: {wave_badge(attack)} · {mode}'
+
+
 def wave_button(text,data,attack):
     return btn(f'{wave_badge(attack)} {text}',data)
 
@@ -604,10 +609,11 @@ def op_store(ops, msg="Edit operation"):
         for uid in op_members(op)|op_members(old):
             old_jobs={k:v for k,v in old.get("attacks",{}).items() if op_owner(old,v.get("offer_id"))==uid}
             new_jobs={k:v for k,v in op.get("attacks",{}).items() if op_owner(op,v.get("offer_id"))==uid}
-            if {k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for")} for k,a in old_jobs.items()}=={k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for")} for k,a in new_jobs.items()} or not (old_jobs or new_jobs):continue
+            if {k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for","reminder_minute_sent_for")} for k,a in old_jobs.items()}=={k:{f:v for f,v in a.items() if f not in ("sent_at","reminder_sent_for","reminder_minute_sent_for")} for k,a in new_jobs.items()} or not (old_jobs or new_jobs):continue
             op.setdefault("ready",{}).pop(uid,None)
             for a in new_jobs.values():
                 a.pop("reminder_sent_for",None)
+                a.pop("reminder_minute_sent_for",None)
             try:send(int(uid),f"⚠️ <b>{html.escape(op['name'])}: план изменён!</b>\nПроверьте задания и повторно подтвердите готовность.",[[btn("📋 Открыть план",f"mine:op:{oid}")]])
             except Exception as e:print("change notification error",uid,repr(e),flush=True)
     save(OPERATIONS,ops)
@@ -630,7 +636,7 @@ def sync_operation_arenas(oid=None,owner_id=None):
                 # send, including routes with an older manual arena value.
                 attack.pop('arena_override',None)
                 if int(attack.get('arena',old_arena))==arena:continue
-                attack['arena']=arena;attack.pop('reminder_sent_for',None);affected+=1
+                attack['arena']=arena;attack.pop('reminder_sent_for',None);attack.pop('reminder_minute_sent_for',None);affected+=1
     if changed:op_store(ops,'Refresh registered village arenas in draft and published operations')
     return affected
 
@@ -710,7 +716,7 @@ def op_attack_view(cid,oid,aid):
     departure,dist=op_travel(a,op)
     waves="\n".join(f"{i}. {html.escape(w.get('text','—'))}" for i,w in enumerate(a["wave_plan"],1))
     msg=(f"⚔️ <b>{html.escape(o['player'])} → {html.escape(t['player'])}</b>\n"
-         f"🎯 <code>{a['target_key']}</code> · {op_mode_name(a['mode'])}\n"
+         f"🎯 <code>{a['target_key']}</code> · {attack_caption(a)}\n"
          f"Приход: <code>{a['arrival']}</code>\n"
          f"Смещение: <b>{a['offset']:+d} сек</b>\n"
          f"Скорость: {a['speed']} · Арена: {a['arena']}\n"
@@ -1137,7 +1143,7 @@ def personal_job(cid,uid,oid,aid):
     departure,dist=op_travel(a,op)
     waves="\n".join(f"{i}. {html.escape(w.get('text','—'))}" for i,w in enumerate(a.get("wave_plan",[]),1))
     msg=(f"🎯 <b>{html.escape(op['name'])} · {a['target_key']}</b>\n"
-         f"{op_mode_name(a['mode'])}\nОфф-деревня: <b>{html.escape(village_label(op['offers'][a['offer_id']]))}</b>\n"
+         f"{attack_caption(a)}\nОфф-деревня: <b>{html.escape(village_label(op['offers'][a['offer_id']]))}</b>\n"
          f"Отправление: <code>{departure.strftime('%d.%m.%Y %H:%M:%S') if departure else '—'}</code>\n"
          f"Прибытие: <code>{a['arrival']}</code>\n"
          f"Арена: {a['arena']} · Скорость: {a['speed']} · Расстояние: {dist:.2f}\n\n"
@@ -1169,37 +1175,42 @@ def send_reminders():
     changed=False
     for oid,op in ops.items():
         if op.get("status")!="published":continue
-        grouped={}
-        for a in op.get("attacks",{}).values():
-            if a.get("sent_at"):continue
-            departure,_=op_travel(a,op)
-            if not departure:continue
-            seconds=(departure.timestamp()-current.timestamp())
-            marker=departure.isoformat()
-            if not 0<seconds<=300 or same_time_marker(a.get("reminder_sent_for"),marker):continue
-            grouped.setdefault(op_owner(op,a["offer_id"]),[]).append((departure,a,marker))
-        for offer_uid,jobs in grouped.items():
-            jobs.sort(key=lambda item:(item[0].timestamp(),str(item[1]["id"])))
-            lines=[f"⏰ <b>{html.escape(op['name'])}: отправки в ближайшие 5 минут</b>"]
-            buttons=[]
-            for departure,a,marker in jobs:
-                target=op["targets"].get(a["target_key"])
-                if not target:continue
-                lines.append(f"\n🏘 {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → 🎯 <code>{a['target_key']}</code> · <b>{departure.strftime('%H:%M:%S')}</b>"
-                             f" · {op_mode_name(a['mode'])} · {len(a.get('wave_plan',[]))} волн · арена {a['arena']}")
-                link=(f"https://ts8.x1.asia.travian.com/build.php?id=39&tt=2"
-                      f"&x={int(target['x'])}&y={int(target['y'])}&c=3&gid=16&eventType=3")
-                buttons.append([{"text":f"⚔️ {departure.strftime('%H:%M:%S')} → {a['target_key']} · Travian","url":link}])
-                buttons.append([btn(f"📋 Задание {departure.strftime('%H:%M:%S')} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")])
-            if not buttons:continue
-            try:
-                send(int(offer_uid),"\n".join(lines),buttons)
+        # Separate durable markers prevent duplicates. A late poll sends only
+        # the urgent one-minute alert, rather than two notifications at once.
+        for threshold,marker_field in ((300,'reminder_sent_for'),(60,'reminder_minute_sent_for')):
+            grouped={}
+            for a in op.get("attacks",{}).values():
+                if a.get("sent_at"):continue
+                departure,_=op_travel(a,op)
+                if not departure:continue
+                seconds=(departure.timestamp()-current.timestamp())
+                marker=departure.isoformat()
+                if not 0<seconds<=threshold or (threshold==300 and seconds<=60) or same_time_marker(a.get(marker_field),marker):continue
+                grouped.setdefault(op_owner(op,a["offer_id"]),[]).append((departure,a,marker))
+            for offer_uid,jobs in grouped.items():
+                jobs.sort(key=lambda item:(item[0].timestamp(),str(item[1]["id"])))
+                heading="🚨 Отправки в ближайшую минуту" if threshold==60 else "⏰ Отправки в ближайшие 5 минут"
+                lines=[f"<b>{html.escape(op['name'])}: {heading}</b>"]
+                buttons=[]
                 for departure,a,marker in jobs:
-                    a["reminder_sent_for"]=marker
-                changed=True
-            except Exception as e:
-                print("reminder error",oid,offer_uid,repr(e),flush=True)
+                    target=op["targets"].get(a["target_key"])
+                    if not target:continue
+                    lines.append(f"\n🏘 {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → 🎯 <code>{a['target_key']}</code> · <b>{departure.strftime('%H:%M:%S')}</b>"
+                                 f" · {op_mode_name(a['mode'])} · {len(a.get('wave_plan',[]))} волн · арена {a['arena']}")
+                    link=(f"https://ts8.x1.asia.travian.com/build.php?id=39&tt=2"
+                          f"&x={int(target['x'])}&y={int(target['y'])}&c=3&gid=16&eventType=3")
+                    buttons.append([{"text":f"⚔️ {departure.strftime('%H:%M:%S')} → {a['target_key']} · Travian","url":link}])
+                    buttons.append([btn(f"📋 Задание {departure.strftime('%H:%M:%S')} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")])
+                if not buttons:continue
+                try:
+                    send(int(offer_uid),"\n".join(lines),buttons)
+                    for departure,a,marker in jobs:
+                        a[marker_field]=marker
+                    changed=True
+                except Exception as e:
+                    print("reminder error",oid,offer_uid,repr(e),flush=True)
     if changed:save(OPERATIONS,ops)
+
 
 def handle_message(m):
     # The operations wizard is private; ignore messages from group topics.
@@ -1340,6 +1351,7 @@ def handle_message(m):
                 continue
             op_retime(op,a)
             a.pop("reminder_sent_for",None)
+            a.pop("reminder_minute_sent_for",None)
             changed+=1
         op_store(ops,"Change operation arrival time")
         state(uid)
