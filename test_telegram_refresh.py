@@ -1422,3 +1422,20 @@ class PublishedOperationArenaTests(unittest.TestCase):
  def test_two_villages_of_same_player_refresh_independently(self):
   o=self.ops;self.fixture();ops=o.load(o.OPERATIONS);op=ops['op'];op['offers']['second']['telegram_id']=1;offers=o.load(o.OFFERS);offers['second']=dict(offers['1'],telegram_id=1,x=10,arena=7);o.save(o.OFFERS,offers);o.save(o.OPERATIONS,ops)
   self.assertEqual(o.sync_operation_arenas(),5);op=o.load(o.OPERATIONS)['op'];self.assertEqual(op['attacks']['keep']['arena'],7);self.assertEqual(op['attacks']['real']['arena'],12)
+
+class OperationWaveButtonTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def test_two_four_and_other_wave_counts_preserve_action_and_mode(self):
+  o=self.ops
+  for count,style,badge in [(2,None,'🟣2'),(4,None,'🟡4'),(3,None,'⚪3')]:
+   attack={'mode':'destroy','waves':99,'wave_plan':[{} for _ in range(count)]}
+   button=o.wave_button('🔥 12:30:00','mine:job:op:real',attack)
+   self.assertEqual(button.get('style'),style);self.assertIn(badge,button['text']);self.assertIn('🔥',button['text']);self.assertEqual(button['callback_data'],'mine:job:op:real')
+  self.assertEqual(o.wave_badge({'waves':4}),'🟡4')
+ def test_personal_plan_buttons_color_by_waves_and_keep_type_and_status(self):
+  o=self.ops;self.op.update(status='published',created_by=1,name='Fixture')
+  self.op['attacks']['real']['waves']=4;self.op['attacks']['real']['wave_plan']=[{}]*4;self.op['attacks']['real']['sent_at']='done'
+  o.save(o.OPERATIONS,{'op':self.op});o.personal_op(1,1,'op')
+  buttons=[b for row in self.sender.call_args.args[2] for b in row if b['callback_data'].startswith('mine:job:')]
+  real=next(b for b in buttons if b['callback_data'].endswith(':real'));spam=next(b for b in buttons if b['callback_data'].endswith(':before'))
+  self.assertIn('🟡4',real['text']);self.assertIn('🔥 ✅',real['text']);self.assertIn('🟣2',spam['text']);self.assertIn('🟡',spam['text'])

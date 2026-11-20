@@ -351,6 +351,24 @@ def op_attack_defaults(mode,target):
 def op_mode_name(mode):
     return {"spam":"🟡 Спам","destroy":"🔥 Уничтожение","capture":"👑 Захват"}.get(mode,mode)
 
+WAVE_LEGEND='🟣2 — 2 волны · 🟡4 — 4 волны · ⚪ — другое число волн'
+
+
+def attack_wave_count(attack):
+    plan=attack.get('wave_plan')
+    if isinstance(plan,list):return len(plan)
+    return int(attack.get('waves',0) or 0)
+
+
+def wave_badge(attack):
+    count=attack_wave_count(attack)
+    return {2:'🟣2',4:'🟡4'}.get(count,f'⚪{count}')
+
+
+def wave_button(text,data,attack):
+    return btn(f'{wave_badge(attack)} {text}',data)
+
+
 def op_summary(op):
     return (f"📝 <b>{html.escape(op['name'])}</b>\n"
             f"Статус: <b>{'ОПУБЛИКОВАНА' if op.get('status')=='published' else 'ЧЕРНОВИК'}</b>\n\n"+
@@ -429,11 +447,12 @@ def op_offer_detail(cid,oid,uid):
     op=load(OPERATIONS).get(oid)
     if not op or uid not in op["offers"]:return
     o=op["offers"][uid]; lines=[f"👤 <b>{html.escape(o['player'])}</b>",f"Смещение: <b>{o['offset']:+d} сек</b>",""]
+    lines.insert(1,WAVE_LEGEND)
     for a in op["attacks"].values():
         if a["offer_id"]==uid:
             t=op["targets"][a["target_key"]]
             lines.append(f"• {op_mode_name(a['mode'])} <code>{a['target_key']}</code> {html.escape(t['player'])} — <code>{a['arrival']}</code> · {a['waves']} волн")
-    rows=[[btn(f"{op_mode_name(a['mode'])} · {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["offer_id"]==uid]
+    rows=[[wave_button(f"{op_mode_name(a['mode'])} · {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}",a)] for a in op["attacks"].values() if a["offer_id"]==uid]
     if op.get("status")=="draft":rows.append([btn("🗑 Убрать офф-деревню из черновика",f"oormask:{oid}:{uid}")])
     rows += [[btn("⏱ Смещение оффера",f"oofferedit:{oid}:{uid}")],[btn("⬅️ К офферам",f"opoffers:{oid}")]];send(cid,"\n".join(lines),rows)
 
@@ -650,7 +669,7 @@ def op_departures(cid,oid,page=0,message_id=None):
     jobs=operation_departures(op);page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
     page=max(0,min(int(page),pages-1))
     lines=['🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
-           'От самой ранней к самой поздней.',TIME_NOTE,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
+           'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
     buttons=[]
     for index,(departure,aid,attack) in enumerate(jobs[page*page_size:(page+1)*page_size],page*page_size+1):
         offer=op.get('offers',{}).get(attack.get('offer_id'),{})
@@ -665,7 +684,7 @@ def op_departures(cid,oid,page=0,message_id=None):
                       f'👤 {player} · 🏘 <code>{html.escape(origin)}</code>',
                       f'🎯 <code>{html.escape(destination)}</code> — {target_player}',
                       f'{mode} · Волн: {int(attack.get("waves",0) or 0)}',''])
-        buttons.append([btn(f'{index}. '+(departure.strftime('%H:%M:%S') if departure else '⚠️')+f' · {origin} → {destination}',f'oa:{oid}:{aid}')])
+        buttons.append([wave_button(f'{index}. '+(departure.strftime('%H:%M:%S') if departure else '⚠️')+f' · {origin} → {destination}',f'oa:{oid}:{aid}',attack)])
     if not jobs:lines.append('В операции пока нет отправок.')
     nav=[]
     if page:nav.append(btn('⬅️ Назад',f'opdepartures:{oid}:{page-1}'))
@@ -1093,11 +1112,12 @@ def personal_op(cid,uid,oid,message_id=None):
     lines.append(f"🔄 Обновлено: {current.strftime('%H:%M:%S')}")
     buttons=[[btn("🔄 Обновить",f"mine:refresh:{oid}")],
              [btn("🛡 Сейв-точки",f"mine:save:{oid}"),btn("💡 Юниты для спама",f"mine:spam:{oid}")]]
-    buttons += [[btn(f"{op_mode_name(a['mode']).split()[0]}{' ✅' if a.get('sent_at') else ' 🔴' if dt and dt.timestamp()<=current.timestamp() else ''} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}")]
+    buttons += [[wave_button(f"{op_mode_name(a['mode']).split()[0]}{' ✅' if a.get('sent_at') else ' 🔴' if dt and dt.timestamp()<=current.timestamp() else ''} {dt.strftime('%H:%M:%S') if dt else '—'} · {op['offers'][a['offer_id']]['x']}|{op['offers'][a['offer_id']]['y']} → {a['target_key']}",f"mine:job:{oid}:{a['id']}",a)]
                 for a in jobs[:70] for dt in [op_travel(a,op)[0]]]
     if not op.get("ready",{}).get(str(uid)):
         buttons.append([btn("✅ Подтверждаю готовность",f"mine:ready:{oid}")])
     buttons.append([btn("⬅️ Мой план","mine:list")])
+    lines.insert(1,WAVE_LEGEND)
     message="\n".join(lines)+"\n\n"+TIME_NOTE
     if message_id is None:
         send(cid,message,buttons)
