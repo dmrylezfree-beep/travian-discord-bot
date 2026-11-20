@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-20T12:46:27.739582+00:00",
+  "created_at": "2026-11-20T13:46:37.381324+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -409,7 +409,7 @@
             "coordinates": "43 47",
             "arena": 8,
             "troops": {
-              "phalanx": 6600,
+              "phalanx": 7000,
               "druidrider": 3500,
               "haeduan": 100
             },
@@ -421,7 +421,7 @@
             "coordinates": "47 45",
             "arena": 0,
             "troops": {
-              "haeduan": 400,
+              "haeduan": 450,
               "phalanx": 0,
               "druidrider": 0
             },
@@ -7079,7 +7079,7 @@
       "907765051": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 0,
+        "arena": 4,
         "army": {
           "troops": {
             "Императорская конница": 6500,
@@ -7208,6 +7208,9 @@
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
             "offset": -2,
+            "reminder_minute_sent_for": "2026-11-20T12:52:40+00:00",
+            "reminder_sent_for": "2026-11-20T12:52:40+00:00",
+            "sent_at": "2026-11-20T12:53:07+00:00",
             "speed": 3,
             "target_key": "-16|38",
             "wave_plan": [
@@ -7698,6 +7701,7 @@
             "offer_id": "5019114411",
             "offer_player": "Gross",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T12:48:53+00:00",
             "reminder_sent_for": "2026-11-20T12:48:53+00:00",
             "speed": 3,
             "target_key": "26|-27",
@@ -7751,6 +7755,8 @@
             "offer_id": "5019114411",
             "offer_player": "Gross",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T13:29:53+00:00",
+            "reminder_sent_for": "2026-11-20T13:29:53+00:00",
             "speed": 3,
             "target_key": "30|-20",
             "wave_plan": [
@@ -7773,6 +7779,8 @@
             "offer_id": "5019114411",
             "offer_player": "Gross",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T13:32:14+00:00",
+            "reminder_sent_for": "2026-11-20T13:32:14+00:00",
             "speed": 3,
             "target_key": "32|-22",
             "wave_plan": [
@@ -8453,6 +8461,8 @@
             "offer_id": "993572860",
             "offer_player": "Frontman",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:30:51+00:00",
+            "reminder_sent_for": "2026-11-20T13:30:51+00:00",
             "speed": 3,
             "target_key": "-25|66",
             "wave_plan": [
@@ -8563,6 +8573,8 @@
             "offer_id": "993572860",
             "offer_player": "Frontman",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T12:59:28+00:00",
+            "reminder_sent_for": "2026-11-20T12:59:28+00:00",
             "speed": 3,
             "target_key": "13|-19",
             "wave_plan": [
@@ -8860,6 +8872,8 @@
             "offer_id": "993572860",
             "offer_player": "Frontman",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:43:56+00:00",
+            "reminder_sent_for": "2026-11-20T13:43:56+00:00",
             "speed": 3,
             "target_key": "30|-20",
             "wave_plan": [
@@ -8882,6 +8896,8 @@
             "offer_id": "993572860",
             "offer_player": "Frontman",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:32:00+00:00",
+            "reminder_sent_for": "2026-11-20T13:32:00+00:00",
             "speed": 3,
             "target_key": "32|-22",
             "wave_plan": [
@@ -9097,6 +9113,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:15:37+00:00",
+            "reminder_sent_for": "2026-11-20T13:15:37+00:00",
+            "sent_at": "2026-11-20T13:16:13+00:00",
             "speed": 3,
             "target_key": "10|-35",
             "wave_plan": [
@@ -9169,6 +9188,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:41:29+00:00",
+            "reminder_sent_for": "2026-11-20T13:41:29+00:00",
+            "sent_at": "2026-11-20T13:41:57+00:00",
             "speed": 3,
             "target_key": "15|-33",
             "wave_plan": [
@@ -9263,6 +9285,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:45:35+00:00",
+            "reminder_sent_for": "2026-11-20T13:45:35+00:00",
+            "sent_at": "2026-11-20T13:46:01+00:00",
             "speed": 3,
             "target_key": "18|-34",
             "wave_plan": [
@@ -9479,6 +9504,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:22:00+00:00",
+            "reminder_sent_for": "2026-11-20T13:22:00+00:00",
+            "sent_at": "2026-11-20T13:22:34+00:00",
             "speed": 3,
             "target_key": "9|-33",
             "wave_plan": [
@@ -9498,7 +9526,7 @@
             "waves": 4
           },
           "181": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9526,7 +9554,7 @@
             "waves": 4
           },
           "182": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9535,7 +9563,6 @@
             "offer_id": "907765051",
             "offer_player": "Ruslan1980",
             "offset": 0,
-            "reminder_sent_for": "2026-11-20T09:18:13+00:00",
             "speed": 3,
             "target_key": "-1|-47",
             "wave_plan": [
@@ -9564,7 +9591,6 @@
             "offer_id": "907765051",
             "offer_player": "Ruslan1980",
             "offset": 0,
-            "reminder_sent_for": "2026-11-20T05:25:09+00:00",
             "sent_at": "2026-11-20T11:04:16+00:00",
             "speed": 3,
             "target_key": "-25|66",
@@ -9594,7 +9620,6 @@
             "offer_id": "907765051",
             "offer_player": "Ruslan1980",
             "offset": 0,
-            "reminder_sent_for": "2026-11-20T06:24:47+00:00",
             "sent_at": "2026-11-20T06:25:32+00:00",
             "speed": 3,
             "target_key": "-5|71",
@@ -9615,7 +9640,7 @@
             "waves": 4
           },
           "185": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9637,7 +9662,7 @@
             "waves": 2
           },
           "186": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9665,7 +9690,7 @@
             "waves": 4
           },
           "187": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9687,7 +9712,7 @@
             "waves": 2
           },
           "188": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9709,7 +9734,7 @@
             "waves": 2
           },
           "189": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9759,7 +9784,7 @@
             "waves": 4
           },
           "190": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9781,7 +9806,7 @@
             "waves": 2
           },
           "191": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9803,7 +9828,7 @@
             "waves": 2
           },
           "192": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9825,7 +9850,7 @@
             "waves": 2
           },
           "193": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9847,7 +9872,7 @@
             "waves": 2
           },
           "194": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9875,7 +9900,7 @@
             "waves": 4
           },
           "195": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9897,7 +9922,7 @@
             "waves": 2
           },
           "196": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9919,7 +9944,7 @@
             "waves": 2
           },
           "197": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9928,8 +9953,6 @@
             "offer_id": "907765051",
             "offer_player": "Ruslan1980",
             "offset": 0,
-            "reminder_minute_sent_for": "2026-11-20T12:04:48+00:00",
-            "reminder_sent_for": "2026-11-20T12:04:48+00:00",
             "speed": 3,
             "target_key": "26|-37",
             "wave_plan": [
@@ -9949,7 +9972,7 @@
             "waves": 4
           },
           "198": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -9971,7 +9994,7 @@
             "waves": 2
           },
           "199": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -10008,6 +10031,9 @@
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
             "offset": -2,
+            "reminder_minute_sent_for": "2026-11-20T13:35:33+00:00",
+            "reminder_sent_for": "2026-11-20T13:35:33+00:00",
+            "sent_at": "2026-11-20T13:35:56+00:00",
             "speed": 3,
             "target_key": "-1|-47",
             "wave_plan": [
@@ -10055,7 +10081,7 @@
             "waves": 4
           },
           "200": {
-            "arena": 0,
+            "arena": 4,
             "arrival": "21.11.2026 04:00:00",
             "arrival_iso": "2026-11-21T04:00:00+00:00",
             "comment": "",
@@ -10120,6 +10146,9 @@
             "offer_id": "304355451",
             "offer_player": "deversant",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-20T13:37:40+00:00",
+            "reminder_sent_for": "2026-11-20T13:37:40+00:00",
+            "sent_at": "2026-11-20T13:38:15+00:00",
             "speed": 3,
             "target_key": "-1|-47",
             "wave_plan": [
@@ -10680,6 +10709,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:14:12+00:00",
+            "reminder_sent_for": "2026-11-20T13:14:12+00:00",
+            "sent_at": "2026-11-20T13:14:40+00:00",
             "speed": 3,
             "target_key": "-5|71",
             "wave_plan": [
@@ -10710,6 +10742,7 @@
             "offset": -3,
             "reminder_minute_sent_for": "2026-11-20T12:46:21+00:00",
             "reminder_sent_for": "2026-11-20T12:46:21+00:00",
+            "sent_at": "2026-11-20T12:46:54+00:00",
             "speed": 3,
             "target_key": "10|-25",
             "wave_plan": [
@@ -10763,6 +10796,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:24:39+00:00",
+            "reminder_sent_for": "2026-11-20T13:24:39+00:00",
+            "sent_at": "2026-11-20T13:24:55+00:00",
             "speed": 3,
             "target_key": "13|-19",
             "wave_plan": [
@@ -10785,6 +10821,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:09:22+00:00",
+            "reminder_sent_for": "2026-11-20T13:09:22+00:00",
+            "sent_at": "2026-11-20T13:09:51+00:00",
             "speed": 3,
             "target_key": "14|-24",
             "wave_plan": [
@@ -10862,6 +10901,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:19:05+00:00",
+            "reminder_sent_for": "2026-11-20T13:19:05+00:00",
+            "sent_at": "2026-11-20T13:19:27+00:00",
             "speed": 3,
             "target_key": "17|-25",
             "wave_plan": [
@@ -10884,6 +10926,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T12:57:24+00:00",
+            "reminder_sent_for": "2026-11-20T12:57:24+00:00",
+            "sent_at": "2026-11-20T12:58:09+00:00",
             "speed": 3,
             "target_key": "17|-30",
             "wave_plan": [
@@ -10931,6 +10976,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T12:57:09+00:00",
+            "reminder_sent_for": "2026-11-20T12:57:09+00:00",
+            "sent_at": "2026-11-20T12:57:48+00:00",
             "speed": 3,
             "target_key": "19|-32",
             "wave_plan": [
@@ -10953,6 +11001,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:32:09+00:00",
+            "reminder_sent_for": "2026-11-20T13:32:09+00:00",
+            "sent_at": "2026-11-20T13:32:28+00:00",
             "speed": 3,
             "target_key": "24|-29",
             "wave_plan": [
@@ -10981,6 +11032,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:40:59+00:00",
+            "reminder_sent_for": "2026-11-20T13:40:59+00:00",
+            "sent_at": "2026-11-20T13:41:16+00:00",
             "speed": 3,
             "target_key": "25|-28",
             "wave_plan": [
@@ -11003,6 +11057,7 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_sent_for": "2026-11-20T13:49:49+00:00",
             "speed": 3,
             "target_key": "26|-27",
             "wave_plan": [
@@ -11025,6 +11080,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-20T13:02:12+00:00",
+            "reminder_sent_for": "2026-11-20T13:02:12+00:00",
+            "sent_at": "2026-11-20T13:02:37+00:00",
             "speed": 3,
             "target_key": "26|-37",
             "wave_plan": [
@@ -11165,6 +11223,9 @@
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T12:54:58+00:00",
+            "reminder_sent_for": "2026-11-20T12:54:58+00:00",
+            "sent_at": "2026-11-20T12:55:52+00:00",
             "speed": 3,
             "target_key": "-16|38",
             "wave_plan": [
@@ -12252,6 +12313,9 @@
             "offer_id": "440450037",
             "offer_player": "Kenny",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T13:25:11+00:00",
+            "reminder_sent_for": "2026-11-20T13:25:11+00:00",
+            "sent_at": "2026-11-20T13:25:30+00:00",
             "speed": 3,
             "target_key": "-16|38",
             "wave_plan": [
@@ -12309,6 +12373,9 @@
             "offer_id": "440450037",
             "offer_player": "Kenny",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-20T13:18:39+00:00",
+            "reminder_sent_for": "2026-11-20T13:18:39+00:00",
+            "sent_at": "2026-11-20T13:18:57+00:00",
             "speed": 3,
             "target_key": "-25|66",
             "wave_plan": [
@@ -13005,7 +13072,7 @@
             "y": 3
           },
           "907765051": {
-            "arena": 0,
+            "arena": 4,
             "army_snapshot": {
               "troops": {
                 "Императорская конница": 6500,
@@ -13055,13 +13122,14 @@
         },
         "published_at": "2026-11-19T11:06:50+00:00",
         "ready": {
+          "1279902812": "2026-11-20T13:16:05+00:00",
           "268694088": "2026-11-19T18:48:50+00:00",
           "304355451": "2026-11-20T10:46:07+00:00",
           "320784442": "2026-11-20T06:15:26+00:00",
           "440450037": "2026-11-19T14:00:24+00:00",
           "5019114411": "2026-11-19T11:52:52+00:00",
           "5846903291": "2026-11-19T11:27:57+00:00",
-          "907765051": "2026-11-19T12:12:15+00:00"
+          "907765051": "2026-11-20T12:55:31+00:00"
         },
         "status": "published",
         "targets": {
