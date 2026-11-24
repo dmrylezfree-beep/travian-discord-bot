@@ -407,8 +407,8 @@ def show_op(cid,oid):
         buttons.append([btn("🗑 Удалить операцию",f"opdeleteask:{oid}")])
     else:
         buttons.insert(0,[btn("📢 Опубликовать",f"publish:{oid}")])
-        buttons.append([btn("➕ Добавить офф-деревню",f"oofferpick:{oid}:0")])
         buttons.append([btn("🗑 Удалить черновик",f"odraftask:{oid}")])
+    buttons.append([btn("➕ Добавить офф-деревню",f"oofferpick:{oid}:0")])
     buttons.append([btn("⬅️ Операции","ops:list")])
     send(cid,op_summary(op),buttons)
 
@@ -432,7 +432,7 @@ def op_offers(cid,oid):
         n=sum(1 for a in op["attacks"].values() if a["offer_id"]==uid)
         off=o.get("offset",0); sign="+" if off>0 else ""
         rows.append([btn(f"{village_label(o)} · {sign}{off} сек · {n}",f"opoffer:{oid}:{uid}")])
-    if op.get("status")=="draft":rows.append([btn("➕ Добавить офф-деревню",f"oofferpick:{oid}:0")])
+    if op.get("status") in ("draft","published"):rows.append([btn("➕ Добавить офф-деревню",f"oofferpick:{oid}:0")])
     rows.append([btn("⬅️ К операции",f"op:{oid}")])
     send(cid,"👥 <b>Офферы операции</b>",rows)
 
@@ -458,7 +458,7 @@ def op_offer_detail(cid,oid,uid):
             t=op["targets"][a["target_key"]]
             lines.append(f"• {op_mode_name(a['mode'])} <code>{a['target_key']}</code> {html.escape(t['player'])} — <code>{a['arrival']}</code> · {a['waves']} волн")
     rows=[[wave_button(f"{op_mode_name(a['mode'])} · {a['target_key']} · {a['arrival']}",f"oa:{oid}:{a['id']}",a)] for a in op["attacks"].values() if a["offer_id"]==uid]
-    if op.get("status")=="draft":rows.append([btn("🗑 Убрать офф-деревню из черновика",f"oormask:{oid}:{uid}")])
+    if op.get("status") in ("draft","published"):rows.append([btn("🗑 Убрать офф-деревню из операции",f"oormask:{oid}:{uid}")])
     rows += [[btn("⏱ Смещение оффера",f"oofferedit:{oid}:{uid}")],[btn("⬅️ К офферам",f"opoffers:{oid}")]];send(cid,"\n".join(lines),rows)
 
 def op_offer_picker(cid,d):
@@ -614,7 +614,18 @@ def op_store(ops, msg="Edit operation"):
             for a in new_jobs.values():
                 a.pop("reminder_sent_for",None)
                 a.pop("reminder_minute_sent_for",None)
-            try:send(int(uid),f"⚠️ <b>{html.escape(op['name'])}: план изменён!</b>\nПроверьте задания и повторно подтвердите готовность.",[[btn("📋 Открыть план",f"mine:op:{oid}")]])
+            removed=[village_label(offer) for key,offer in old.get('offers',{}).items()
+                     if op_owner(old,key)==uid and key not in op.get('offers',{})]
+            text=f"⚠️ <b>{html.escape(op['name'])}: план изменён!</b>"
+            if removed:
+                text+='\nИз плана убраны офф-деревни: '+html.escape(', '.join(removed))+'. Не отправляйте войска по их прежним заданиям. Уже отправленные в игре войска не отозваны.'
+            if new_jobs:
+                text+='\nПроверьте задания и повторно подтвердите готовность.'
+                buttons=[[btn("📋 Открыть план",f"mine:op:{oid}")]]
+            else:
+                text+='\nАктивных заданий в этой операции у вас больше нет.'
+                buttons=None
+            try:send(int(uid),text,buttons)
             except Exception as e:print("change notification error",uid,repr(e),flush=True)
     save(OPERATIONS,ops)
 
@@ -752,21 +763,22 @@ def op_all_edit_menu(cid,oid):
          [[btn("⏱ Установить смещение всем",f"obulk:{oid}:all:all")],[btn("⬅️ Операция",f"op:{oid}")]])
 
 def offer_removal_token(op,key):
-    payload={'offer':op.get('offers',{}).get(key),'attacks':{aid:a for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)}}
+    payload={'status':op.get('status'),'offer':op.get('offers',{}).get(key),'attacks':{aid:a for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)}}
     return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:10]
 
 
 def op_remove_offer(cid,oid,key,token=None):
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
     ops=load(OPERATIONS);op=ops.get(oid)
-    if not op or op.get('status')!='draft':send(cid,'Удалять офф-деревню этим действием можно только из черновика.');return
+    if not op or op.get('status') not in ('draft','published'):send(cid,'Изменение состава этой операции недоступно.');return
     offer=op.get('offers',{}).get(key)
-    if not offer:send(cid,'Эта офф-деревня уже убрана из черновика.');return
+    if not offer:send(cid,'Эта офф-деревня уже убрана из операции.');return
     signature=offer_removal_token(op,key)
     if token is None or token!=signature:
         count=sum(str(a.get('offer_id'))==str(key) for a in op.get('attacks',{}).values())
-        text=('🗑 <b>Убрать офф-деревню из черновика?</b>\n'+html.escape(village_label(offer))+
+        text=('🗑 <b>Убрать офф-деревню из операции?</b>\n'+html.escape(village_label(offer))+
               f'\nБудут удалены все её отправки: <b>{count}</b>. Регистрация деревни, другие офферы и цели операции сохранятся.')
+        if op.get('status')=='published':text+='\nУчастник получит уведомление об изменении плана. Уже отправленные в игре войска это действие не отзывает.'
         if token is not None:text='⚠️ Настройки или отправки изменились. Проверьте удаление ещё раз.\n\n'+text
         send(cid,text,[[btn('🗑 Да, убрать деревню и отправки',f'oormyes:{oid}:{key}:{signature}')],
                        [btn('❌ Отмена',f'opoffer:{oid}:{key}')]])
@@ -774,20 +786,21 @@ def op_remove_offer(cid,oid,key,token=None):
     removed=[aid for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)]
     for aid in removed:del op['attacks'][aid]
     del op['offers'][key]
-    op_store(ops,'Remove offence village and all its sends from draft')
-    send(cid,f'✅ Офф-деревня убрана из черновика. Удалено отправок: <b>{len(removed)}</b>.')
+    op_store(ops,'Remove offence village and all its sends from operation')
+    send(cid,f'✅ Офф-деревня убрана из операции. Удалено отправок: <b>{len(removed)}</b>.')
     op_offers(cid,oid)
 
 
 def op_add_offer_picker(cid,oid,page=0,message_id=None):
     op=owned_operation(cid,oid)
     if not op:send(cid,'⛔ Операция недоступна.');return
-    if op.get('status')!='draft':send(cid,'Добавление офф-деревни доступно только в черновике.');return
+    if op.get('status') not in ('draft','published'):send(cid,'Изменение состава этой операции недоступно.');return
     available=[(key,offer) for key,offer in active_offers().items() if key not in op.get('offers',{})]
     available.sort(key=lambda item:(str(item[1].get('player','')).casefold(),item[1]['x'],item[1]['y'],item[0]))
     page_size=8;pages=max(1,(len(available)+page_size-1)//page_size);page=max(0,min(int(page),pages-1))
-    text=('➕ <b>Добавить офф-деревню</b>\nВыберите зарегистрированную деревню. Для неё сразу создадутся спам-отправки на все цели черновика. Скорость — базовая для операции, арена — из настроек деревни, смещение — 0 секунд. Его можно изменить в разделе «По офферам».\n'
+    text=('➕ <b>Добавить офф-деревню</b>\nВыберите зарегистрированную деревню. Для неё сразу создадутся спам-отправки на все цели операции. Скорость — базовая для операции, арена — из настроек деревни, смещение — 0 секунд. Его можно изменить в разделе «По офферам».\n'
           f'Доступно деревень: {len(available)} · Страница {page+1}/{pages}')
+    if op.get('status')=='published':text+='\nПосле добавления участник получит уведомление. Проверьте время отправок и настройте реальные атаки при необходимости.'
     if not available:text+='\nВсе зарегистрированные офф-деревни уже добавлены или пока нет доступных деревень.'
     buttons=[[btn(village_label(offer),f'oofferjoin:{oid}:{key}')] for key,offer in available[page*page_size:(page+1)*page_size]]
     nav=[]
@@ -803,11 +816,11 @@ def op_add_offer_picker(cid,oid,page=0,message_id=None):
 def op_add_offer(cid,oid,ouid):
     if not owned_operation(cid,oid):send(cid,'⛔ Операция недоступна.');return
     ops=load(OPERATIONS);op=ops.get(oid)
-    if not op or op.get('status')!='draft':send(cid,'Добавление офф-деревни доступно только в черновике.');return
-    if ouid in op.get('offers',{}):send(cid,'Эта офф-деревня уже есть в черновике. Повторные отправки не созданы.');return
+    if not op or op.get('status') not in ('draft','published'):send(cid,'Изменение состава этой операции недоступно.');return
+    if ouid in op.get('offers',{}):send(cid,'Эта офф-деревня уже есть в операции. Повторные отправки не созданы.');return
     source=active_offers().get(ouid)
     if not source:send(cid,'Эта офф-деревня больше недоступна. Обновите список.');return
-    if not op.get('targets'):send(cid,'В черновике нет целей. Сначала добавьте цели операции.');return
+    if not op.get('targets'):send(cid,'В операции нет целей. Сначала добавьте цели операции.');return
     offer={'telegram_id':int(offer_owner(ouid,source)),'save_points':source.get('save_points',[]),
            'player':source['player'],'village':source['village'],'x':source['x'],'y':source['y'],
            'arena':source['arena'],'offset':0,'army_snapshot':source.get('army',{})}
@@ -820,7 +833,7 @@ def op_add_offer(cid,oid,ouid):
                 'comment':'','offset':0,'speed':op['base_speed'],'arena':offer['arena']}
         op_retime(op,attack);additions[aid]=attack
     op['offers'][ouid]=offer;op['attacks'].update(additions)
-    op_store(ops,'Add offence village and all targets to operation draft')
+    op_store(ops,'Add offence village and all targets to operation')
     send(cid,f'✅ Добавлена офф-деревня <b>{html.escape(village_label(source))}</b>. Создано отправок: <b>{len(additions)}</b>. Все новые отправки — спам; реальные атаки можно настроить отдельно.')
     show_op(cid,oid)
 
@@ -1721,3 +1734,4 @@ def main():
         try:send_reminders()
         except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()
+

@@ -1336,7 +1336,7 @@ class AddOperationOfferTests(unittest.TestCase):
    self.assertEqual((attack['arena'],attack['speed'],attack['offset'],attack['mode']),(7,3,0,'spam'));self.assertEqual(attack['arrival_iso'],after['arrival_iso'])
   self.assertEqual({a['target_key']:a['waves'] for a in added},{'t':4,'second':2});self.assertEqual(after['offers']['2']['telegram_id'],2);self.assertEqual(o.OFFERS.read_bytes(),source)
   o.op_add_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],after)
- def test_no_access_or_published_or_deleted_village_can_add(self):
+ def test_no_access_or_deleted_village_can_add(self):
   o=self.ops;before=self.fixture();o.op_add_offer(2,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
   offers=o.load(o.OFFERS);offers['2']['deleted_at']=o.now();o.save(o.OFFERS,offers);o.op_add_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
   before['status']='published';o.save(o.OPERATIONS,{'op':before});o.op_add_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
@@ -1391,10 +1391,10 @@ class RemoveDraftOfferTests(unittest.TestCase):
   self.assertIn('4',self.sender.call_args.args[1]);token=o.offer_removal_token(before,'1');o.op_remove_offer(1,'op','1',token);after=o.load(o.OPERATIONS)['op']
   self.assertEqual(set(after['offers']),{'second'});self.assertEqual(after['attacks'],{'keep':before['attacks']['keep']});self.assertEqual(after['targets'],before['targets']);self.assertEqual(o.OFFERS.read_bytes(),profile)
   o.op_remove_offer(1,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],after)
- def test_other_author_published_and_changed_confirmation_cannot_delete(self):
+ def test_other_author_and_changed_confirmation_cannot_delete(self):
   o=self.ops;before=self.fixture();token=o.offer_removal_token(before,'1');o.op_remove_offer(2,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],before)
   before['attacks']['real']['speed']=4;o.save(o.OPERATIONS,{'op':before});o.op_remove_offer(1,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],before)
-  before['status']='published';o.save(o.OPERATIONS,{'op':before});o.op_remove_offer(1,'op','1',o.offer_removal_token(before,'1'));self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  token=o.offer_removal_token(before,'1');before['status']='published';o.save(o.OPERATIONS,{'op':before});o.op_remove_offer(1,'op','1',token);self.assertEqual(o.load(o.OPERATIONS)['op'],before)
  def test_button_in_offers_detail_and_callback_confirmation(self):
   o=self.ops;before=self.fixture();o.op_offer_detail(1,'op','1');self.assertIn('oormask:op:1',str(self.sender.call_args))
   with patch.object(o,'api'):
@@ -1467,6 +1467,50 @@ class OneMinuteOperationReminderTests(unittest.TestCase):
   self.assertFalse(o.load(o.OPERATIONS)['op']['attacks']['before'].get('reminder_minute_sent_for'))
   self.sender.side_effect=None;self.tick(40);self.assertEqual(self.sender.call_count,2);self.tick(20);self.assertEqual(self.sender.call_count,2)
 
+class PublishedOfferManagementTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;op=AddOperationOfferTests.fixture(self)
+  op.update(status='published',ready={'1':True,'2':True})
+  op['offers']['1']['offset']=0
+  for target in op['targets'].values():target['player']='Target'
+  for a in op['attacks'].values():a.update(offer_player='fixture',arrival='02.01.2030 12:20:00',reminder_sent_for='old',reminder_minute_sent_for='old')
+  o.save(o.OPERATIONS,{'op':op});return o.load(o.OPERATIONS)['op']
+ def notices(self):
+  return [c.args for c in self.sender.call_args_list if 'план изменён!' in c.args[1]]
+ def test_add_published_preserves_existing_jobs_and_notifies_only_new_member(self):
+  o=self.ops;before=self.fixture();profile=o.OFFERS.read_bytes();o.op_add_offer(1,'op','2');op=o.load(o.OPERATIONS)['op']
+  self.assertEqual(op['status'],'published');self.assertEqual(op['ready'],{'1':True})
+  self.assertEqual([c[0] for c in self.notices()],[2])
+  for aid,a in before['attacks'].items():self.assertEqual(op['attacks'][aid],a)
+  self.assertEqual(sum(a['offer_id']=='2' for a in op['attacks'].values()),2)
+  self.assertEqual(o.OFFERS.read_bytes(),profile)
+  self.sender.reset_mock();o.op_add_offer(1,'op','2');self.assertFalse(self.notices());self.assertEqual(o.load(o.OPERATIONS)['op'],op)
+ def test_remove_published_confirms_then_notifies_without_dead_link(self):
+  o=self.ops;self.fixture();o.op_add_offer(1,'op','2');before=o.load(o.OPERATIONS)['op'];self.sender.reset_mock()
+  o.op_remove_offer(1,'op','2');self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+  self.assertIn('не отзывает',self.sender.call_args.args[1])
+  o.op_remove_offer(1,'op','2',o.offer_removal_token(before,'2'));op=o.load(o.OPERATIONS)['op']
+  self.assertEqual(op['status'],'published');self.assertNotIn('2',op['offers']);self.assertEqual(op['targets'],before['targets'])
+  self.assertEqual(op['attacks'],{k:a for k,a in before['attacks'].items() if a['offer_id']!='2'})
+  notices=self.notices();self.assertEqual([c[0] for c in notices],[2]);self.assertIsNone(notices[0][2]);self.assertIn('больше нет',notices[0][1])
+  self.sender.reset_mock();o.send_reminders();self.assertFalse(any(c.args[0]==2 for c in self.sender.call_args_list))
+ def test_removing_one_of_two_villages_keeps_other_jobs_and_resets_owner_readiness(self):
+  o=self.ops;op=self.fixture();offers=o.load(o.OFFERS);offers['2']['telegram_id']=1;o.save(o.OFFERS,offers);o.op_add_offer(1,'op','2')
+  op=o.load(o.OPERATIONS)['op'];op['ready']={'1':True,'99':True};o.save(o.OPERATIONS,{'op':op});self.sender.reset_mock()
+  o.op_remove_offer(1,'op','2',o.offer_removal_token(op,'2'));after=o.load(o.OPERATIONS)['op']
+  self.assertEqual(after['ready'],{'99':True});self.assertEqual(set(after['attacks']),set(self.op['attacks']))
+  notices=self.notices();self.assertEqual([c[0] for c in notices],[1]);self.assertIn('mine:op:op',str(notices[0][2]))
+ def test_published_buttons_and_foreign_callbacks(self):
+  o=self.ops;before=self.fixture();o.show_op(1,'op');self.assertIn('oofferpick:op:0',str(self.sender.call_args))
+  o.op_offers(1,'op');self.assertIn('oofferpick:op:0',str(self.sender.call_args))
+  o.op_offer_detail(1,'op','1');self.assertIn('oormask:op:1',str(self.sender.call_args))
+  o.op_add_offer_picker(1,'op');self.assertIn('oofferjoin:op:2',str(self.sender.call_args))
+  with patch.object(o,'api'):
+   for action in ('oofferjoin:op:2','oormyes:op:1:'+o.offer_removal_token(before,'1')):
+    o.callback({'id':'fixture','from':{'id':2},'message':{'chat':{'id':2,'type':'private'}},'data':action})
+  self.assertEqual(o.load(o.OPERATIONS)['op'],before)
+
 class OperationCardWaveColorTests(unittest.TestCase):
  setUp=AllianceOpsSupportTests.setUp
  def test_spam_cards_match_two_and_four_wave_badges_without_yellow_spam_icon(self):
@@ -1475,3 +1519,4 @@ class OperationCardWaveColorTests(unittest.TestCase):
   for count,badge in [(2,'🟣2'),(4,'🟡4')]:
    a['waves']=count;a['wave_plan']=[{'text':'fixture'} for _ in range(count)];o.save(o.OPERATIONS,{'op':self.op});o.personal_job(1,1,'op','before');text=self.sender.call_args.args[1]
    self.assertIn('Волн: '+badge+' · Спам',text);self.assertNotIn('🟡 Спам',text)
+
