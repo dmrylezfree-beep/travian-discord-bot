@@ -314,6 +314,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   o=self.ops;self.private_fixture()
   args={'op':'op','optargets':'op','opoffers':'op','optarget':'op:t','opoffer':'op:1','oa':'op:real','owaves':'op:real','oedit':'op:real:comment','otypes':'op:real','otype':'op:real:spam','owadd':'op:real','owdel':'op:real','odelask':'op:real','odelyes':'op:real','oofferedit':'op:1','oretime':'op','oall':'op','obulk':'op:all:-','oadd':'op','oaddoffer':'op:1','oaddtarget':'op:1:t','opdeleteask':'op','opdeleteyes':'op','odraftask':'op','odraftyes':'op','publish':'op','progress':'op'}
   args['opdepartures']='op:0';args['oofferpick']='op:0';args['oofferjoin']='op:1';args['oormask']='op:1';args['oormyes']='op:1:token'
+  args['otrmask']='op:t';args['otrmyes']='op:t:token'
   self.assertEqual(set(args),set(o.OP_MANAGEMENT_ACTIONS))
   for actor in [2,next(iter(o.COORDINATORS))]:
    for action,suffix in args.items():
@@ -1511,6 +1512,56 @@ class PublishedOfferManagementTests(unittest.TestCase):
     o.callback({'id':'fixture','from':{'id':2},'message':{'chat':{'id':2,'type':'private'}},'data':action})
   self.assertEqual(o.load(o.OPERATIONS)['op'],before)
 
+class RemoveOperationTargetTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self,status='published'):
+  import copy
+  o=self.ops;op=self.op;op.update(status=status,base_speed=3,arrival='02.01.2030 12:20:00',arrival_iso='2030-01-02T12:20:00+00:00',time_zone='Europe/London',ready={'1':True,'2':True,'3':True})
+  op['targets']={k:dict(x=x,y=0,player='Target',village='Village',type='Обычная',mode='spam') for k,x in [('1|0',1),('2|0',2)]}
+  for uid in ('1','2','3'):op['offers'][uid]=dict(op['offers']['1'],telegram_id=int(uid),offset=0)
+  template=dict(op['attacks']['real'],offer_player='fixture',arrival=op['arrival'],offset=0)
+  op['attacks']={aid:dict(template,id=aid,offer_id=uid,target_key=key) for aid,uid,key in [('1','1','2|0'),('2','3','2|0'),('3','1','1|0'),('4','2','1|0')]}
+  op['attacks']['4']['sent_at']='done'
+  o.save(o.OPERATIONS,{'op':op,'other':copy.deepcopy(op)});o.save(o.TARGETS,op['targets'])
+  return o.load(o.OPERATIONS)
+ def notices(self):return [c.args for c in self.sender.call_args_list if 'план изменён!' in c.args[1]]
+ def test_remove_all_offers_only_for_selected_operation_and_target(self):
+  o=self.ops;before=self.fixture();profiles=o.OFFERS.read_bytes();targets=o.TARGETS.read_bytes()
+  o.op_target_detail(1,'op','1|0');self.assertIn('otrmask:op:1|0',str(self.sender.call_args))
+  o.op_remove_target(1,'op','1|0');self.assertEqual(o.load(o.OPERATIONS),before)
+  self.assertIn('не отзывает',self.sender.call_args.args[1])
+  o.op_remove_target(1,'op','1|0',o.target_removal_token(before['op'],'1|0'));after=o.load(o.OPERATIONS);op=after['op']
+  self.assertEqual(after['other'],before['other']);self.assertEqual(op['offers'],before['op']['offers'])
+  self.assertEqual(set(op['targets']),{'2|0'});self.assertEqual(op['attacks'],{k:before['op']['attacks'][k] for k in ('1','2')})
+  self.assertEqual(op['ready'],{'3':True});self.assertEqual(o.TARGETS.read_bytes(),targets);self.assertEqual(o.OFFERS.read_bytes(),profiles)
+  notices={c[0]:c for c in self.notices()};self.assertEqual(set(notices),{1,2});self.assertIn('1|0',notices[1][1]);self.assertIsNone(notices[2][2]);self.assertIn('mine:op:op',str(notices[1][2]))
+  self.sender.reset_mock();o.op_remove_target(1,'op','1|0','old');self.assertFalse(self.notices());self.assertEqual(o.load(o.OPERATIONS),after)
+ def test_draft_last_target_and_stale_confirmation(self):
+  o=self.ops;before=self.fixture('draft');token=o.target_removal_token(before['op'],'1|0')
+  before['op']['attacks']['3']['speed']=4;o.save(o.OPERATIONS,before)
+  o.op_remove_target(1,'op','1|0',token);self.assertEqual(o.load(o.OPERATIONS),before)
+  for key in ('1|0','2|0'):
+   op=o.load(o.OPERATIONS)['op'];o.op_remove_target(1,'op',key,o.target_removal_token(op,key))
+  op=o.load(o.OPERATIONS)['op'];self.assertFalse(op['targets']);self.assertFalse(op['attacks']);self.assertEqual(op['status'],'draft');self.assertFalse(self.notices())
+ def test_foreign_callbacks_cannot_remove_and_author_can(self):
+  o=self.ops;before=self.fixture();token=o.target_removal_token(before['op'],'1|0')
+  with patch.object(o,'api'):
+   def click(uid,data):o.callback({'id':'fixture','from':{'id':uid},'message':{'chat':{'id':uid,'type':'private'}},'data':data})
+   click(2,'otrmask:op:1|0');click(2,'otrmyes:op:1|0:'+token);self.assertEqual(o.load(o.OPERATIONS),before)
+   click(1,'otrmyes:op:1|0:'+token)
+  self.assertNotIn('1|0',o.load(o.OPERATIONS)['op']['targets'])
+ def test_deleted_send_ids_are_not_reused_and_old_target_button_cannot_add(self):
+  o=self.ops;before=self.fixture();o.op_remove_target(1,'op','1|0',o.target_removal_token(before['op'],'1|0'))
+  after=o.load(o.OPERATIONS);o.op_new_send(1,'op','1','1|0');self.assertEqual(o.load(o.OPERATIONS),after)
+  with patch.object(o,'op_attack_view'):o.op_new_send(1,'op','1','2|0')
+  op=o.load(o.OPERATIONS)['op'];self.assertIn('5',op['attacks']);self.assertNotIn('3',op['attacks']);self.assertNotIn('4',op['attacks'])
+ def test_last_published_target_removal_leaves_operation_and_no_plan(self):
+  o=self.ops;self.fixture()
+  for key in ('1|0','2|0'):
+   op=o.load(o.OPERATIONS)['op'];o.op_remove_target(1,'op',key,o.target_removal_token(op,key))
+  op=o.load(o.OPERATIONS)['op'];self.assertFalse(op['targets']);self.assertFalse(op['attacks']);self.assertEqual(op['status'],'published')
+  self.assertIn('op',o.cleanup_expired_operations())
+
 class OperationCardWaveColorTests(unittest.TestCase):
  setUp=AllianceOpsSupportTests.setUp
  def test_spam_cards_match_two_and_four_wave_badges_without_yellow_spam_icon(self):
@@ -1519,4 +1570,5 @@ class OperationCardWaveColorTests(unittest.TestCase):
   for count,badge in [(2,'🟣2'),(4,'🟡4')]:
    a['waves']=count;a['wave_plan']=[{'text':'fixture'} for _ in range(count)];o.save(o.OPERATIONS,{'op':self.op});o.personal_job(1,1,'op','before');text=self.sender.call_args.args[1]
    self.assertIn('Волн: '+badge+' · Спам',text);self.assertNotIn('🟡 Спам',text)
+
 

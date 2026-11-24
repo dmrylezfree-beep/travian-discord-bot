@@ -255,6 +255,7 @@ def personal_village(cid,uid,key):
 
 # Every management callback names an existing operation in its second field.
 OP_MANAGEMENT_ACTIONS=frozenset({
+ 'otrmask','otrmyes',
  'op','oormask','oormyes','oofferpick','oofferjoin','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
  'owadd','owdel','odelask','odelyes','oofferedit','oretime','oall','obulk','oadd',
  'oaddoffer','oaddtarget','opdeleteask','opdeleteyes','odraftask','odraftyes','publish','progress'})
@@ -445,6 +446,8 @@ def op_target_detail(cid,oid,key):
         if a["target_key"]==key:
             lines.append(f"• {html.escape(a['offer_player'])}: <code>{a['arrival']}</code> · {a['waves']} волн")
     rows=[[btn(f"⚔️ {a['offer_player']} · {a['arrival']}",f"oa:{oid}:{a['id']}")] for a in op["attacks"].values() if a["target_key"]==key]
+    if op.get('status') in ('draft','published'):
+        rows.append([btn('🗑 Убрать цель у всех офферов',f'otrmask:{oid}:{key}')])
     rows.append([btn("⬅️ К целям",f"optargets:{oid}")]);send(cid,"\n".join(lines),rows)
 
 def op_offer_detail(cid,oid,uid):
@@ -619,6 +622,10 @@ def op_store(ops, msg="Edit operation"):
             text=f"⚠️ <b>{html.escape(op['name'])}: план изменён!</b>"
             if removed:
                 text+='\nИз плана убраны офф-деревни: '+html.escape(', '.join(removed))+'. Не отправляйте войска по их прежним заданиям. Уже отправленные в игре войска не отозваны.'
+            removed_targets=sorted({a['target_key'] for a in old_jobs.values()
+                                    if a.get('target_key') in old.get('targets',{}) and a['target_key'] not in op.get('targets',{})})
+            if removed_targets:
+                text+='\nИз плана убраны цели: '+html.escape(', '.join(removed_targets))+'. Не отправляйте войска по прежним заданиям на эти деревни. Уже отправленные в игре войска не отозваны.'
             if new_jobs:
                 text+='\nПроверьте задания и повторно подтвердите готовность.'
                 buttons=[[btn("📋 Открыть план",f"mine:op:{oid}")]]
@@ -762,6 +769,49 @@ def op_all_edit_menu(cid,oid):
     send(cid,"⏱ <b>Массовое изменение</b>\nЗадать одинаковое смещение всем отправкам операции (включая ранее изменённые).",
          [[btn("⏱ Установить смещение всем",f"obulk:{oid}:all:all")],[btn("⬅️ Операция",f"op:{oid}")]])
 
+def preserve_attack_sequence(op):
+    op['last_attack_id']=max([int(op.get('last_attack_id',0))]+[int(k) for k in op.get('attacks',{}) if str(k).isdigit()])
+
+
+def allocate_attack_id(op):
+    preserve_attack_sequence(op)
+    op['last_attack_id']+=1
+    return str(op['last_attack_id'])
+
+
+def target_removal_token(op,key):
+    payload={'status':op.get('status'),'target':op.get('targets',{}).get(key),
+             'attacks':{aid:a for aid,a in op.get('attacks',{}).items() if a.get('target_key')==key}}
+    return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:10]
+
+
+def op_remove_target(cid,oid,key,token=None):
+    ops=load(OPERATIONS);op=ops.get(oid)
+    if not operation_is_owned(cid,op):send(cid,'⛔ Операция недоступна.');return
+    if op.get('status') not in ('draft','published'):send(cid,'Изменение целей этой операции недоступно.');return
+    target=op.get('targets',{}).get(key)
+    if not target:send(cid,'Эта цель уже убрана из операции.');return
+    attacks={aid:a for aid,a in op.get('attacks',{}).items() if a.get('target_key')==key}
+    signature=target_removal_token(op,key)
+    if token is None or token!=signature:
+        count=len({a.get('offer_id') for a in attacks.values()})
+        text=('🗑 <b>Убрать цель у всех офферов?</b>\n'+html.escape(target.get('player',''))+' — '+html.escape(target.get('village',''))+
+              f' <code>{html.escape(key)}</code>\nБудут удалены все отправки на эту деревню: <b>{len(attacks)}</b>, офф-деревень: <b>{count}</b>.'+
+              '\nЦель останется в общей базе. Остальные цели, офферы и другие операции сохранятся. Уже отправленные в игре войска это действие не отзывает.')
+        if len(op['targets'])==1:text+='\nЭто последняя цель: в операции не останется заданий.'
+        if op['status']=='published':text+='\nУчастники с изменёнными заданиями получат уведомление.'
+        if token is not None:text='⚠️ Цель или отправки изменились. Проверьте удаление ещё раз.\n\n'+text
+        send(cid,text,[[btn('🗑 Да, убрать цель и отправки',f'otrmyes:{oid}:{key}:{signature}')],
+                       [btn('❌ Отмена',f'optarget:{oid}:{key}')]])
+        return
+    preserve_attack_sequence(op)
+    for aid in attacks:del op['attacks'][aid]
+    del op['targets'][key]
+    op_store(ops,'Remove operation target and all offers sends to it')
+    send(cid,f'✅ Цель <code>{html.escape(key)}</code> убрана у всех офферов. Удалено отправок: <b>{len(attacks)}</b>.')
+    op_targets(cid,oid)
+
+
 def offer_removal_token(op,key):
     payload={'status':op.get('status'),'offer':op.get('offers',{}).get(key),'attacks':{aid:a for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)}}
     return hashlib.sha256(json.dumps(payload,sort_keys=True,ensure_ascii=False).encode()).hexdigest()[:10]
@@ -784,6 +834,7 @@ def op_remove_offer(cid,oid,key,token=None):
                        [btn('❌ Отмена',f'opoffer:{oid}:{key}')]])
         return
     removed=[aid for aid,a in op.get('attacks',{}).items() if str(a.get('offer_id'))==str(key)]
+    preserve_attack_sequence(op)
     for aid in removed:del op['attacks'][aid]
     del op['offers'][key]
     op_store(ops,'Remove offence village and all its sends from operation')
@@ -824,10 +875,9 @@ def op_add_offer(cid,oid,ouid):
     offer={'telegram_id':int(offer_owner(ouid,source)),'save_points':source.get('save_points',[]),
            'player':source['player'],'village':source['village'],'x':source['x'],'y':source['y'],
            'arena':source['arena'],'offset':0,'army_snapshot':source.get('army',{})}
-    next_id=max([int(key) for key in op['attacks'] if str(key).isdigit()] or [0])+1
     additions={}
     for key,target in op['targets'].items():
-        aid=str(next_id);next_id+=1;defaults=op_attack_defaults('spam',target)
+        aid=allocate_attack_id(op);defaults=op_attack_defaults('spam',target)
         attack={'id':aid,'offer_id':ouid,'offer_player':offer['player'],'target_key':key,
                 'mode':defaults['mode'],'waves':defaults['waves'],'wave_plan':defaults['wave_plan'],
                 'comment':'','offset':0,'speed':op['base_speed'],'arena':offer['arena']}
@@ -849,7 +899,7 @@ def op_new_send(cid,oid,ouid,key):
     ops=load(OPERATIONS);op=ops.get(oid)
     if not op or ouid not in op["offers"] or key not in op["targets"]:return
     o=op["offers"][ouid];t=op["targets"][key]
-    aid=str(max([int(k) for k in op["attacks"] if k.isdigit()] or [0])+1)
+    aid=allocate_attack_id(op)
     defaults=op_attack_defaults(t["mode"],t)
     a={"id":aid,"offer_id":ouid,"offer_player":o["player"],"target_key":key,
        "mode":defaults["mode"],"waves":defaults["waves"],"wave_plan":defaults["wave_plan"],
@@ -1628,6 +1678,12 @@ def callback(c):
         if oid not in load(OPERATIONS):return
         state(uid,"op_bulk_offset",{"oid":oid,"scope":scope,"ouid":ouid})
         send(cid,"⏱ Введите новое смещение в секундах. Оно перезапишет смещение всех выбранных отправок.");return
+    if x.startswith('otrmask:'):
+        _,oid,key=x.split(':',2);op_remove_target(cid,oid,key);return
+    if x.startswith('otrmyes:'):
+        parts=x.split(':')
+        if len(parts)==4:op_remove_target(cid,parts[1],parts[2],parts[3])
+        return
     if x.startswith('oormask:'):
         _,oid,key=x.split(':',2);op_remove_offer(cid,oid,key);return
     if x.startswith('oormyes:'):
@@ -1734,4 +1790,5 @@ def main():
         try:send_reminders()
         except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()
+
 
