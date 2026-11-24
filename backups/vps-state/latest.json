@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-24T08:58:05.364168+00:00",
+  "created_at": "2026-11-24T09:58:11.824998+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -6445,7 +6445,7 @@
       "1279902812": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 12,
+        "arena": 13,
         "army": {
           "troops": {
             "Вождь": 2,
@@ -6721,20 +6721,20 @@
       "304355451": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 12,
+        "arena": 13,
         "army": {
           "troops": {
             "Вождь": 0,
-            "Дубинщик": 10000,
-            "Катапульта": 600,
+            "Дубинщик": 16000,
+            "Катапульта": 1000,
             "Копейщик": 0,
             "Паладин": 0,
             "Скаут": 0,
             "Стенобитное орудие": 200,
-            "Тевтонская конница": 1200,
+            "Тевтонская конница": 2600,
             "Топорщик": 0
           },
-          "updated_at": "2026-11-13T13:20:17+03:00"
+          "updated_at": "2026-11-24T09:31:35+00:00"
         },
         "player": "deversant",
         "player_id": 2571,
@@ -6750,20 +6750,20 @@
       "304355451_b9ec9bb5": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 13,
+        "arena": 14,
         "army": {
           "troops": {
-            "Вождь": 2,
-            "Дубинщик": 10000,
-            "Катапульта": 150,
+            "Вождь": 3,
+            "Дубинщик": 14000,
+            "Катапульта": 500,
             "Копейщик": 0,
             "Паладин": 0,
             "Скаут": 0,
-            "Стенобитное орудие": 200,
-            "Тевтонская конница": 1400,
+            "Стенобитное орудие": 500,
+            "Тевтонская конница": 3500,
             "Топорщик": 0
           },
-          "updated_at": "2026-11-08T19:55:58+03:00"
+          "updated_at": "2026-11-24T09:32:27+00:00"
         },
         "player": "deversant",
         "player_id": 2571,
@@ -6808,20 +6808,20 @@
       "320784442": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 17,
+        "arena": 18,
         "army": {
           "troops": {
-            "Императорская конница": 8700,
-            "Империанец": 9500,
+            "Императорская конница": 10000,
+            "Империанец": 11000,
             "Конница Цезаря": 0,
             "Конница легата": 0,
             "Легионер": 0,
-            "Огненная катапульта": 777,
+            "Огненная катапульта": 1100,
             "Преторианец": 0,
             "Сенатор": 3,
             "Таран": 145
           },
-          "updated_at": "2026-11-19T09:36:48+00:00"
+          "updated_at": "2026-11-24T09:32:19+00:00"
         },
         "player": "Котята",
         "player_id": 1111,
@@ -7608,6 +7608,25 @@
         "x": 183,
         "y": 95
       },
+      "186|98": {
+        "alliance": "KIND",
+        "alliance_id": 16,
+        "alliance_snapshot": "map_2026-11-24.sql",
+        "comment": "",
+        "created_at": "2026-11-24T08:59:29+00:00",
+        "map_missing": false,
+        "player": "Hermanolinos",
+        "player_id": 1508,
+        "population": 668,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Столица",
+        "updated_at": "2026-11-24T08:59:29+00:00",
+        "village": "♡♡♡",
+        "village_id": 31693,
+        "x": 186,
+        "y": 98
+      },
       "189|107": {
         "alliance": "KIND",
         "alliance_id": 16,
@@ -7626,6 +7645,25 @@
         "village_id": 31623,
         "x": 189,
         "y": 107
+      },
+      "189|178": {
+        "alliance": "KIND",
+        "alliance_id": 16,
+        "alliance_snapshot": "map_2026-11-24.sql",
+        "comment": "",
+        "created_at": "2026-11-24T08:58:37+00:00",
+        "map_missing": false,
+        "player": "WiseWind",
+        "player_id": 2000,
+        "population": 658,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Столица",
+        "updated_at": "2026-11-24T08:58:37+00:00",
+        "village": "財神",
+        "village_id": 32776,
+        "x": 189,
+        "y": 178
       },
       "189|82": {
         "alliance": "KIND",
@@ -7874,6 +7912,44 @@
         "x": 32,
         "y": -22
       },
+      "75|72": {
+        "alliance": "KIND",
+        "alliance_id": 16,
+        "alliance_snapshot": "map_2026-11-24.sql",
+        "comment": "",
+        "created_at": "2026-11-24T09:00:39+00:00",
+        "map_missing": false,
+        "player": "susi",
+        "player_id": 1482,
+        "population": 501,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Обычная",
+        "updated_at": "2026-11-24T09:00:39+00:00",
+        "village": "susiB",
+        "village_id": 34037,
+        "x": 75,
+        "y": 72
+      },
+      "76|66": {
+        "alliance": "KIND",
+        "alliance_id": 16,
+        "alliance_snapshot": "map_2026-11-24.sql",
+        "comment": "",
+        "created_at": "2026-11-24T09:00:05+00:00",
+        "map_missing": false,
+        "player": "susi",
+        "player_id": 1482,
+        "population": 484,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Столица",
+        "updated_at": "2026-11-24T09:00:05+00:00",
+        "village": "susiA",
+        "village_id": 31613,
+        "x": 76,
+        "y": 66
+      },
       "9|-33": {
         "alliance": "RK-H",
         "alliance_id": 10,
@@ -7895,11 +7971,6 @@
       }
     },
     "data/alliance_ops/states.json": {
-      "1279902812": {
-        "data": {},
-        "step": "op_pick_alliance",
-        "updated_at": "2026-11-24T08:46:41+00:00"
-      },
       "6962496754": {
         "data": {},
         "step": "reg_coords",
