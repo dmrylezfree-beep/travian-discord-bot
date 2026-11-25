@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-25T10:01:11.964727+00:00",
+  "created_at": "2026-11-25T11:01:24.868732+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -8879,7 +8879,9 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-25T10:03:51+00:00",
             "reminder_sent_for": "2026-11-25T10:03:51+00:00",
+            "sent_at": "2026-11-25T10:04:49+00:00",
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -8902,6 +8904,8 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-25T10:36:37+00:00",
+            "reminder_sent_for": "2026-11-25T10:36:37+00:00",
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -8980,6 +8984,7 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "sent_at": "2026-11-25T10:40:42+00:00",
             "speed": 3,
             "target_key": "167|123",
             "wave_plan": [
@@ -9002,6 +9007,9 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T10:38:57+00:00",
+            "reminder_sent_for": "2026-11-25T10:38:57+00:00",
+            "sent_at": "2026-11-25T10:39:55+00:00",
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -9030,6 +9038,9 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T10:17:33+00:00",
+            "reminder_sent_for": "2026-11-25T10:17:33+00:00",
+            "sent_at": "2026-11-25T10:20:31+00:00",
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -9082,6 +9093,9 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T10:19:18+00:00",
+            "reminder_sent_for": "2026-11-25T10:19:18+00:00",
+            "sent_at": "2026-11-25T10:20:36+00:00",
             "speed": 3,
             "target_key": "189|82",
             "wave_plan": [
@@ -9140,6 +9154,9 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T10:12:34+00:00",
+            "reminder_sent_for": "2026-11-25T10:12:34+00:00",
+            "sent_at": "2026-11-25T10:13:00+00:00",
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -9162,6 +9179,9 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T10:08:31+00:00",
+            "reminder_sent_for": "2026-11-25T10:08:31+00:00",
+            "sent_at": "2026-11-25T10:09:12+00:00",
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -10226,6 +10246,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-25T10:36:23+00:00",
+            "reminder_sent_for": "2026-11-25T10:36:23+00:00",
+            "sent_at": "2026-11-25T10:36:48+00:00",
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -10526,6 +10549,8 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T10:48:44+00:00",
+            "reminder_sent_for": "2026-11-25T10:48:44+00:00",
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -11242,6 +11267,7 @@
         "published_at": "2026-11-24T15:38:04+00:00",
         "ready": {
           "1279902812": "2026-11-24T19:50:55+00:00",
+          "1420483474": "2026-11-25T10:28:07+00:00",
           "1741139004": "2026-11-25T01:13:08+00:00",
           "5846903291": "2026-11-25T09:13:54+00:00",
           "880862977": "2026-11-24T19:53:45+00:00"
