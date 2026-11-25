@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-25T09:00:54.653628+00:00",
+  "created_at": "2026-11-25T10:01:11.964727+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -7723,6 +7723,8 @@
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
             "offset": -2,
+            "reminder_minute_sent_for": "2026-11-25T09:39:43+00:00",
+            "reminder_sent_for": "2026-11-25T09:39:43+00:00",
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -8329,6 +8331,7 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "sent_at": "2026-11-25T10:00:52+00:00",
             "speed": 3,
             "target_key": "167|123",
             "wave_plan": [
@@ -8351,6 +8354,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:50:19+00:00",
+            "reminder_sent_for": "2026-11-25T09:50:19+00:00",
+            "sent_at": "2026-11-25T09:50:47+00:00",
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -8379,6 +8385,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:28:39+00:00",
+            "reminder_sent_for": "2026-11-25T09:28:39+00:00",
+            "sent_at": "2026-11-25T09:29:10+00:00",
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -8431,6 +8440,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:32:45+00:00",
+            "reminder_sent_for": "2026-11-25T09:32:45+00:00",
+            "sent_at": "2026-11-25T09:33:31+00:00",
             "speed": 3,
             "target_key": "189|82",
             "wave_plan": [
@@ -8489,6 +8501,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:25:53+00:00",
+            "reminder_sent_for": "2026-11-25T09:25:53+00:00",
+            "sent_at": "2026-11-25T09:26:27+00:00",
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -8511,6 +8526,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:21:14+00:00",
+            "reminder_sent_for": "2026-11-25T09:21:14+00:00",
+            "sent_at": "2026-11-25T09:22:02+00:00",
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -8861,6 +8879,7 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_sent_for": "2026-11-25T10:03:51+00:00",
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -9039,6 +9058,8 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:46:17+00:00",
+            "reminder_sent_for": "2026-11-25T09:46:17+00:00",
             "speed": 3,
             "target_key": "189|107",
             "wave_plan": [
@@ -9089,6 +9110,8 @@
             "offer_id": "1420483474_aced209f",
             "offer_player": "Сашок",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T09:40:39+00:00",
+            "reminder_sent_for": "2026-11-25T09:40:39+00:00",
             "speed": 3,
             "target_key": "190|107",
             "wave_plan": [
@@ -11220,6 +11243,7 @@
         "ready": {
           "1279902812": "2026-11-24T19:50:55+00:00",
           "1741139004": "2026-11-25T01:13:08+00:00",
+          "5846903291": "2026-11-25T09:13:54+00:00",
           "880862977": "2026-11-24T19:53:45+00:00"
         },
         "status": "published",
