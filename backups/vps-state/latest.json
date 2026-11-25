@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-25T22:02:41.370378+00:00",
+  "created_at": "2026-11-25T23:02:47.554897+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -8006,7 +8006,9 @@
             "offer_id": "440450037",
             "offer_player": "Kenny",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T22:06:56+00:00",
             "reminder_sent_for": "2026-11-25T22:06:56+00:00",
+            "sent_at": "2026-11-25T22:07:35+00:00",
             "speed": 3,
             "target_key": "104|137",
             "wave_plan": [
