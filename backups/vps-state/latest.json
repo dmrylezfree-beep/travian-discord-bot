@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-25T17:02:07.334725+00:00",
+  "created_at": "2026-11-25T18:02:13.235305+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -409,8 +409,8 @@
             "coordinates": "43 47",
             "arena": 9,
             "troops": {
-              "phalanx": 9300,
-              "druidrider": 4785,
+              "phalanx": 9700,
+              "druidrider": 4960,
               "haeduan": 100
             },
             "hero": {
@@ -421,7 +421,7 @@
             "coordinates": "47 45",
             "arena": 7,
             "troops": {
-              "haeduan": 765,
+              "haeduan": 835,
               "phalanx": 0,
               "druidrider": 0
             },
@@ -7413,6 +7413,9 @@
             "offer_id": "149949023",
             "offer_player": "Sergik88",
             "offset": -3,
+            "reminder_minute_sent_for": "2026-11-25T17:45:06+00:00",
+            "reminder_sent_for": "2026-11-25T17:45:06+00:00",
+            "sent_at": "2026-11-25T17:45:27+00:00",
             "speed": 3,
             "target_key": "104|137",
             "wave_plan": [
@@ -9384,6 +9387,9 @@
             "offer_id": "880862977",
             "offer_player": "Котята",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T17:21:14+00:00",
+            "reminder_sent_for": "2026-11-25T17:21:14+00:00",
+            "sent_at": "2026-11-25T17:21:58+00:00",
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
@@ -10526,6 +10532,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T17:21:59+00:00",
+            "reminder_sent_for": "2026-11-25T17:21:59+00:00",
+            "sent_at": "2026-11-25T17:22:32+00:00",
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
