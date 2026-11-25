@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-25T19:02:21.331233+00:00",
+  "created_at": "2026-11-25T20:02:27.575275+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -8056,6 +8056,8 @@
             "offer_id": "440450037",
             "offer_player": "Kenny",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T19:27:29+00:00",
+            "reminder_sent_for": "2026-11-25T19:27:29+00:00",
             "speed": 3,
             "target_key": "167|123",
             "wave_plan": [
@@ -8695,6 +8697,9 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-25T19:40:24+00:00",
+            "reminder_sent_for": "2026-11-25T19:40:24+00:00",
+            "sent_at": "2026-11-25T19:40:01+00:00",
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
@@ -9399,6 +9404,9 @@
             "offer_id": "880862977",
             "offer_player": "Котята",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T19:11:02+00:00",
+            "reminder_sent_for": "2026-11-25T19:11:02+00:00",
+            "sent_at": "2026-11-25T19:13:50+00:00",
             "speed": 3,
             "target_key": "104|137",
             "wave_plan": [
@@ -9732,6 +9740,9 @@
             "offer_id": "880862977",
             "offer_player": "Котята",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T19:42:59+00:00",
+            "reminder_sent_for": "2026-11-25T19:42:59+00:00",
+            "sent_at": "2026-11-25T19:43:40+00:00",
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -9754,6 +9765,9 @@
             "offer_id": "880862977",
             "offer_player": "Котята",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T19:59:22+00:00",
+            "reminder_sent_for": "2026-11-25T19:59:22+00:00",
+            "sent_at": "2026-11-25T20:00:14+00:00",
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -10107,6 +10121,8 @@
             "offer_id": "993572860",
             "offer_player": "Frontman",
             "offset": -2,
+            "reminder_minute_sent_for": "2026-11-25T19:09:25+00:00",
+            "reminder_sent_for": "2026-11-25T19:09:25+00:00",
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -10548,6 +10564,9 @@
             "offer_id": "1279902812",
             "offer_player": "ZL21",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T19:07:18+00:00",
+            "reminder_sent_for": "2026-11-25T19:07:18+00:00",
+            "sent_at": "2026-11-25T19:07:59+00:00",
             "speed": 3,
             "target_key": "104|137",
             "wave_plan": [
@@ -11751,7 +11770,7 @@
       "-16|38": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:27:20+03:00",
         "map_missing": false,
@@ -11770,7 +11789,7 @@
       "-1|-47": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:28:29+03:00",
         "map_missing": false,
@@ -11789,7 +11808,7 @@
       "-25|66": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:26:44+03:00",
         "map_missing": false,
@@ -11808,7 +11827,7 @@
       "-5|71": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:29:58+03:00",
         "map_missing": false,
@@ -11827,7 +11846,7 @@
       "104|137": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:55:57+00:00",
         "map_missing": false,
@@ -11846,7 +11865,7 @@
       "10|-25": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:03:51+03:00",
         "map_missing": false,
@@ -11865,7 +11884,7 @@
       "10|-35": {
         "alliance": "",
         "alliance_id": 0,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:16:32+03:00",
         "map_missing": false,
@@ -11884,7 +11903,7 @@
       "137|142": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:55:21+00:00",
         "map_missing": false,
@@ -11903,7 +11922,7 @@
       "13|-19": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:02:40+03:00",
         "map_missing": false,
@@ -11922,7 +11941,7 @@
       "15|-33": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:09:05+03:00",
         "map_missing": false,
@@ -11941,7 +11960,7 @@
       "167|123": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:54:05+00:00",
         "map_missing": false,
@@ -11960,7 +11979,7 @@
       "17|-25": {
         "alliance": "RK2",
         "alliance_id": 44,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:05:57+03:00",
         "map_missing": false,
@@ -11979,7 +11998,7 @@
       "17|-30": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:07:57+03:00",
         "map_missing": false,
@@ -11998,7 +12017,7 @@
       "183|95": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:57:22+00:00",
         "map_missing": false,
@@ -12017,7 +12036,7 @@
       "186|98": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:59:29+00:00",
         "map_missing": false,
@@ -12036,7 +12055,7 @@
       "189|107": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:53:42+00:00",
         "map_missing": false,
@@ -12055,7 +12074,7 @@
       "189|178": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:58:37+00:00",
         "map_missing": false,
@@ -12074,7 +12093,7 @@
       "189|82": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:56:28+00:00",
         "map_missing": false,
@@ -12093,7 +12112,7 @@
       "18|-34": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:09:50+03:00",
         "map_missing": false,
@@ -12112,7 +12131,7 @@
       "190|107": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:53:28+00:00",
         "map_missing": false,
@@ -12131,7 +12150,7 @@
       "190|83": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:56:46+00:00",
         "map_missing": false,
@@ -12150,7 +12169,7 @@
       "190|87": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:57:45+00:00",
         "map_missing": false,
@@ -12169,7 +12188,7 @@
       "19|-32": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:11:57+03:00",
         "map_missing": false,
@@ -12188,7 +12207,7 @@
       "22|146": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:52:22+00:00",
         "map_missing": false,
@@ -12207,7 +12226,7 @@
       "24|-29": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:12:53+03:00",
         "map_missing": false,
@@ -12226,7 +12245,7 @@
       "25|-28": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:15:43+03:00",
         "map_missing": false,
@@ -12245,7 +12264,7 @@
       "26|-27": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:14:44+03:00",
         "map_missing": false,
@@ -12264,7 +12283,7 @@
       "26|143": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T08:52:02+00:00",
         "map_missing": false,
@@ -12283,7 +12302,7 @@
       "30|-20": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:17:43+03:00",
         "map_missing": false,
@@ -12302,7 +12321,7 @@
       "32|-22": {
         "alliance": "MIST",
         "alliance_id": 3,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:18:52+03:00",
         "map_missing": false,
@@ -12321,7 +12340,7 @@
       "75|72": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T09:00:39+00:00",
         "map_missing": false,
@@ -12340,7 +12359,7 @@
       "76|66": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-24T09:00:05+00:00",
         "map_missing": false,
@@ -12359,7 +12378,7 @@
       "9|-33": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-24.sql",
+        "alliance_snapshot": "map_2026-11-25.sql",
         "comment": "",
         "created_at": "2026-11-18T11:07:24+03:00",
         "map_missing": false,
