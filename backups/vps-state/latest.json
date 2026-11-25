@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-25T08:00:37.430677+00:00",
+  "created_at": "2026-11-25T09:00:54.653628+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -8407,6 +8407,8 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T08:56:24+00:00",
+            "reminder_sent_for": "2026-11-25T08:56:24+00:00",
             "speed": 3,
             "target_key": "189|107",
             "wave_plan": [
@@ -8457,6 +8459,8 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T08:50:49+00:00",
+            "reminder_sent_for": "2026-11-25T08:50:49+00:00",
             "speed": 3,
             "target_key": "190|107",
             "wave_plan": [
@@ -10855,6 +10859,8 @@
             "offer_id": "304355451",
             "offer_player": "deversant",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-25T08:51:56+00:00",
+            "reminder_sent_for": "2026-11-25T08:51:56+00:00",
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
