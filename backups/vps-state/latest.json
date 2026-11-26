@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-26T00:03:06.191723+00:00",
+  "created_at": "2026-11-26T01:03:11.994941+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -8763,6 +8763,9 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-26T00:29:25+00:00",
+            "reminder_sent_for": "2026-11-26T00:29:25+00:00",
+            "sent_at": "2026-11-26T00:30:01+00:00",
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -8876,6 +8879,8 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-26T00:35:26+00:00",
+            "reminder_sent_for": "2026-11-26T00:35:26+00:00",
             "speed": 3,
             "target_key": "189|82",
             "wave_plan": [
@@ -8933,6 +8938,9 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-26T00:27:22+00:00",
+            "reminder_sent_for": "2026-11-26T00:27:22+00:00",
+            "sent_at": "2026-11-26T00:28:09+00:00",
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -8955,6 +8963,9 @@
             "offer_id": "268694088_6029fb0a",
             "offer_player": "Pinokio",
             "offset": -1,
+            "reminder_minute_sent_for": "2026-11-26T00:18:57+00:00",
+            "reminder_sent_for": "2026-11-26T00:18:57+00:00",
+            "sent_at": "2026-11-26T00:19:32+00:00",
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
