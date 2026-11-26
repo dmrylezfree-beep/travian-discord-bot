@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-26T19:05:50.295017+00:00",
+  "created_at": "2026-11-26T20:06:01.067923+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -7407,7 +7407,7 @@
       "-16|38": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:27:20+03:00",
         "map_missing": false,
@@ -7426,7 +7426,7 @@
       "-1|-47": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:28:29+03:00",
         "map_missing": false,
@@ -7445,7 +7445,7 @@
       "-25|66": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:26:44+03:00",
         "map_missing": false,
@@ -7464,7 +7464,7 @@
       "-5|71": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:29:58+03:00",
         "map_missing": false,
@@ -7483,7 +7483,7 @@
       "104|137": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:55:57+00:00",
         "map_missing": false,
@@ -7502,7 +7502,7 @@
       "10|-25": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:03:51+03:00",
         "map_missing": false,
@@ -7521,7 +7521,7 @@
       "10|-35": {
         "alliance": "",
         "alliance_id": 0,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:16:32+03:00",
         "map_missing": false,
@@ -7540,7 +7540,7 @@
       "137|142": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:55:21+00:00",
         "map_missing": false,
@@ -7559,7 +7559,7 @@
       "13|-19": {
         "alliance": "RK",
         "alliance_id": 21,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:02:40+03:00",
         "map_missing": false,
@@ -7578,7 +7578,7 @@
       "15|-33": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:09:05+03:00",
         "map_missing": false,
@@ -7594,29 +7594,10 @@
         "x": 15,
         "y": -33
       },
-      "167|123": {
-        "alliance": "KIND",
-        "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
-        "comment": "",
-        "created_at": "2026-11-24T08:54:05+00:00",
-        "map_missing": false,
-        "player": "PPPeter",
-        "player_id": 365,
-        "population": 711,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Обычная",
-        "updated_at": "2026-11-24T08:54:05+00:00",
-        "village": "9.999田",
-        "village_id": 32985,
-        "x": 167,
-        "y": 123
-      },
       "17|-25": {
         "alliance": "RK2",
         "alliance_id": 44,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:05:57+03:00",
         "map_missing": false,
@@ -7635,7 +7616,7 @@
       "17|-30": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:07:57+03:00",
         "map_missing": false,
@@ -7646,7 +7627,7 @@
         "tribe_id": 1,
         "type": "Обычная",
         "updated_at": "2026-11-18T11:07:57+03:00",
-        "village": "New village",
+        "village": "Nitian1",
         "village_id": 32451,
         "x": 17,
         "y": -30
@@ -7654,7 +7635,7 @@
       "183|95": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:57:22+00:00",
         "map_missing": false,
@@ -7673,7 +7654,7 @@
       "186|98": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:59:29+00:00",
         "map_missing": false,
@@ -7689,29 +7670,10 @@
         "x": 186,
         "y": 98
       },
-      "189|107": {
-        "alliance": "KIND",
-        "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
-        "comment": "",
-        "created_at": "2026-11-24T08:53:42+00:00",
-        "map_missing": false,
-        "player": "PPPeter",
-        "player_id": 365,
-        "population": 915,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Обычная",
-        "updated_at": "2026-11-24T08:53:42+00:00",
-        "village": "3.拳頭打野",
-        "village_id": 31623,
-        "x": 189,
-        "y": 107
-      },
       "189|178": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:58:37+00:00",
         "map_missing": false,
@@ -7730,7 +7692,7 @@
       "189|82": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:56:28+00:00",
         "map_missing": false,
@@ -7749,7 +7711,7 @@
       "18|-34": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:09:50+03:00",
         "map_missing": false,
@@ -7765,29 +7727,10 @@
         "x": 18,
         "y": -34
       },
-      "190|107": {
-        "alliance": "KIND",
-        "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
-        "comment": "",
-        "created_at": "2026-11-24T08:53:28+00:00",
-        "map_missing": false,
-        "player": "PPPeter",
-        "player_id": 365,
-        "population": 861,
-        "priority": 1,
-        "tribe_id": 3,
-        "type": "Столица",
-        "updated_at": "2026-11-24T08:53:28+00:00",
-        "village": "2.中央",
-        "village_id": 30466,
-        "x": 190,
-        "y": 107
-      },
       "190|83": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:56:46+00:00",
         "map_missing": false,
@@ -7806,7 +7749,7 @@
       "190|87": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:57:45+00:00",
         "map_missing": false,
@@ -7825,7 +7768,7 @@
       "19|-32": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:11:57+03:00",
         "map_missing": false,
@@ -7844,7 +7787,7 @@
       "22|146": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:52:22+00:00",
         "map_missing": false,
@@ -7863,7 +7806,7 @@
       "24|-29": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:12:53+03:00",
         "map_missing": false,
@@ -7882,7 +7825,7 @@
       "25|-28": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:15:43+03:00",
         "map_missing": false,
@@ -7901,7 +7844,7 @@
       "26|-27": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:14:44+03:00",
         "map_missing": false,
@@ -7920,7 +7863,7 @@
       "26|143": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T08:52:02+00:00",
         "map_missing": false,
@@ -7939,7 +7882,7 @@
       "30|-20": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:17:43+03:00",
         "map_missing": false,
@@ -7958,7 +7901,7 @@
       "32|-22": {
         "alliance": "MIST",
         "alliance_id": 3,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:18:52+03:00",
         "map_missing": false,
@@ -7977,7 +7920,7 @@
       "75|72": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T09:00:39+00:00",
         "map_missing": false,
@@ -7996,7 +7939,7 @@
       "76|66": {
         "alliance": "KIND",
         "alliance_id": 16,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-24T09:00:05+00:00",
         "map_missing": false,
@@ -8015,7 +7958,7 @@
       "9|-33": {
         "alliance": "RK-H",
         "alliance_id": 10,
-        "alliance_snapshot": "map_2026-11-25.sql",
+        "alliance_snapshot": "map_2026-11-26.sql",
         "comment": "",
         "created_at": "2026-11-18T11:07:24+03:00",
         "map_missing": false,
