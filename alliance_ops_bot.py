@@ -255,6 +255,7 @@ def personal_village(cid,uid,key):
 
 # Every management callback names an existing operation in its second field.
 OP_MANAGEMENT_ACTIONS=frozenset({
+ 'opreal',
  'otrmask','otrmyes',
  'op','oormask','oormyes','oofferpick','oofferjoin','opdepartures','optargets','opoffers','optarget','opoffer','oa','owaves','oedit','otypes','otype',
  'owadd','owdel','odelask','odelyes','oofferedit','oretime','oall','obulk','oadd',
@@ -400,6 +401,7 @@ def show_op(cid,oid):
     if not op:send(cid,"❌ Операция не найдена.");return
     buttons=[[btn("📊 Готовность и прогресс",f"progress:{oid}")],
              [btn("🕐 Все отправки по времени",f"opdepartures:{oid}:0")],
+             [btn("⚔️ Реальные отправки",f"opreal:{oid}:0")],
              [btn("🎯 По целям",f"optargets:{oid}"),btn("👥 По офферам",f"opoffers:{oid}")],
              [btn("🕒 Изменить время операции",f"oretime:{oid}"),btn("➕ Отправка",f"oadd:{oid}")],
              ]
@@ -686,14 +688,28 @@ def operation_departures(op):
     return sorted(result,key=lambda item:(item[0].timestamp() if item[0] else float('inf'),item[1]))
 
 
-def op_departures(cid,oid,page=0,message_id=None):
+def operation_real_departures(op):
+    def sort_key(item):
+        departure,aid,attack=item
+        offer=op.get('offers',{}).get(attack.get('offer_id'),{})
+        def number(value):
+            try:return int(value)
+            except (TypeError,ValueError):return float('inf')
+        return (number(offer.get('x')),number(offer.get('y')),number(attack.get('offset',0)),
+                str(attack.get('offer_id','')),str(attack.get('target_key','')),number(aid),aid)
+    return sorted((item for item in operation_departures(op) if item[2].get('mode') in ('capture','destroy')),key=sort_key)
+
+
+def op_departures(cid,oid,page=0,message_id=None,real_only=False):
     sync_operation_arenas(oid,cid)
     op=owned_operation(cid,oid)
     if not op:send(cid,'⛔ Операция недоступна.');return
-    jobs=operation_departures(op);page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
+    jobs=operation_real_departures(op) if real_only else operation_departures(op)
+    action='opreal' if real_only else 'opdepartures'
+    page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
     page=max(0,min(int(page),pages-1))
-    lines=['🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
-           'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
+    lines=['⚔️ <b>Реальные отправки: захват и уничтожение</b>' if real_only else '🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
+           'По координатам отправления (X, затем Y), внутри — по смещению от минуса к плюсу.' if real_only else 'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
     buttons=[]
     for index,(departure,aid,attack) in enumerate(jobs[page*page_size:(page+1)*page_size],page*page_size+1):
         offer=op.get('offers',{}).get(attack.get('offer_id'),{})
@@ -707,14 +723,15 @@ def op_departures(cid,oid,page=0,message_id=None):
         lines.extend([f'<b>{index}. {clock}</b>'+(' · ✅ Отправлено' if attack.get('sent_at') else ''),
                       f'👤 {player} · 🏘 <code>{html.escape(origin)}</code>',
                       f'🎯 <code>{html.escape(destination)}</code> — {target_player}',
-                      f'{mode} · Волн: {int(attack.get("waves",0) or 0)}',''])
+                      f'{mode} · Волн: {int(attack.get("waves",0) or 0)}']+
+                     ([f'⏱ Смещение: <b>{int(attack.get("offset",0)):+d} сек</b>'] if real_only else [])+[''])
         buttons.append([wave_button(f'{index}. '+(departure.strftime('%H:%M:%S') if departure else '⚠️')+f' · {origin} → {destination}',f'oa:{oid}:{aid}',attack)])
-    if not jobs:lines.append('В операции пока нет отправок.')
+    if not jobs:lines.append('В операции нет реальных отправок: захвата или уничтожения.' if real_only else 'В операции пока нет отправок.')
     nav=[]
-    if page:nav.append(btn('⬅️ Назад',f'opdepartures:{oid}:{page-1}'))
-    if page+1<pages:nav.append(btn('Дальше ➡️',f'opdepartures:{oid}:{page+1}'))
+    if page:nav.append(btn('⬅️ Назад',f'{action}:{oid}:{page-1}'))
+    if page+1<pages:nav.append(btn('Дальше ➡️',f'{action}:{oid}:{page+1}'))
     if nav:buttons.append(nav)
-    buttons.append([btn('🔄 Обновить',f'opdepartures:{oid}:{page}')])
+    buttons.append([btn('🔄 Обновить',f'{action}:{oid}:{page}')])
     buttons.append([btn('⬅️ К операции',f'op:{oid}')])
     text='\n'.join(lines)
     if message_id is None:send(cid,text,buttons)
@@ -1612,10 +1629,10 @@ def callback(c):
             else:d['targets']={};state(uid,'op_pick_alliance',d);op_alliance_picker(cid,d)
             return
         state(uid);show_op(cid,oid);return
-    if x.startswith('opdepartures:'):
+    if x.startswith(('opdepartures:','opreal:')):
         parts=x.split(':')
         page=int(parts[2]) if len(parts)>2 and parts[2].isdigit() else 0
-        op_departures(cid,parts[1],page,c['message'].get('message_id'));return
+        op_departures(cid,parts[1],page,c['message'].get('message_id'),real_only=parts[0]=='opreal');return
     if x.startswith("optargets:"):op_targets(cid,x.split(":",1)[1]);return
     if x.startswith("opoffers:"):op_offers(cid,x.split(":",1)[1]);return
     if x.startswith("optarget:"):
@@ -1790,5 +1807,6 @@ def main():
         try:send_reminders()
         except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()
+
 
 

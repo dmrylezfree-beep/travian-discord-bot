@@ -315,6 +315,7 @@ class AllianceOpsSupportTests(unittest.TestCase):
   args={'op':'op','optargets':'op','opoffers':'op','optarget':'op:t','opoffer':'op:1','oa':'op:real','owaves':'op:real','oedit':'op:real:comment','otypes':'op:real','otype':'op:real:spam','owadd':'op:real','owdel':'op:real','odelask':'op:real','odelyes':'op:real','oofferedit':'op:1','oretime':'op','oall':'op','obulk':'op:all:-','oadd':'op','oaddoffer':'op:1','oaddtarget':'op:1:t','opdeleteask':'op','opdeleteyes':'op','odraftask':'op','odraftyes':'op','publish':'op','progress':'op'}
   args['opdepartures']='op:0';args['oofferpick']='op:0';args['oofferjoin']='op:1';args['oormask']='op:1';args['oormyes']='op:1:token'
   args['otrmask']='op:t';args['otrmyes']='op:t:token'
+  args['opreal']='op:0'
   self.assertEqual(set(args),set(o.OP_MANAGEMENT_ACTIONS))
   for actor in [2,next(iter(o.COORDINATORS))]:
    for action,suffix in args.items():
@@ -1290,6 +1291,42 @@ class OperationDepartureListTests(unittest.TestCase):
   o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op');text=self.sender.call_args.args[1];self.assertIn('Время не рассчитано',text);self.assertLess(len(text),4096)
   op['attacks']={};o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op');self.assertIn('пока нет отправок',self.sender.call_args.args[1])
 
+class RealOperationDepartureTests(unittest.TestCase):
+ setUp=AllianceOpsSupportTests.setUp
+ def fixture(self):
+  o=self.ops;op=self.op;op.update(name='Real <plan>',arrival='02.01.2030 12:20:00',base_speed=3)
+  for key,x,y in [('west',-10,5),('low',2,-4),('high',2,10),('east',10,0)]:
+   op['offers'][key]=dict(op['offers']['1'],x=x,y=y,telegram_id=1,offset=0)
+  template=op['attacks']['real'];spec=[('1','east',-99,'destroy'),('2','low',0,'capture'),('3','west',5,'destroy'),('4','low',-10,'capture'),('5','low',-2,'destroy'),('6','high',-100,'capture'),('7','west',-999,'spam')]
+  op['attacks']={aid:dict(template,id=aid,offer_id=offer,offset=offset,mode=mode) for aid,offer,offset,mode in spec}
+  op['attacks']['4']['sent_at']='done';o.save(o.OPERATIONS,{'op':op});return o.load(o.OPERATIONS)['op']
+ def test_filter_and_numeric_origin_then_offset_order(self):
+  o=self.ops;op=self.fixture();self.assertEqual([j[1] for j in o.operation_real_departures(op)],['3','4','5','2','6','1'])
+  o.show_op(1,'op');self.assertIn('opreal:op:0',str(self.sender.call_args))
+ def test_pages_refresh_keep_filter_and_show_offsets_and_sent_state(self):
+  o=self.ops;self.fixture();seen=[]
+  with patch.object(o,'api') as api:
+   for page in (0,1):
+    o.callback({'id':'fixture','from':{'id':1},'message':{'message_id':77,'chat':{'id':1,'type':'private'}},'data':f'opreal:op:{page}'})
+    d=[c.args[1] for c in api.call_args_list if c.args[0]=='editMessageText'][-1]
+    self.assertEqual(d['message_id'],77);self.assertLess(len(d['text']),4096);self.assertIn('Real &lt;plan&gt;',d['text'])
+    links=[b['callback_data'] for row in d['reply_markup']['inline_keyboard'] for b in row]
+    self.assertIn(f'opreal:op:{page}',links);self.assertFalse(any(x.startswith('opdepartures:') for x in links))
+    seen.extend(x.rsplit(':',1)[1] for x in links if x.startswith('oa:'))
+    if page==0:self.assertIn('-10 сек',d['text']);self.assertIn('Отправлено',d['text'])
+  self.assertEqual(seen,['3','4','5','2','6','1'])
+ def test_empty_real_list_and_edit_refresh(self):
+  o=self.ops;op=self.fixture()
+  for a in op['attacks'].values():a['mode']='spam'
+  o.save(o.OPERATIONS,{'op':op});o.op_departures(1,'op',real_only=True);self.assertIn('нет реальных отправок',self.sender.call_args.args[1])
+  op['attacks']['7'].update(mode='capture',offset=-20);o.save(o.OPERATIONS,{'op':op})
+  o.op_departures(1,'op',real_only=True);self.assertIn('oa:op:7',str(self.sender.call_args));self.assertIn('-20 сек',self.sender.call_args.args[1])
+ def test_foreign_view_cannot_edit_message(self):
+  o=self.ops;self.fixture()
+  with patch.object(o,'api') as api:
+   o.callback({'id':'fixture','from':{'id':2},'message':{'message_id':77,'chat':{'id':2,'type':'private'}},'data':'opreal:op:0'})
+   self.assertFalse(any(c.args[0]=='editMessageText' for c in api.call_args_list))
+
 class OperationServerTimeTests(unittest.TestCase):
  setUp=AllianceOpsSupportTests.setUp
  def test_input_uses_server_clock_in_winter_and_summer(self):
@@ -1570,5 +1607,6 @@ class OperationCardWaveColorTests(unittest.TestCase):
   for count,badge in [(2,'🟣2'),(4,'🟡4')]:
    a['waves']=count;a['wave_plan']=[{'text':'fixture'} for _ in range(count)];o.save(o.OPERATIONS,{'op':self.op});o.personal_job(1,1,'op','before');text=self.sender.call_args.args[1]
    self.assertIn('Волн: '+badge+' · Спам',text);self.assertNotIn('🟡 Спам',text)
+
 
 
