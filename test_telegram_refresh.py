@@ -1308,13 +1308,13 @@ class RealOperationDepartureTests(unittest.TestCase):
    travel=o.server_datetime(a['arrival_iso']).timestamp()-departure.timestamp()
    a['arrival_iso']=o.shift_seconds(o.op_dt(f'02.01.2030 {hour:02d}:00:00'),travel).isoformat()
   op['attacks']['4']['sent_at']='done';o.save(o.OPERATIONS,{'op':op});return o.load(o.OPERATIONS)['op']
- def test_filter_target_groups_then_departure_not_offset(self):
-  o=self.ops;op=self.fixture();self.assertEqual([j[1] for j in o.operation_real_departures(op)],['2','4','1','6','3','5'])
+ def test_filter_target_groups_then_offset_not_departure(self):
+  o=self.ops;op=self.fixture();self.assertEqual([j[1] for j in o.operation_real_departures(op)],['1','4','2','6','5','3'])
   o.show_op(1,'op');self.assertIn('opreal:op:0',str(self.sender.call_args))
  def test_pages_refresh_keep_filter_and_show_offsets_and_sent_state(self):
   o=self.ops;self.fixture();seen=[]
   with patch.object(o,'api') as api:
-   for page in (0,1):
+   for page in range(len(o.real_send_pages(o.load(o.OPERATIONS)['op'],'op')[0])):
     o.callback({'id':'fixture','from':{'id':1},'message':{'message_id':77,'chat':{'id':1,'type':'private'}},'data':f'opreal:op:{page}'})
     d=[c.args[1] for c in api.call_args_list if c.args[0]=='editMessageText'][-1]
     self.assertEqual(d['message_id'],77);self.assertLess(len(d['text']),4096);self.assertIn('Real &lt;plan&gt;',d['text'])
@@ -1322,13 +1322,32 @@ class RealOperationDepartureTests(unittest.TestCase):
     self.assertIn(f'opreal:op:{page}',links);self.assertFalse(any(x.startswith('opdepartures:') for x in links))
     seen.extend(x.rsplit(':',1)[1] for x in links if x.startswith('oa:'))
     if page==0:self.assertIn('-10 сек',d['text']);self.assertIn('Отправлено',d['text'])
-    self.assertIn('🎯 <b>Цель:',d['text']);self.assertIn('Смещение оффера:',d['text'])
-  self.assertEqual(seen,['2','4','1','6','3','5'])
- def test_unknown_departure_last_within_target_and_speed_change_resorts(self):
+    self.assertIn('🎯 <b>Цель:',d['text']);self.assertIn('━━━━━━━━',d['text'])
+  self.assertEqual(seen,['1','4','2','6','5','3'])
+ def test_departure_does_not_override_offset_order(self):
   o=self.ops;op=self.fixture();op['attacks']['2']['speed']=0
-  self.assertEqual([j[1] for j in o.operation_real_departures(op)],['4','1','2','6','3','5'])
+  self.assertEqual([j[1] for j in o.operation_real_departures(op)],['1','4','2','6','5','3'])
   op['attacks']['2']['speed']=3;op['attacks']['1']['speed']=1
   self.assertEqual(o.operation_real_departures(op)[0][1],'1')
+ def test_targets_move_as_whole_blocks_and_more_than_five_fit(self):
+  o=self.ops;op=self.fixture();template=op['attacks']['1'];op['attacks']={}
+  op['offers']['east']['player']='&'*10
+  for target in ('t','other'):
+   for i in range(11):
+    aid=str(len(op['attacks'])+1);op['attacks'][aid]=dict(template,id=aid,target_key=target,offset=i-5)
+  pages,total=o.real_send_pages(op,'op');self.assertEqual(total,22);self.assertEqual(len(pages),2)
+  for body,buttons in pages:
+   self.assertEqual(len(buttons),11);self.assertEqual(body.count('🎯 <b>Цель:'),1)
+  self.assertIn('Цель: -5|0',pages[0][0]);self.assertIn('Цель: 10|0',pages[1][0])
+ def test_oversized_target_continuation_has_no_lost_rows_and_fits_telegram(self):
+  o=self.ops;op=self.fixture();template=op['attacks']['1'];op['offers']['east']['player']='&'*40
+  op['attacks']={str(i):dict(template,id=str(i),target_key='t',offset=i) for i in range(70)};o.save(o.OPERATIONS,{'op':op})
+  pages,total=o.real_send_pages(op,'op');self.assertEqual(total,70);seen=[]
+  for i in range(len(pages)):
+   o.op_departures(1,'op',i,real_only=True);text,buttons=self.sender.call_args.args[1:]
+   self.assertLess(len(text.encode('utf-16-le'))//2,4096);self.assertIn('Цель: -5|0',text)
+   seen.extend(b['callback_data'].rsplit(':',1)[1] for row in buttons for b in row if b['callback_data'].startswith('oa:'))
+  self.assertEqual(seen,[str(i) for i in range(70)])
  def test_empty_real_list_and_edit_refresh(self):
   o=self.ops;op=self.fixture()
   for a in op['attacks'].values():a['mode']='spam'
@@ -1621,6 +1640,7 @@ class OperationCardWaveColorTests(unittest.TestCase):
   for count,badge in [(2,'🟣2'),(4,'🟡4')]:
    a['waves']=count;a['wave_plan']=[{'text':'fixture'} for _ in range(count)];o.save(o.OPERATIONS,{'op':self.op});o.personal_job(1,1,'op','before');text=self.sender.call_args.args[1]
    self.assertIn('Волн: '+badge+' · Спам',text);self.assertNotIn('🟡 Спам',text)
+
 
 
 

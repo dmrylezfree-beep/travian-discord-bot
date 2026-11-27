@@ -696,23 +696,82 @@ def operation_real_departures(op):
             try:return int(value)
             except (TypeError,ValueError):return float('inf')
         return (number(target.get('x')),number(target.get('y')),str(attack.get('target_key','')),
-                departure.timestamp() if departure else float('inf'),number(attack.get('offset',0)),
+                number(attack.get('offset',0)),departure.timestamp() if departure else float('inf'),
                 str(attack.get('offer_id','')),number(aid),aid)
     return sorted((item for item in operation_departures(op) if item[2].get('mode') in ('capture','destroy')),key=sort_key)
+
+
+def real_send_pages(op,oid):
+    # Keep complete targets together. Split only when a single target exceeds
+    # the Telegram text/button budget; repeat its heading on each continuation.
+    jobs=operation_real_departures(op)
+    groups=[]
+    for index,(departure,aid,attack) in enumerate(jobs,1):
+        key=attack.get('target_key','?');target=op.get('targets',{}).get(key,{})
+        offer=op.get('offers',{}).get(attack.get('offer_id'),{})
+        destination=f"{target['x']}|{target['y']}" if 'x' in target and 'y' in target else str(key)[:30]
+        origin=f"{offer.get('x','?')}|{offer.get('y','?')}"
+        player=html.escape(str(offer.get('player') or attack.get('offer_player') or '?')[:40])
+        clock=departure.strftime('%d.%m %H:%M:%S') if departure else '⚠️ Время не рассчитано'
+        mode=html.escape(str(op_mode_name(attack.get('mode','?')))[:40])
+        text=(f'<b>{index}. {player}</b> · <code>{html.escape(origin)}</code> · '
+              f'⏱ <b>{int(attack.get("offset",0)):+d} сек</b>\n'
+              f'Выход: {clock} · {mode} · {int(attack.get("waves",0) or 0)} волн'+
+              (' · ✅ Отправлено' if attack.get('sent_at') else '')+'\n')
+        button=[wave_button(f'{index}. {origin} → {destination} · {int(attack.get("offset",0)):+d} сек',f'oa:{oid}:{aid}',attack)]
+        if not groups or groups[-1][0]!=key:
+            heading='━━━━━━━━━━━━━━━━━━━━\n'+f'🎯 <b>Цель: {html.escape(destination)} — {html.escape(str(target.get("player") or "?")[:40])}</b>\n'
+            groups.append((key,heading,[]))
+        groups[-1][2].append((text,button))
+    blocks=[]
+    for key,heading,rows in groups:
+        text=heading;buttons=[]
+        for row,button in rows:
+            if buttons and (len(text)+len(row)>3000 or len(buttons)>=30):
+                blocks.append((text,buttons));text=heading+'<i>Продолжение цели</i>\n';buttons=[]
+            text+=row;buttons.append(button)
+        blocks.append((text,buttons))
+    pages=[];text='';buttons=[]
+    for block,rows in blocks:
+        if buttons and (len(text)+len(block)>3000 or len(buttons)+len(rows)>30):
+            pages.append((text,buttons));text='';buttons=[]
+        text+=block;buttons+=rows
+    if buttons:pages.append((text,buttons))
+    return pages or [('В операции нет реальных отправок: захвата или уничтожения.',[])],len(jobs)
+
+
+def show_real_sends(cid,oid,op,page=0,message_id=None):
+    pages,total=real_send_pages(op,oid);page=max(0,min(int(page),len(pages)-1))
+    body,rows=pages[page];buttons=list(rows)
+    text=('⚔️ <b>Реальные отправки: захват и уничтожение</b>\n'+html.escape(str(op.get('name','Операция'))[:40])+
+          '\nПо целям; внутри — по смещению оффера от минуса к плюсу.\n'+TIME_NOTE+
+          f'\nВсего: {total} · Страница {page+1}/{len(pages)}\n\n'+body)
+    nav=[]
+    if page:nav.append(btn('⬅️ Назад',f'opreal:{oid}:{page-1}'))
+    if page+1<len(pages):nav.append(btn('Дальше ➡️',f'opreal:{oid}:{page+1}'))
+    if nav:buttons.append(nav)
+    buttons.extend([[btn('🔄 Обновить',f'opreal:{oid}:{page}')],[btn('⬅️ К операции',f'op:{oid}')]])
+    if message_id is None:send(cid,text,buttons)
+    else:
+        try:api('editMessageText',{'chat_id':cid,'message_id':message_id,'text':text,'parse_mode':'HTML','reply_markup':{'inline_keyboard':buttons}})
+        except requests.HTTPError as error:
+            response=getattr(error,'response',None)
+            if response is not None and response.status_code==400 and 'message is not modified' in response.text.lower():return
+            raise
 
 
 def op_departures(cid,oid,page=0,message_id=None,real_only=False):
     sync_operation_arenas(oid,cid)
     op=owned_operation(cid,oid)
     if not op:send(cid,'⛔ Операция недоступна.');return
-    jobs=operation_real_departures(op) if real_only else operation_departures(op)
-    action='opreal' if real_only else 'opdepartures'
+    if real_only:return show_real_sends(cid,oid,op,page,message_id)
+    jobs=operation_departures(op)
+    action='opdepartures'
     page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
     page=max(0,min(int(page),pages-1))
-    lines=['⚔️ <b>Реальные отправки: захват и уничтожение</b>' if real_only else '🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
-           'По целям; внутри каждой цели — по времени отправки от раннего к позднему.' if real_only else 'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
+    lines=['🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
+           'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
     buttons=[]
-    previous_target=None
     for index,(departure,aid,attack) in enumerate(jobs[page*page_size:(page+1)*page_size],page*page_size+1):
         offer=op.get('offers',{}).get(attack.get('offer_id'),{})
         target=op.get('targets',{}).get(attack.get('target_key'),{})
@@ -722,16 +781,12 @@ def op_departures(cid,oid,page=0,message_id=None,real_only=False):
         player=html.escape(str(offer.get('player') or attack.get('offer_player') or '?')[:40])
         target_player=html.escape(str(target.get('player') or '?')[:40])
         mode=html.escape(str(op_mode_name(attack.get('mode','?')))[:40])
-        if real_only and (previous_target is None or previous_target!=attack.get('target_key')):
-            lines.append(f'🎯 <b>Цель: {html.escape(destination)} — {target_player}</b>')
-            previous_target=attack.get('target_key')
         lines.extend([f'<b>{index}. {clock}</b>'+(' · ✅ Отправлено' if attack.get('sent_at') else ''),
                       f'👤 {player} · 🏘 <code>{html.escape(origin)}</code>',
                       f'🎯 <code>{html.escape(destination)}</code> — {target_player}',
-                      f'{mode} · Волн: {int(attack.get("waves",0) or 0)}']+
-                     ([f'⏱ Смещение оффера: <b>{int(attack.get("offset",0)):+d} сек</b>'] if real_only else [])+[''])
+                      f'{mode} · Волн: {int(attack.get("waves",0) or 0)}',''])
         buttons.append([wave_button(f'{index}. '+(departure.strftime('%H:%M:%S') if departure else '⚠️')+f' · {origin} → {destination}',f'oa:{oid}:{aid}',attack)])
-    if not jobs:lines.append('В операции нет реальных отправок: захвата или уничтожения.' if real_only else 'В операции пока нет отправок.')
+    if not jobs:lines.append('В операции пока нет отправок.')
     nav=[]
     if page:nav.append(btn('⬅️ Назад',f'{action}:{oid}:{page-1}'))
     if page+1<pages:nav.append(btn('Дальше ➡️',f'{action}:{oid}:{page+1}'))
@@ -1812,6 +1867,7 @@ def main():
         try:send_reminders()
         except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()
+
 
 
 
