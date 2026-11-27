@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-27T18:09:30.156823+00:00",
+  "created_at": "2026-11-27T19:09:43.395651+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -7112,20 +7112,20 @@
       "6284198504": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 0,
+        "arena": 10,
         "army": {
           "troops": {
             "Вождь": 0,
-            "Дубинщик": 250,
-            "Катапульта": 0,
+            "Дубинщик": 14500,
+            "Катапульта": 550,
             "Копейщик": 0,
-            "Паладин": 120,
-            "Скаут": 10,
-            "Стенобитное орудие": 0,
-            "Тевтонская конница": 0,
+            "Паладин": 0,
+            "Скаут": 0,
+            "Стенобитное орудие": 534,
+            "Тевтонская конница": 2600,
             "Топорщик": 0
           },
-          "updated_at": "2026-10-11T08:54:32+03:00"
+          "updated_at": "2026-11-27T18:15:07+00:00"
         },
         "player": "Dinos",
         "player_id": 452,
@@ -7228,7 +7228,7 @@
       "926175327": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 10,
+        "arena": 12,
         "army": {
           "troops": {
             "Вождь": 0,
@@ -7437,14 +7437,14 @@
         "attacks": {
           "1": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "1",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "107|194",
             "wave_plan": [
@@ -7459,14 +7459,14 @@
           },
           "10": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "10",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -7697,14 +7697,14 @@
           },
           "11": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "11",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "196|84",
             "wave_plan": [
@@ -7719,14 +7719,14 @@
           },
           "12": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "12",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "21|60",
             "wave_plan": [
@@ -7741,14 +7741,14 @@
           },
           "127": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "127",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "107|194",
             "wave_plan": [
@@ -7763,14 +7763,14 @@
           },
           "128": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "128",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "11|36",
             "wave_plan": [
@@ -7785,42 +7785,42 @@
           },
           "129": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "129",
-            "mode": "spam",
+            "mode": "destroy",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "весь офф + все тараны + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               }
             ],
             "waves": 4
           },
           "13": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "13",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -7835,14 +7835,14 @@
           },
           "130": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "130",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "137|143",
             "wave_plan": [
@@ -7857,14 +7857,14 @@
           },
           "131": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "131",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -7885,14 +7885,14 @@
           },
           "132": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "132",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -7913,14 +7913,14 @@
           },
           "133": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "133",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -7941,14 +7941,14 @@
           },
           "134": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "134",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "190|178",
             "wave_plan": [
@@ -7963,14 +7963,14 @@
           },
           "135": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "135",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -7985,14 +7985,14 @@
           },
           "136": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "136",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -8007,14 +8007,14 @@
           },
           "137": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "137",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "196|84",
             "wave_plan": [
@@ -8029,14 +8029,14 @@
           },
           "138": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "138",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "21|60",
             "wave_plan": [
@@ -8051,14 +8051,14 @@
           },
           "139": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "139",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -8073,14 +8073,14 @@
           },
           "14": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "14",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -8101,14 +8101,14 @@
           },
           "140": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "140",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -8129,14 +8129,14 @@
           },
           "141": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "141",
             "mode": "capture",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "30|57",
             "wave_plan": [
@@ -8151,14 +8151,14 @@
           },
           "142": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "142",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "31|60",
             "wave_plan": [
@@ -8179,14 +8179,14 @@
           },
           "143": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "143",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "32|56",
             "wave_plan": [
@@ -8207,14 +8207,14 @@
           },
           "144": {
             "arena": 14,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "144",
             "mode": "spam",
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 0,
             "speed": 3,
             "target_key": "35|60",
             "wave_plan": [
@@ -8229,14 +8229,14 @@
           },
           "145": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "145",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "107|194",
             "wave_plan": [
@@ -8251,14 +8251,14 @@
           },
           "146": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "146",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "11|36",
             "wave_plan": [
@@ -8273,66 +8273,16 @@
           },
           "147": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "147",
-            "mode": "spam",
-            "offer_id": "304355451",
-            "offer_player": "deversant",
-            "offset": -1,
-            "speed": 3,
-            "target_key": "137|142",
-            "wave_plan": [
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              }
-            ],
-            "waves": 4
-          },
-          "148": {
-            "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
-            "comment": "",
-            "id": "148",
-            "mode": "spam",
-            "offer_id": "304355451",
-            "offer_player": "deversant",
-            "offset": -1,
-            "speed": 3,
-            "target_key": "137|143",
-            "wave_plan": [
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              }
-            ],
-            "waves": 2
-          },
-          "149": {
-            "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
-            "comment": "",
-            "id": "149",
             "mode": "destroy",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
-            "target_key": "183|95",
+            "target_key": "137|142",
             "wave_plan": [
               {
                 "text": "весь офф + все тараны + 220 катапульт"
@@ -8349,16 +8299,66 @@
             ],
             "waves": 4
           },
+          "148": {
+            "arena": 13,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "148",
+            "mode": "spam",
+            "offer_id": "304355451",
+            "offer_player": "deversant",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "137|143",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "149": {
+            "arena": 13,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "149",
+            "mode": "spam",
+            "offer_id": "304355451",
+            "offer_player": "deversant",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "183|95",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
           "15": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "15",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "30|57",
             "wave_plan": [
@@ -8373,14 +8373,14 @@
           },
           "150": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "150",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -8401,14 +8401,14 @@
           },
           "151": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "151",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -8429,14 +8429,14 @@
           },
           "152": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "152",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "190|178",
             "wave_plan": [
@@ -8451,14 +8451,14 @@
           },
           "153": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "153",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -8473,14 +8473,14 @@
           },
           "154": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "154",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -8495,14 +8495,14 @@
           },
           "155": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "155",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "196|84",
             "wave_plan": [
@@ -8517,14 +8517,14 @@
           },
           "156": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "156",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "21|60",
             "wave_plan": [
@@ -8539,14 +8539,14 @@
           },
           "157": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "157",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -8561,14 +8561,14 @@
           },
           "158": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "158",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -8589,14 +8589,14 @@
           },
           "159": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "159",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "30|57",
             "wave_plan": [
@@ -8611,14 +8611,14 @@
           },
           "16": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "16",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "31|60",
             "wave_plan": [
@@ -8639,14 +8639,14 @@
           },
           "160": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "160",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "31|60",
             "wave_plan": [
@@ -8667,14 +8667,14 @@
           },
           "161": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "161",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "32|56",
             "wave_plan": [
@@ -8695,14 +8695,14 @@
           },
           "162": {
             "arena": 13,
-            "arrival": "29.11.2026 06:59:59",
-            "arrival_iso": "2026-11-29T06:59:59+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "162",
             "mode": "spam",
             "offer_id": "304355451",
             "offer_player": "deversant",
-            "offset": -1,
+            "offset": 1,
             "speed": 3,
             "target_key": "35|60",
             "wave_plan": [
@@ -8895,14 +8895,14 @@
           },
           "17": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "17",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "32|56",
             "wave_plan": [
@@ -9161,14 +9161,14 @@
           },
           "18": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "18",
             "mode": "capture",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "35|60",
             "wave_plan": [
@@ -9205,14 +9205,14 @@
           },
           "181": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "181",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "107|194",
             "wave_plan": [
@@ -9227,14 +9227,14 @@
           },
           "182": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "182",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "11|36",
             "wave_plan": [
@@ -9249,42 +9249,42 @@
           },
           "183": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "183",
-            "mode": "spam",
+            "mode": "destroy",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "докатка 1000 пехоты + каты"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               }
             ],
             "waves": 4
           },
           "184": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "184",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "137|143",
             "wave_plan": [
@@ -9299,14 +9299,14 @@
           },
           "185": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "185",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -9327,14 +9327,14 @@
           },
           "186": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "186",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -9355,14 +9355,14 @@
           },
           "187": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "187",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -9383,14 +9383,14 @@
           },
           "188": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "188",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "190|178",
             "wave_plan": [
@@ -9405,14 +9405,14 @@
           },
           "189": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "189",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -9426,7 +9426,7 @@
             "waves": 2
           },
           "19": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -9449,14 +9449,14 @@
           },
           "190": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "190",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -9471,14 +9471,14 @@
           },
           "191": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "191",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "196|84",
             "wave_plan": [
@@ -9493,14 +9493,14 @@
           },
           "192": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "192",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "21|60",
             "wave_plan": [
@@ -9515,14 +9515,14 @@
           },
           "193": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "193",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -9537,14 +9537,14 @@
           },
           "194": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "194",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -9565,14 +9565,14 @@
           },
           "195": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "195",
             "mode": "capture",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "30|57",
             "wave_plan": [
@@ -9587,14 +9587,14 @@
           },
           "196": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "196",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "31|60",
             "wave_plan": [
@@ -9615,14 +9615,14 @@
           },
           "197": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "197",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "32|56",
             "wave_plan": [
@@ -9643,14 +9643,14 @@
           },
           "198": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
             "comment": "",
             "id": "198",
             "mode": "spam",
             "offer_id": "1741139004",
             "offer_player": "Smailik",
-            "offset": 0,
+            "offset": 1,
             "speed": 3,
             "target_key": "35|60",
             "wave_plan": [
@@ -9687,14 +9687,14 @@
           },
           "2": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "2",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "11|36",
             "wave_plan": [
@@ -9708,7 +9708,7 @@
             "waves": 2
           },
           "20": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -9974,7 +9974,7 @@
             "waves": 2
           },
           "21": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -10246,7 +10246,7 @@
             "waves": 4
           },
           "22": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -10506,7 +10506,7 @@
             "waves": 2
           },
           "23": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -10784,7 +10784,7 @@
             "waves": 4
           },
           "24": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11127,8 +11127,424 @@
             ],
             "waves": 2
           },
+          "253": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "253",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "107|194",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "254": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "254",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "11|36",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "255": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "255",
+            "mode": "destroy",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "137|142",
+            "wave_plan": [
+              {
+                "text": "весь офф + все тараны + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              }
+            ],
+            "waves": 4
+          },
+          "256": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "256",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "137|143",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "257": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "257",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "183|95",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "258": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "258",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "186|98",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "259": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "259",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "189|178",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "260": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "260",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "190|178",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "261": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "261",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "190|83",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "262": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "262",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "190|87",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "263": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "263",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "196|84",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "264": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "264",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "21|60",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "265": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "265",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "22|146",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "266": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "266",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "26|143",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "267": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "267",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "30|57",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "268": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "268",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "31|60",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "269": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "269",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "32|56",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
           "27": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11149,8 +11565,252 @@
             ],
             "waves": 2
           },
+          "270": {
+            "arena": 10,
+            "arrival": "29.11.2026 07:00:01",
+            "arrival_iso": "2026-11-29T07:00:01+00:00",
+            "comment": "",
+            "id": "270",
+            "mode": "spam",
+            "offer_id": "1704827799",
+            "offer_player": "НАТЕ111",
+            "offset": 1,
+            "speed": 3,
+            "target_key": "35|60",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "271": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "271",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "107|194",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "272": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "272",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "11|36",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "273": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "273",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "137|142",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "274": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "274",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "137|143",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "275": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "275",
+            "mode": "destroy",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "183|95",
+            "wave_plan": [
+              {
+                "text": "весь офф + все тараны + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              },
+              {
+                "text": "100 пехоты + 220 катапульт"
+              }
+            ],
+            "waves": 4
+          },
+          "276": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "276",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "186|98",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "277": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "277",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "189|178",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "278": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "278",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "190|178",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "279": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "279",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "190|83",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
           "28": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11171,8 +11831,224 @@
             ],
             "waves": 2
           },
+          "280": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "280",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "190|87",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "281": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "281",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "196|84",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "282": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "282",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "21|60",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "283": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "283",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "22|146",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "284": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "284",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "26|143",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "285": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "285",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "30|57",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
+          "286": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "286",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "31|60",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "287": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "287",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "32|56",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 4
+          },
+          "288": {
+            "arena": 12,
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "comment": "",
+            "id": "288",
+            "mode": "spam",
+            "offer_id": "926175327",
+            "offer_player": "Roland",
+            "offset": 0,
+            "speed": 3,
+            "target_key": "35|60",
+            "wave_plan": [
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              },
+              {
+                "text": "19 любых юнитов + 1 катапульта"
+              }
+            ],
+            "waves": 2
+          },
           "29": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11195,14 +12071,14 @@
           },
           "3": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "3",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
@@ -11222,7 +12098,7 @@
             "waves": 4
           },
           "30": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11244,7 +12120,7 @@
             "waves": 2
           },
           "31": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11266,7 +12142,7 @@
             "waves": 2
           },
           "32": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11294,7 +12170,7 @@
             "waves": 4
           },
           "33": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11316,7 +12192,7 @@
             "waves": 2
           },
           "34": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11344,7 +12220,7 @@
             "waves": 4
           },
           "35": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11372,7 +12248,7 @@
             "waves": 4
           },
           "36": {
-            "arena": 0,
+            "arena": 10,
             "arrival": "29.11.2026 07:00:00",
             "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
@@ -11467,14 +12343,14 @@
           },
           "4": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "4",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "137|143",
             "wave_plan": [
@@ -11727,28 +12603,28 @@
           },
           "5": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "5",
-            "mode": "spam",
+            "mode": "destroy",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "докатка 1000 пехоты + каты"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               },
               {
-                "text": "19 любых юнитов + 1 катапульта"
+                "text": "100 пехоты + 220 катапульт"
               }
             ],
             "waves": 4
@@ -11905,14 +12781,14 @@
           },
           "6": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "6",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -11953,56 +12829,6 @@
             ],
             "waves": 2
           },
-          "67": {
-            "arena": 0,
-            "arrival": "29.11.2026 06:59:57",
-            "arrival_iso": "2026-11-29T06:59:57+00:00",
-            "comment": "",
-            "id": "67",
-            "mode": "spam",
-            "offer_id": "907765051",
-            "offer_player": "Ruslan1980",
-            "offset": -3,
-            "speed": 3,
-            "target_key": "22|146",
-            "wave_plan": [
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              }
-            ],
-            "waves": 2
-          },
-          "68": {
-            "arena": 0,
-            "arrival": "29.11.2026 06:59:57",
-            "arrival_iso": "2026-11-29T06:59:57+00:00",
-            "comment": "",
-            "id": "68",
-            "mode": "spam",
-            "offer_id": "907765051",
-            "offer_player": "Ruslan1980",
-            "offset": -3,
-            "speed": 3,
-            "target_key": "26|143",
-            "wave_plan": [
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              },
-              {
-                "text": "19 любых юнитов + 1 катапульта"
-              }
-            ],
-            "waves": 4
-          },
           "69": {
             "arena": 0,
             "arrival": "29.11.2026 06:59:57",
@@ -12027,14 +12853,14 @@
           },
           "7": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "7",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -12133,14 +12959,14 @@
           },
           "73": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "73",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "107|194",
             "wave_plan": [
@@ -12155,14 +12981,14 @@
           },
           "74": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "74",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "11|36",
             "wave_plan": [
@@ -12177,14 +13003,14 @@
           },
           "75": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "75",
             "mode": "destroy",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "137|142",
             "wave_plan": [
@@ -12205,14 +13031,14 @@
           },
           "76": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "76",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "137|143",
             "wave_plan": [
@@ -12227,14 +13053,14 @@
           },
           "77": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "77",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -12255,14 +13081,14 @@
           },
           "78": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "78",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -12283,14 +13109,14 @@
           },
           "79": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "79",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -12311,14 +13137,14 @@
           },
           "8": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "8",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "190|178",
             "wave_plan": [
@@ -12333,14 +13159,14 @@
           },
           "80": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "80",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "190|178",
             "wave_plan": [
@@ -12355,14 +13181,14 @@
           },
           "81": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "81",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -12377,14 +13203,14 @@
           },
           "82": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "82",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -12399,14 +13225,14 @@
           },
           "83": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "83",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "196|84",
             "wave_plan": [
@@ -12421,14 +13247,14 @@
           },
           "84": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "84",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "21|60",
             "wave_plan": [
@@ -12443,14 +13269,14 @@
           },
           "85": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "85",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "22|146",
             "wave_plan": [
@@ -12465,14 +13291,14 @@
           },
           "86": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "86",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "26|143",
             "wave_plan": [
@@ -12493,14 +13319,14 @@
           },
           "87": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "87",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "30|57",
             "wave_plan": [
@@ -12515,14 +13341,14 @@
           },
           "88": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "88",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "31|60",
             "wave_plan": [
@@ -12543,14 +13369,14 @@
           },
           "89": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "89",
             "mode": "spam",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "32|56",
             "wave_plan": [
@@ -12571,14 +13397,14 @@
           },
           "9": {
             "arena": 14,
-            "arrival": "29.11.2026 07:00:00",
-            "arrival_iso": "2026-11-29T07:00:00+00:00",
+            "arrival": "29.11.2026 06:59:59",
+            "arrival_iso": "2026-11-29T06:59:59+00:00",
             "comment": "",
             "id": "9",
             "mode": "spam",
             "offer_id": "5846903291",
             "offer_player": "BlackSky",
-            "offset": 0,
+            "offset": -1,
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -12593,14 +13419,14 @@
           },
           "90": {
             "arena": 18,
-            "arrival": "29.11.2026 07:00:02",
-            "arrival_iso": "2026-11-29T07:00:02+00:00",
+            "arrival": "29.11.2026 07:00:00",
+            "arrival_iso": "2026-11-29T07:00:00+00:00",
             "comment": "",
             "id": "90",
             "mode": "capture",
             "offer_id": "880862977",
             "offer_player": "Котята",
-            "offset": 2,
+            "offset": 0,
             "speed": 3,
             "target_key": "35|60",
             "wave_plan": [
@@ -12848,7 +13674,7 @@
           "16"
         ],
         "id": "b80395e2d5124874",
-        "last_attack_id": 252,
+        "last_attack_id": 288,
         "name": "Операция №1",
         "offers": {
           "1279902812": {
@@ -12923,6 +13749,30 @@
             "x": 88,
             "y": 41
           },
+          "1704827799": {
+            "arena": 10,
+            "army_snapshot": {
+              "troops": {
+                "Императорская конница": 1027,
+                "Империанец": 2437,
+                "Конница Цезаря": 546,
+                "Конница легата": 222,
+                "Легионер": 167,
+                "Огненная катапульта": 383,
+                "Преторианец": 179,
+                "Сенатор": 1,
+                "Таран": 236
+              },
+              "updated_at": "2026-11-24T19:49:04+00:00"
+            },
+            "offset": 1,
+            "player": "НАТЕ111",
+            "save_points": [],
+            "telegram_id": 1704827799,
+            "village": "01",
+            "x": 168,
+            "y": 137
+          },
           "1741139004": {
             "arena": 14,
             "army_snapshot": {
@@ -12939,7 +13789,7 @@
               },
               "updated_at": "2026-11-24T14:57:05+00:00"
             },
-            "offset": 0,
+            "offset": 1,
             "player": "Smailik",
             "save_points": [],
             "telegram_id": 1741139004,
@@ -12987,7 +13837,7 @@
               },
               "updated_at": "2026-11-24T09:31:35+00:00"
             },
-            "offset": -1,
+            "offset": 1,
             "player": "deversant",
             "save_points": [],
             "telegram_id": 304355451,
@@ -13011,7 +13861,7 @@
               },
               "updated_at": "2026-11-24T09:32:27+00:00"
             },
-            "offset": -1,
+            "offset": 0,
             "player": "deversant",
             "save_points": [],
             "telegram_id": 304355451,
@@ -13059,7 +13909,7 @@
               },
               "updated_at": "2026-11-13T18:30:32+03:00"
             },
-            "offset": 0,
+            "offset": -1,
             "player": "BlackSky",
             "save_points": [],
             "telegram_id": 5846903291,
@@ -13068,7 +13918,7 @@
             "y": 3
           },
           "6284198504": {
-            "arena": 0,
+            "arena": 10,
             "army_snapshot": {
               "troops": {
                 "Вождь": 0,
@@ -13107,7 +13957,7 @@
               },
               "updated_at": "2026-11-24T12:39:44+00:00"
             },
-            "offset": 2,
+            "offset": 0,
             "player": "Котята",
             "save_points": [],
             "telegram_id": 880862977,
@@ -13139,6 +13989,30 @@
             "x": 10,
             "y": 8
           },
+          "926175327": {
+            "arena": 12,
+            "army_snapshot": {
+              "troops": {
+                "Вождь": 0,
+                "Дубинщик": 4500,
+                "Катапульта": 60,
+                "Копейщик": 0,
+                "Паладин": 0,
+                "Скаут": 0,
+                "Стенобитное орудие": 35,
+                "Тевтонская конница": 860,
+                "Топорщик": 0
+              },
+              "updated_at": "2026-11-09T09:06:30+03:00"
+            },
+            "offset": 0,
+            "player": "Roland",
+            "save_points": [],
+            "telegram_id": 926175327,
+            "village": "001",
+            "x": 30,
+            "y": 24
+          },
           "993572860": {
             "arena": 15,
             "army_snapshot": {
@@ -13164,7 +14038,11 @@
             "y": 52
           }
         },
-        "status": "draft",
+        "published_at": "2026-11-27T18:28:56+00:00",
+        "ready": {
+          "149949023": "2026-11-27T18:29:52+00:00"
+        },
+        "status": "published",
         "targets": {
           "107|194": {
             "alliance": "KIND",
