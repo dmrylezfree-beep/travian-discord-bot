@@ -691,12 +691,13 @@ def operation_departures(op):
 def operation_real_departures(op):
     def sort_key(item):
         departure,aid,attack=item
-        offer=op.get('offers',{}).get(attack.get('offer_id'),{})
+        target=op.get('targets',{}).get(attack.get('target_key'),{})
         def number(value):
             try:return int(value)
             except (TypeError,ValueError):return float('inf')
-        return (number(offer.get('x')),number(offer.get('y')),number(attack.get('offset',0)),
-                str(attack.get('offer_id','')),str(attack.get('target_key','')),number(aid),aid)
+        return (number(target.get('x')),number(target.get('y')),str(attack.get('target_key','')),
+                departure.timestamp() if departure else float('inf'),number(attack.get('offset',0)),
+                str(attack.get('offer_id','')),number(aid),aid)
     return sorted((item for item in operation_departures(op) if item[2].get('mode') in ('capture','destroy')),key=sort_key)
 
 
@@ -709,8 +710,9 @@ def op_departures(cid,oid,page=0,message_id=None,real_only=False):
     page_size=5;pages=max(1,(len(jobs)+page_size-1)//page_size)
     page=max(0,min(int(page),pages-1))
     lines=['⚔️ <b>Реальные отправки: захват и уничтожение</b>' if real_only else '🕐 <b>Все отправки по времени</b>',html.escape(str(op.get('name','Операция'))[:40]),
-           'По координатам отправления (X, затем Y), внутри — по смещению от минуса к плюсу.' if real_only else 'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
+           'По целям; внутри каждой цели — по времени отправки от раннего к позднему.' if real_only else 'От самой ранней к самой поздней.',TIME_NOTE,WAVE_LEGEND,f'Всего: {len(jobs)} · Страница {page+1}/{pages}','']
     buttons=[]
+    previous_target=None
     for index,(departure,aid,attack) in enumerate(jobs[page*page_size:(page+1)*page_size],page*page_size+1):
         offer=op.get('offers',{}).get(attack.get('offer_id'),{})
         target=op.get('targets',{}).get(attack.get('target_key'),{})
@@ -720,11 +722,14 @@ def op_departures(cid,oid,page=0,message_id=None,real_only=False):
         player=html.escape(str(offer.get('player') or attack.get('offer_player') or '?')[:40])
         target_player=html.escape(str(target.get('player') or '?')[:40])
         mode=html.escape(str(op_mode_name(attack.get('mode','?')))[:40])
+        if real_only and (previous_target is None or previous_target!=attack.get('target_key')):
+            lines.append(f'🎯 <b>Цель: {html.escape(destination)} — {target_player}</b>')
+            previous_target=attack.get('target_key')
         lines.extend([f'<b>{index}. {clock}</b>'+(' · ✅ Отправлено' if attack.get('sent_at') else ''),
                       f'👤 {player} · 🏘 <code>{html.escape(origin)}</code>',
                       f'🎯 <code>{html.escape(destination)}</code> — {target_player}',
                       f'{mode} · Волн: {int(attack.get("waves",0) or 0)}']+
-                     ([f'⏱ Смещение: <b>{int(attack.get("offset",0)):+d} сек</b>'] if real_only else [])+[''])
+                     ([f'⏱ Смещение оффера: <b>{int(attack.get("offset",0)):+d} сек</b>'] if real_only else [])+[''])
         buttons.append([wave_button(f'{index}. '+(departure.strftime('%H:%M:%S') if departure else '⚠️')+f' · {origin} → {destination}',f'oa:{oid}:{aid}',attack)])
     if not jobs:lines.append('В операции нет реальных отправок: захвата или уничтожения.' if real_only else 'В операции пока нет отправок.')
     nav=[]
@@ -1807,6 +1812,7 @@ def main():
         try:send_reminders()
         except Exception as e:print("reminder loop error",repr(e),flush=True)
 if __name__=="__main__":main()
+
 
 
 

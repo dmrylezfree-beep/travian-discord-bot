@@ -1299,9 +1299,17 @@ class RealOperationDepartureTests(unittest.TestCase):
    op['offers'][key]=dict(op['offers']['1'],x=x,y=y,telegram_id=1,offset=0)
   template=op['attacks']['real'];spec=[('1','east',-99,'destroy'),('2','low',0,'capture'),('3','west',5,'destroy'),('4','low',-10,'capture'),('5','low',-2,'destroy'),('6','high',-100,'capture'),('7','west',-999,'spam')]
   op['attacks']={aid:dict(template,id=aid,offer_id=offer,offset=offset,mode=mode) for aid,offer,offset,mode in spec}
+  op['targets']={'t':dict(x=-5,y=0,player='First'), 'other':dict(x=10,y=0,player='Second')}
+  # Separate target groups with interleaved departure times and offsets that
+  # deliberately disagree with chronological order.
+  for aid,hour in [('1',12),('2',10),('4',11),('3',9),('5',13),('6',8),('7',7)]:
+   a=op['attacks'][aid];a['target_key']='t' if aid in ('1','2','4','7') else 'other'
+   departure,_=o.op_travel(a,op)
+   travel=o.server_datetime(a['arrival_iso']).timestamp()-departure.timestamp()
+   a['arrival_iso']=o.shift_seconds(o.op_dt(f'02.01.2030 {hour:02d}:00:00'),travel).isoformat()
   op['attacks']['4']['sent_at']='done';o.save(o.OPERATIONS,{'op':op});return o.load(o.OPERATIONS)['op']
- def test_filter_and_numeric_origin_then_offset_order(self):
-  o=self.ops;op=self.fixture();self.assertEqual([j[1] for j in o.operation_real_departures(op)],['3','4','5','2','6','1'])
+ def test_filter_target_groups_then_departure_not_offset(self):
+  o=self.ops;op=self.fixture();self.assertEqual([j[1] for j in o.operation_real_departures(op)],['2','4','1','6','3','5'])
   o.show_op(1,'op');self.assertIn('opreal:op:0',str(self.sender.call_args))
  def test_pages_refresh_keep_filter_and_show_offsets_and_sent_state(self):
   o=self.ops;self.fixture();seen=[]
@@ -1314,7 +1322,13 @@ class RealOperationDepartureTests(unittest.TestCase):
     self.assertIn(f'opreal:op:{page}',links);self.assertFalse(any(x.startswith('opdepartures:') for x in links))
     seen.extend(x.rsplit(':',1)[1] for x in links if x.startswith('oa:'))
     if page==0:self.assertIn('-10 сек',d['text']);self.assertIn('Отправлено',d['text'])
-  self.assertEqual(seen,['3','4','5','2','6','1'])
+    self.assertIn('🎯 <b>Цель:',d['text']);self.assertIn('Смещение оффера:',d['text'])
+  self.assertEqual(seen,['2','4','1','6','3','5'])
+ def test_unknown_departure_last_within_target_and_speed_change_resorts(self):
+  o=self.ops;op=self.fixture();op['attacks']['2']['speed']=0
+  self.assertEqual([j[1] for j in o.operation_real_departures(op)],['4','1','2','6','3','5'])
+  op['attacks']['2']['speed']=3;op['attacks']['1']['speed']=1
+  self.assertEqual(o.operation_real_departures(op)[0][1],'1')
  def test_empty_real_list_and_edit_refresh(self):
   o=self.ops;op=self.fixture()
   for a in op['attacks'].values():a['mode']='spam'
@@ -1607,6 +1621,7 @@ class OperationCardWaveColorTests(unittest.TestCase):
   for count,badge in [(2,'🟣2'),(4,'🟡4')]:
    a['waves']=count;a['wave_plan']=[{'text':'fixture'} for _ in range(count)];o.save(o.OPERATIONS,{'op':self.op});o.personal_job(1,1,'op','before');text=self.sender.call_args.args[1]
    self.assertIn('Волн: '+badge+' · Спам',text);self.assertNotIn('🟡 Спам',text)
+
 
 
 
