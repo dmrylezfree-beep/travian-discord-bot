@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-27T13:08:34.083665+00:00",
+  "created_at": "2026-11-27T14:08:50.141121+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -7859,6 +7859,25 @@
         "village_id": 19027,
         "x": 19,
         "y": -32
+      },
+      "21|60": {
+        "alliance": "KIND",
+        "alliance_id": 16,
+        "alliance_snapshot": "map_2026-11-27.sql",
+        "comment": "",
+        "created_at": "2026-11-27T13:08:45+00:00",
+        "map_missing": false,
+        "player": "Hermanolinos",
+        "player_id": 1508,
+        "population": 749,
+        "priority": 1,
+        "tribe_id": 3,
+        "type": "Обычная",
+        "updated_at": "2026-11-27T13:08:45+00:00",
+        "village": "♤♤",
+        "village_id": 27604,
+        "x": 21,
+        "y": 60
       },
       "22|146": {
         "alliance": "KIND",
