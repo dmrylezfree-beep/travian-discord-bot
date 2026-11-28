@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "created_at": "2026-11-28T08:11:00.326725+00:00",
+  "created_at": "2026-11-28T09:11:19.069140+00:00",
   "documents": {
     "data/defence/players.json": {
       "1276571063": {
@@ -6753,7 +6753,7 @@
       "304355451": {
         "alliance": "Сокол",
         "alliance_id": 8,
-        "arena": 13,
+        "arena": 14,
         "army": {
           "troops": {
             "Вождь": 0,
@@ -7921,6 +7921,7 @@
             "offer_id": "304355451_b9ec9bb5",
             "offer_player": "deversant",
             "offset": 0,
+            "sent_at": "2026-11-28T09:01:02+00:00",
             "speed": 3,
             "target_key": "189|178",
             "wave_plan": [
@@ -8228,7 +8229,7 @@
             "waves": 2
           },
           "145": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8250,7 +8251,7 @@
             "waves": 2
           },
           "146": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8272,7 +8273,7 @@
             "waves": 2
           },
           "147": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8300,7 +8301,7 @@
             "waves": 4
           },
           "148": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8322,7 +8323,7 @@
             "waves": 2
           },
           "149": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8372,7 +8373,7 @@
             "waves": 2
           },
           "150": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8400,7 +8401,7 @@
             "waves": 4
           },
           "151": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8428,7 +8429,7 @@
             "waves": 4
           },
           "152": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8450,7 +8451,7 @@
             "waves": 2
           },
           "153": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8472,7 +8473,7 @@
             "waves": 2
           },
           "154": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8494,7 +8495,7 @@
             "waves": 2
           },
           "155": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8516,7 +8517,7 @@
             "waves": 2
           },
           "156": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8538,7 +8539,7 @@
             "waves": 2
           },
           "157": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8560,7 +8561,7 @@
             "waves": 2
           },
           "158": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8588,7 +8589,7 @@
             "waves": 4
           },
           "159": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8638,7 +8639,7 @@
             "waves": 4
           },
           "160": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8666,7 +8667,7 @@
             "waves": 4
           },
           "161": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -8694,7 +8695,7 @@
             "waves": 4
           },
           "162": {
-            "arena": 13,
+            "arena": 14,
             "arrival": "29.11.2026 09:00:01",
             "arrival_iso": "2026-11-29T09:00:01+00:00",
             "comment": "",
@@ -9213,6 +9214,7 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 1,
+            "reminder_sent_for": "2026-11-28T09:14:01+00:00",
             "speed": 3,
             "target_key": "107|194",
             "wave_plan": [
@@ -9307,6 +9309,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-28T08:46:23+00:00",
+            "reminder_sent_for": "2026-11-28T08:46:23+00:00",
+            "sent_at": "2026-11-28T08:46:57+00:00",
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -9335,6 +9340,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-28T08:21:49+00:00",
+            "reminder_sent_for": "2026-11-28T08:21:49+00:00",
+            "sent_at": "2026-11-28T08:22:15+00:00",
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -9413,6 +9421,9 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-28T08:18:41+00:00",
+            "reminder_sent_for": "2026-11-28T08:18:41+00:00",
+            "sent_at": "2026-11-28T08:19:16+00:00",
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -9457,6 +9468,7 @@
             "offer_id": "1741139004",
             "offer_player": "Smailik",
             "offset": 1,
+            "reminder_minute_sent_for": "2026-11-28T08:13:25+00:00",
             "reminder_sent_for": "2026-11-28T08:13:25+00:00",
             "speed": 3,
             "target_key": "190|87",
@@ -10530,6 +10542,9 @@
             "offer_id": "6284198504",
             "offer_player": "Dinos",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-28T09:08:31+00:00",
+            "reminder_sent_for": "2026-11-28T09:08:31+00:00",
+            "sent_at": "2026-11-28T09:08:56+00:00",
             "speed": 3,
             "target_key": "183|95",
             "wave_plan": [
@@ -10808,6 +10823,9 @@
             "offer_id": "6284198504",
             "offer_player": "Dinos",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-28T08:43:43+00:00",
+            "reminder_sent_for": "2026-11-28T08:43:43+00:00",
+            "sent_at": "2026-11-28T08:44:07+00:00",
             "speed": 3,
             "target_key": "186|98",
             "wave_plan": [
@@ -11571,6 +11589,9 @@
             "offer_id": "6284198504",
             "offer_player": "Dinos",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-28T08:42:14+00:00",
+            "reminder_sent_for": "2026-11-28T08:42:14+00:00",
+            "sent_at": "2026-11-28T08:47:26+00:00",
             "speed": 3,
             "target_key": "190|83",
             "wave_plan": [
@@ -11843,6 +11864,9 @@
             "offer_id": "6284198504",
             "offer_player": "Dinos",
             "offset": 0,
+            "reminder_minute_sent_for": "2026-11-28T08:36:35+00:00",
+            "reminder_sent_for": "2026-11-28T08:36:35+00:00",
+            "sent_at": "2026-11-28T08:37:28+00:00",
             "speed": 3,
             "target_key": "190|87",
             "wave_plan": [
@@ -13853,7 +13877,7 @@
             "y": 76
           },
           "304355451": {
-            "arena": 13,
+            "arena": 14,
             "army_snapshot": {
               "troops": {
                 "Вождь": 0,
@@ -14073,7 +14097,7 @@
         "ready": {
           "1420483474": "2026-11-27T20:27:38+00:00",
           "1704827799": "2026-11-28T05:16:02+00:00",
-          "304355451": "2026-11-27T20:32:35+00:00",
+          "304355451": "2026-11-28T09:03:10+00:00",
           "6284198504": "2026-11-28T06:40:49+00:00",
           "880862977": "2026-11-27T21:15:37+00:00",
           "907765051": "2026-11-28T01:01:47+00:00"
